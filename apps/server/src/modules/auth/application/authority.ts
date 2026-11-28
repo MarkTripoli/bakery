@@ -105,6 +105,7 @@ const organizationMinimumRoles = new Map<
   ],
   [ActionAccess.CurrentMember, OrganizationRole.Developer],
   [ActionAccess.CurrentMemberLinkingSelf, OrganizationRole.Developer],
+  [ActionAccess.AnyMemberLinkingSelf, OrganizationRole.Viewer],
   // Developer is the floor: the action's own guard raises the bar to Admin for
   // the organization-scope case, which a single role mapping cannot express.
   [

@@ -50,6 +50,16 @@ const CREATE_NOTE = {
     additionalProperties: false,
   },
 };
+const NOTE_STATUS = {
+  name: "note_status",
+  description: "poll a note request",
+  inputSchema: {
+    type: "object",
+    properties: { requestKey: { type: "string" } },
+    required: ["requestKey"],
+    additionalProperties: false,
+  },
+};
 const FIND_NOTE = {
   name: "find_note",
   description: "find a note",
@@ -135,8 +145,8 @@ async function world(
     pairedRead?: string;
     /** What the step's binding admits; defaults to the tool alone. */
     allowed?: string[];
-    /** Classify `find_note` as the read a reconcilable write is paired with. */
     withFindNote?: boolean;
+    asyncForm?: Record<string, unknown>;
   } = {},
 ) {
   const db = fixture.pgDatabase;
@@ -153,7 +163,7 @@ async function world(
   );
   await db.query(
     `insert into bakery.mcp_connections (id, organization_id, server_id, label, config, enabled_capabilities, status, current_snapshot_id, version)
-     values ($1, $2, $3, 'Docs', '{}'::jsonb, '["search","create_note","find_note"]'::jsonb, 'enabled', null, 1)`,
+     values ($1, $2, $3, 'Docs', '{}'::jsonb, '["search","create_note","find_note","note_status"]'::jsonb, 'enabled', null, 1)`,
     [connectionId, org, serverId],
   );
   await db.query(
@@ -163,7 +173,7 @@ async function world(
       snapshotId,
       org,
       connectionId,
-      JSON.stringify({ tools: [SEARCH, CREATE_NOTE, FIND_NOTE] }),
+      JSON.stringify({ tools: [SEARCH, CREATE_NOTE, FIND_NOTE, NOTE_STATUS] }),
       DIGEST,
     ],
   );
@@ -209,6 +219,13 @@ async function world(
       [org, connectionId, DIGEST, fixture.principalId],
     );
   }
+  if (options.asyncForm !== undefined) {
+    await db.query(
+      `insert into bakery.mcp_tool_classifications (organization_id, connection_id, tool_name, effect_class, snapshot_digest, classified_by)
+       values ($1, $2, 'note_status', 'read', $3, $4)`,
+      [org, connectionId, DIGEST, fixture.principalId],
+    );
+  }
   await db.query(
     `insert into bakery.workflow_definitions (id, organization_id, slug, name, enabled, version)
      values ($1, $2, $3, 'Pinned', true, 1)`,
@@ -221,8 +238,8 @@ async function world(
   );
   if (options.pinned !== false) {
     await db.query(
-      `insert into bakery.capability_bindings (organization_id, workflow_version_id, step_key, mcp_connection_id, mcp_snapshot_id, mcp_snapshot_digest, actor_ref, allowed_operations, required)
-       values ($1, $2, 'lookup', $3, $4, $5, null, $6::jsonb, true)`,
+      `insert into bakery.capability_bindings (organization_id, workflow_version_id, step_key, mcp_connection_id, mcp_snapshot_id, mcp_snapshot_digest, actor_ref, allowed_operations, required, mcp_async_form)
+       values ($1, $2, 'lookup', $3, $4, $5, null, $6::jsonb, true, $7::jsonb)`,
       [
         org,
         versionId,
@@ -230,6 +247,9 @@ async function world(
         snapshotId,
         DIGEST,
         JSON.stringify(options.allowed ?? [tool]),
+        options.asyncForm === undefined
+          ? null
+          : JSON.stringify(options.asyncForm),
       ],
     );
   }
@@ -566,6 +586,205 @@ Deno.test("a reconcilable write whose answer cannot be read is confirmed by its 
         : { structuredContent: { found: [] } },
   );
 });
+
+const ASYNC = {
+  tool: "create_note",
+  effectClass: "write_async",
+  keyArgument: "requestKey",
+  pairedRead: "note_status",
+  allowed: ["create_note", "note_status"],
+  asyncForm: {
+    kind: "submit_poll_v1",
+    effectKeyArgument: "requestKey",
+    pollTool: "note_status",
+  },
+};
+
+function polled(states: Record<string, unknown>[], submit: Answer) {
+  let poll = 0;
+  return (params: Record<string, unknown>) =>
+    params.name === "create_note"
+      ? submit(params)
+      : { structuredContent: states[Math.min(poll++, states.length - 1)] };
+}
+
+const effectKeyOf = (w: { runId: string }) => `${w.runId}:lookup@2:0`;
+
+Deno.test("an async write is submitted once under the step's key and completes when its poll succeeds (#439)", () =>
+  withRunner(
+    async (fixture, runner, server, w) => {
+      const req = request(
+        fixture,
+        w,
+        { text: "hello", requestKey: "authored" },
+        "lookup@2",
+        "create_note",
+      );
+      assertEquals((await runner.run(req)).kind, "pending");
+      assertEquals(
+        (await ledger(fixture)).map((r) => r.status),
+        ["uncertain"],
+      );
+      assertEquals((await runner.run(req)).kind, "pending");
+      const done = await runner.run(req);
+      assertEquals(done.kind, "completed");
+      assertEquals(
+        (done as { output: Record<string, unknown> }).output.result,
+        { url: "n/1" },
+      );
+      assertEquals(noteCalls(server, "create_note").length, 1);
+      assertEquals(noteCalls(server, "create_note")[0].params.arguments, {
+        text: "hello",
+        requestKey: effectKeyOf(w),
+      });
+      assertEquals(
+        noteCalls(server, "note_status").map((call) => call.params.arguments),
+        [{ requestKey: effectKeyOf(w) }, { requestKey: effectKeyOf(w) }],
+      );
+      const [row] = await fixture.pgDatabase.query<
+        { status: string; remote_id: string | null }
+      >(
+        `select status, remote_id from bakery.external_effects
+          where organization_id = $1`,
+        [fixture.organizationId],
+      ).then((r) => r.rows);
+      assertEquals(row, { status: "confirmed", remote_id: effectKeyOf(w) });
+      assertEquals(
+        (done as { output: Record<string, unknown> }).output.externalEffectId,
+        (await fixture.pgDatabase.query<{ id: string }>(
+          "select id from bakery.external_effects where organization_id = $1",
+          [fixture.organizationId],
+        )).rows[0].id,
+      );
+    },
+    ASYNC,
+    polled(
+      [{ state: "pending" }, { state: "succeeded", result: { url: "n/1" } }],
+      () => ({ structuredContent: { accepted: true } }),
+    ),
+  ));
+
+Deno.test("an async submit whose answer is lost is polled by its key and never sent again (#439)", () =>
+  withRunner(
+    async (fixture, runner, server, w) => {
+      const req = request(
+        fixture,
+        w,
+        { text: "hello" },
+        "lookup@2",
+        "create_note",
+      );
+      assertEquals((await runner.run(req)).kind, "pending");
+      assertEquals((await runner.run(req)).kind, "pending");
+      assertEquals((await runner.run(req)).kind, "completed");
+      assertEquals(noteCalls(server, "create_note").length, 1);
+      assertEquals(
+        noteCalls(server, "note_status").map((call) => call.params.arguments),
+        [{ requestKey: effectKeyOf(w) }, { requestKey: effectKeyOf(w) }],
+      );
+    },
+    ASYNC,
+    polled([{ state: "not_found" }, { state: "succeeded" }], () => null),
+  ));
+
+Deno.test("an async submit cut off by a crash before its answer was recorded is polled after restart, not sent again (#439)", () =>
+  withRunner(
+    async (fixture, runner, server, w) => {
+      const req = request(
+        fixture,
+        w,
+        { text: "hello" },
+        "lookup@2",
+        "create_note",
+      );
+      assertEquals((await runner.run(req)).kind, "pending");
+      await fixture.pgDatabase.query(
+        `update bakery.external_effects
+            set status = 'submitted', remote_id = null,
+                lease_expires_at = now() - interval '1 second'
+          where organization_id = $1`,
+        [fixture.organizationId],
+      );
+      assertEquals((await runner.run(req)).kind, "completed");
+      assertEquals(noteCalls(server, "create_note").length, 1);
+      assertEquals(
+        noteCalls(server, "note_status").map((call) => call.params.arguments),
+        [{ requestKey: effectKeyOf(w) }],
+      );
+    },
+    ASYNC,
+    polled(
+      [{ state: "succeeded" }],
+      () => ({ structuredContent: { accepted: true } }),
+    ),
+  ));
+
+Deno.test("an async poll that ends badly fails the step with a fixed code (#439)", async () => {
+  const endings: [Record<string, unknown>, string][] = [
+    [{ state: "failed" }, "async_poll_failed"],
+    [{ state: "canceled" }, "async_poll_canceled"],
+    [{ state: "failed", reason: "remote text" }, "async_poll_invalid"],
+    [{ state: "done" }, "async_poll_invalid"],
+  ];
+  for (const [ending, failure] of endings) {
+    await withRunner(
+      async (fixture, runner, server, w) => {
+        const req = request(
+          fixture,
+          w,
+          { text: "hello" },
+          "lookup@2",
+          "create_note",
+        );
+        assertEquals((await runner.run(req)).kind, "pending");
+        assertEquals(code(await runner.run(req)), "TOOL_CALL_EFFECT_FAILED");
+        assertEquals(noteCalls(server, "create_note").length, 1);
+        assertEquals(
+          (await ledger(fixture)).map((r) => [r.status, r.failure_code]),
+          [["failed", failure]],
+        );
+      },
+      ASYNC,
+      polled([ending], () => ({ structuredContent: { accepted: true } })),
+    );
+  }
+});
+
+Deno.test("an async write polls the poll frozen at publish even after an Admin repoints the classification (#439)", () =>
+  withRunner(
+    async (fixture, runner, server, w) => {
+      const req = request(
+        fixture,
+        w,
+        { text: "hello" },
+        "lookup@2",
+        "create_note",
+      );
+      assertEquals((await runner.run(req)).kind, "pending");
+      assertEquals((await runner.run(req)).kind, "completed");
+      assertEquals(noteCalls(server, "create_note").length, 1);
+      assertEquals(noteCalls(server, "note_status").length, 1);
+      assertEquals(noteCalls(server, "find_note").length, 0);
+    },
+    { ...ASYNC, pairedRead: "find_note", withFindNote: true },
+    polled(
+      [{ state: "succeeded" }],
+      () => ({ structuredContent: { accepted: true } }),
+    ),
+  ));
+
+Deno.test("an async write whose binding has no frozen poll is not sent (#439)", () =>
+  withRunner(
+    async (fixture, runner, server, w) => {
+      const result = await runner.run(
+        request(fixture, w, { text: "hello" }, "lookup@2", "create_note"),
+      );
+      assertEquals(code(result), "TOOL_CALL_MCP_ASYNC_UNPINNED");
+      assertEquals(server.sent.length, 0);
+      assertEquals((await ledger(fixture)).length, 0);
+    },
+    { ...ASYNC, asyncForm: undefined },
+  ));
 
 Deno.test("a reconcilable write whose paired read is not pinned to the step is not sent (#435)", () =>
   withRunner(

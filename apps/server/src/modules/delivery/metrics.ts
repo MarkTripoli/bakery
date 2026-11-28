@@ -19,6 +19,7 @@ import { requireWorkTransaction } from "../work/work-transaction.ts";
 import {
   cohortSummary,
   leadTimeHours,
+  percentile,
   readDeliveredTasks,
   type TaskTimeline,
   waitShares,
@@ -36,6 +37,7 @@ import {
 
 const DAY_MS = 86_400_000;
 const HOUR_MS = 3_600_000;
+const WEEK_MS = 7 * DAY_MS;
 const DEFAULT_SPAN_MS = 30 * DAY_MS;
 const MAX_SPAN_MS = 366 * DAY_MS;
 const MAX_POINTS = 1000;
@@ -158,7 +160,7 @@ export const METRIC_DEFINITIONS: Readonly<Record<MetricKey, Definition>> =
     [MetricKey.TaskLeadTime]: {
       unit: "hours",
       cohort:
-        "Tasks delivered in each period: from the first admitted run to the first merged pull request, else the last completed run",
+        "Nearest-rank median hours for tasks delivered in each period, from the first admitted run to the first merged pull request, else the last completed run",
       placedBy: "delivered",
     },
     [MetricKey.DeploymentFrequency]: {
@@ -209,11 +211,12 @@ export function measurementRevision(key: MetricKey): string {
   return revisionOf(key, METRIC_DEFINITIONS[key]);
 }
 
-export type Resolution = "minute" | "hour" | "day";
+export type Resolution = "minute" | "hour" | "day" | "week";
 const RESOLUTION_MS: Record<Resolution, number> = {
   minute: 60_000,
   hour: HOUR_MS,
   day: DAY_MS,
+  week: WEEK_MS,
 };
 
 export type MetricWindow = Readonly<{
@@ -257,6 +260,7 @@ export type PullRequestFact = Readonly<{
   id: string;
   repositoryId: string;
   taskId: string;
+  title: string;
   providerNumber: number;
   url: string;
   status: "open" | "closed" | "merged";
@@ -535,7 +539,6 @@ export function noDeployEvidence(window: MetricWindow): SeriesBody {
   };
 }
 
-/** Buckets placements into points; mean for hours and ratio, sum otherwise. */
 export function aggregate(
   key: MetricKey,
   placed: readonly Placement[],
@@ -546,6 +549,9 @@ export function aggregate(
   const sums = new Array<number>(window.buckets).fill(0);
   const known = new Array<number>(window.buckets).fill(0);
   const members = new Array<number>(window.buckets).fill(0);
+  const bucketSamples = key === MetricKey.TaskLeadTime
+    ? Array.from({ length: window.buckets }, () => [] as number[])
+    : null;
   const reasons = new Map<MissingReason, number>();
   let sample = 0;
   let stillOpen = 0;
@@ -563,6 +569,7 @@ export function aggregate(
     if (p.value === null) continue;
     sums[index] += p.value;
     known[index] += 1;
+    bucketSamples?.[index]?.push(p.value);
     sample += 1;
     if (
       key === MetricKey.MergeRate && p.value === 0 && p.fact?.status === "open"
@@ -588,13 +595,12 @@ export function aggregate(
     }
     sample = placed.filter((p) => p.value !== null).length;
   }
-  const mean = unit === "hours" || unit === "ratio";
+  const average = unit === "hours" || unit === "ratio";
   const points = sums.map((sum, index) => {
     const at = new Date(window.from.getTime() + index * window.bucketMs)
       .toISOString();
     if (known[index] === 0) {
-      // A count with no records is zero; a mean of nothing is unknown.
-      if (!mean && anyRead) {
+      if (!average && anyRead) {
         return members[index] === 0
           ? { at, value: 0, unknownReason: null }
           : { at, value: null, unknownReason: "no_known_values" as const };
@@ -607,7 +613,10 @@ export function aggregate(
           : "no_known_values" as const,
       };
     }
-    return { at, value: mean ? sum / known[index] : sum, unknownReason: null };
+    const value = bucketSamples === null
+      ? average ? sum / known[index] : sum
+      : percentile(bucketSamples[index]!, 0.5);
+    return { at, value, unknownReason: null };
   });
   if (stillOpen > 0) reasons.set("still_open", stillOpen);
   const missingReasons = [...reasons.entries()]
@@ -634,6 +643,7 @@ type FactRow = {
   id: string;
   repository_id: string;
   task_id: string;
+  title: string;
   provider_number: number;
   url: string;
   status: "open" | "closed" | "merged";
@@ -672,19 +682,23 @@ async function readFacts(
   window: MetricWindow,
 ): Promise<{ facts: PullRequestFact[]; lastObserved: Map<string, Date> }> {
   const found = await tx.query<FactRow>(
-    `select id, repository_id, task_id, provider_number, url, status,
-            opened_at, merged_at, closed_at, additions, deletions,
-            head_sha, last_observed_at
-       from bakery.pull_requests
-      where organization_id = $1
-        and ($2::uuid is null or repository_id = $2)
+    `select pr.id, pr.repository_id, pr.task_id, task.title,
+            pr.provider_number, pr.url, pr.status, pr.opened_at, pr.merged_at,
+            pr.closed_at, pr.additions, pr.deletions, pr.head_sha,
+            pr.last_observed_at
+       from bakery.pull_requests as pr
+       join bakery.tasks as task
+         on task.organization_id = pr.organization_id
+        and task.id = pr.task_id
+      where pr.organization_id = $1
+        and ($2::uuid is null or pr.repository_id = $2)
         and (
-          (opened_at < $4 and coalesce(merged_at, closed_at, $4) >= $3)
-          or (opened_at is null and created_at >= $3 and created_at < $4)
-          or (merged_at >= $3 and merged_at < $4)
-          or (closed_at >= $3 and closed_at < $4)
+          (pr.opened_at < $4 and coalesce(pr.merged_at, pr.closed_at, $4) >= $3)
+          or (pr.opened_at is null and pr.created_at >= $3 and pr.created_at < $4)
+          or (pr.merged_at >= $3 and pr.merged_at < $4)
+          or (pr.closed_at >= $3 and pr.closed_at < $4)
         )
-      order by id
+      order by pr.id
       limit $5`,
     [
       organizationId,
@@ -762,6 +776,7 @@ async function readFacts(
       id: row.id,
       repositoryId: row.repository_id,
       taskId: row.task_id,
+      title: row.title,
       providerNumber: Number(row.provider_number),
       url: row.url,
       status: row.status,
@@ -953,7 +968,7 @@ async function placementsFor(
 }
 
 /** The cursor time of a placement; an unknown one sorts after every known. */
-const UNKNOWN_TIME = "9999-12-31T23:59:59.999999Z";
+const UNKNOWN_TIME = "0001-01-01T00:00:00.000000Z";
 function cursorTime(p: Placement): string {
   return p.countedAt === null
     ? UNKNOWN_TIME
@@ -983,7 +998,7 @@ export function createMetricSourcesLister(secret: string) {
       action: "metrics.sources",
       principalId,
       organizationId,
-      ordering: "countedAt:asc,id:asc",
+      ordering: "countedAt:desc,id:desc",
       filters: JSON.stringify({
         metric: input.metric,
         from: window.from.toISOString(),
@@ -997,14 +1012,14 @@ export function createMetricSourcesLister(secret: string) {
     const rows = placed.sort((a, b) => {
       const [at, ai] = sortKey(a);
       const [bt, bi] = sortKey(b);
-      return at < bt ? -1 : at > bt ? 1 : ai < bi ? -1 : ai > bi ? 1 : 0;
+      return at > bt ? -1 : at < bt ? 1 : ai > bi ? -1 : ai < bi ? 1 : 0;
     });
     const after = position
       ? [String(position.createdAt), position.id] as const
       : null;
     const start = after === null ? 0 : rows.findIndex((p) => {
       const [t, id] = sortKey(p);
-      return t > after[0] || (t === after[0] && id > after[1]);
+      return t < after[0] || (t === after[0] && id < after[1]);
     });
     const page = start < 0 ? [] : rows.slice(start, start + limit);
     const last = page.at(-1);
@@ -1061,7 +1076,7 @@ function sourceRow(p: Placement) {
     openedAt: p.fact.openedAt?.toISOString() ?? null,
     mergedAt: p.fact.mergedAt?.toISOString() ?? null,
     closedAt: p.fact.closedAt?.toISOString() ?? null,
-    title: null,
+    title: p.fact.title,
     requestedAt: null,
     deliveredAt: null,
     deliveryPoint: null,

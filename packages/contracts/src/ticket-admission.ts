@@ -509,6 +509,19 @@ const policyLabelsShape = {
   hold: policyLabelName.describe(
     "Label that holds a ticket. It wins over every other label: an issue carrying it is never admitted and its request suspends.",
   ),
+  ids: z.object({
+    execute: providerLabelId.nullable().describe(
+      "Provider's stable id of the execute label, or null to match it by name.",
+    ),
+    planOnly: providerLabelId.nullable().describe(
+      "Provider's stable id of the planning-only label, or null to match it by name.",
+    ),
+    hold: providerLabelId.nullable().describe(
+      "Provider's stable id of the hold label, or null to match it by name.",
+    ),
+  }).strict().optional().describe(
+    "Stable provider ids of the three labels. A label with an id is matched by that id whenever the read names label ids, so renaming it on the provider keeps its meaning; without an id, or from a read that names no ids, it is matched by its exact name.",
+  ),
 };
 
 const policyApprovalShape = {
@@ -545,9 +558,15 @@ const policyLabelsSchema = z.object(policyLabelsShape).strict().refine(
   (labels) => {
     const names = [labels.execute, labels.hold];
     if (labels.planOnly !== null) names.push(labels.planOnly);
-    return new Set(names).size === names.length;
+    const ids = [labels.ids?.execute, labels.ids?.planOnly, labels.ids?.hold]
+      .filter((id): id is string => id !== null && id !== undefined);
+    return new Set(names).size === names.length &&
+      new Set(ids).size === ids.length;
   },
-  { message: "The execute, planning-only and hold labels must differ." },
+  {
+    message:
+      "The execute, planning-only and hold labels must differ, by name and by id.",
+  },
 ).describe(
   "Label display names that drive admission intent and hold; all must differ.",
 );
@@ -556,6 +575,14 @@ const policyCompletionSchema = z.enum(["task", "merged", "deployed_healthy"])
   .default("merged").describe(
     "What counts as delivery for this source's tickets: task (the run finished, for work that opens no pull request), merged (a registered pull request merged and none still open, or the run finished with no pull request registered, so there was nothing to merge; the default), or deployed_healthy (merged and healthy release evidence recorded). A planning-only request is always delivered when its run finishes. A closed issue or a pull request closed without a merge is never delivery.",
   );
+
+const policyOutcomeStatusesSchema = z.object({
+  delivered: providerOpaqueId.optional().describe(
+    "Provider status id Bakery sets on the ticket when its request is delivered; absent sets nothing.",
+  ),
+}).strict().optional().describe(
+  "Provider statuses Bakery sets on a ticket as its request reaches an outcome; absent sets none.",
+);
 
 const policyApprovalSchema = z.object(policyApprovalShape).strict().describe(
   "Approval checkpoints that gate a started run.",
@@ -608,6 +635,7 @@ export const TicketSourcePolicySchema = z.object({
   approval: policyApprovalSchema,
   completion: policyCompletionSchema,
   preset: policyPresetSchema,
+  outcomeStatuses: policyOutcomeStatusesSchema,
 }).strict().describe(
   "Strict, versioned ticket source policy as stored: label names, optional delegation, automatic admission window, readiness options, plan approval and preset. Data only; it holds no expression or URL.",
 );
@@ -639,6 +667,7 @@ export const TicketSourcePolicyInputSchema = z.object({
   approval: policyApprovalSchema,
   completion: policyCompletionSchema,
   preset: policyPresetSchema,
+  outcomeStatuses: policyOutcomeStatusesSchema,
 }).strict().describe(
   "Ticket source policy as a client submits it; identical to the stored policy except that automatic.since is optional, nullable and ignored.",
 );

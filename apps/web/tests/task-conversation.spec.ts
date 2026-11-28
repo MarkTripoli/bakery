@@ -172,6 +172,7 @@ const approval = (
   createdAt: stamp(12),
   updatedAt: stamp(12),
   version: 7,
+  mayDecide: true,
   ...extra,
 });
 const question = (extra: Record<string, unknown> = {}) => ({
@@ -201,7 +202,12 @@ const question = (extra: Record<string, unknown> = {}) => ({
   ...extra,
 });
 
-const problem = (status: number, code: string, retryable = false) => ({
+const problem = (
+  status: number,
+  code: string,
+  retryable = false,
+  reason?: string,
+) => ({
   type: "about:blank",
   title: code,
   status,
@@ -210,6 +216,7 @@ const problem = (status: number, code: string, retryable = false) => ({
   requestId: "00000000-0000-4000-8000-000000000110",
   traceId: "00000000-0000-4000-8000-000000000111",
   retryable,
+  ...(reason === undefined ? {} : { reason }),
 });
 
 const teammate = {
@@ -559,6 +566,11 @@ async function mockWorld(page: Page, state: World) {
     state.approvals = state.approvals.map((item) =>
       item.id === id ? decided : item
     );
+    if (body.decision === "approve") {
+      state.revisions = state.revisions.map((item) =>
+        item.id === found.subjectId ? { ...item, status: "approved" } : item
+      );
+    }
     return route.fulfill({ json: decided });
   });
   await page.route(
@@ -732,12 +744,27 @@ test("renders the transcript with attribution, plan, question and stage strip", 
     "step",
   );
   await expect(strip.locator('[data-stage="plan"]')).toContainText(
-    "Waits for your approval",
+    "Human approval",
   );
   await expect(strip.locator('[data-stage="implement"]')).toContainText(
     "Automatic",
   );
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+});
+
+test("the task page shows the short task id and copies the whole one", async ({ page, context }) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await open(page);
+  await showPlan(page);
+  const row = page.getByTestId("task-id-row");
+  await expect(row).toContainText("Task ID");
+  await expect(row).toContainText(taskId.slice(0, 8));
+  await expect(row).not.toContainText(taskId.slice(0, 9));
+  await row.getByRole("button", { name: "Copy" }).click();
+  await expect(row.getByRole("button", { name: "Copied" })).toBeVisible();
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
+    taskId,
+  );
 });
 
 test("the brief is not a synthetic transcript message", async ({ page }) => {
@@ -892,7 +919,7 @@ test("Start run right after approving still carries the approval id", async ({ p
           status: "ready",
           reasons: [],
         },
-      }].map(presetRead)),
+      }].map((preset) => presetRead(preset))),
     }));
   const runs: Record<string, unknown>[] = [];
   await page.route(`**/v1/tasks/${taskId}/runs`, (route) => {
@@ -981,10 +1008,19 @@ test("an accepted change request closes the form and the next revision is decida
     .toHaveCount(0);
 });
 
-test("reject records the decision and removes the controls", async ({ page }) => {
+const rejectDialog = (page: Page) => page.getByRole("alertdialog");
+
+test("reject asks first; cancelling records nothing, confirming records the decision", async ({ page }) => {
   const state = await open(page);
   await showPlan(page);
   await page.getByRole("button", { name: "Reject", exact: true }).click();
+  await expect(rejectDialog(page)).toContainText("Reject this plan?");
+  await rejectDialog(page).getByRole("button", { name: "Cancel" }).click();
+  await expect(rejectDialog(page)).toHaveCount(0);
+  expect(state.decisions).toHaveLength(0);
+  await page.getByRole("button", { name: "Reject", exact: true }).click();
+  await rejectDialog(page).getByRole("button", { name: "Reject", exact: true })
+    .click();
   await expect.poll(() => state.decisions.length).toBe(1);
   expect(state.decisions[0].body).toEqual({
     decision: "reject",
@@ -1020,6 +1056,159 @@ test("approving an obsolete revision is refused with a conflict and the new revi
   expect(state.decisions[1].id).toBe(approval(4).id);
   expect(state.decisions[1].body).toMatchObject({ expectedVersion: 2 });
 });
+
+test("an expired approval says so, and Approve again decides it", async ({ page }) => {
+  const state = world();
+  state.approvals = [
+    approval(3, {
+      status: "expired",
+      decision: "approve",
+      decidedBy: principalId,
+      decidedAt: stamp(13),
+      expiresAt: new Date(Date.parse(stamp(12)) + 7 * 86_400_000).toISOString(),
+    }),
+  ];
+  await open(page, state);
+  await showPlan(page);
+  await expect(plan(page)).toContainText("Approval expired");
+  await expect(plan(page)).toContainText("You approved version 3 on");
+  await expect(plan(page)).toContainText(
+    "An approval lasts 7 days, and no run started in that time.",
+  );
+  await expect(approve(page, 3)).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Reject", exact: true }))
+    .toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Request changes" }))
+    .toHaveCount(0);
+  await page.getByRole("button", { name: "Approve again" }).click();
+  await expect.poll(() => state.decisions.length).toBe(1);
+  expect(state.decisions[0].id).toBe(approval(3).id);
+  expect(state.decisions[0].body).toEqual({
+    decision: "approve",
+    expectedVersion: 7,
+  });
+  await expect(page.getByText("You approved plan, version 3")).toBeVisible();
+});
+
+test("an expired request nobody decided says so and offers Approve again", async ({ page }) => {
+  const state = world();
+  state.approvals = [
+    approval(3, {
+      status: "expired",
+      expiresAt: new Date(Date.parse(stamp(12)) + 7 * 86_400_000).toISOString(),
+    }),
+  ];
+  await open(page, state);
+  await showPlan(page);
+  await expect(plan(page)).toContainText(
+    "Nobody decided version 3 in time. An approval request lasts 7 days.",
+  );
+  await expect(page.getByRole("button", { name: "Approve again" }))
+    .toBeEnabled();
+});
+
+test("a person who may not decide sees no decision buttons and why", async ({ page }) => {
+  const state = world();
+  state.approvals = [approval(3, { mayDecide: false })];
+  await open(page, state);
+  await showPlan(page);
+  await expect(plan(page)).toContainText(
+    "Waiting for a developer on this task.",
+  );
+  await expect(approve(page, 3)).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Request changes" }))
+    .toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Reject", exact: true }))
+    .toHaveCount(0);
+});
+
+const refusals: readonly {
+  readonly name: string;
+  readonly status: number;
+  readonly code: string;
+  readonly reason?: string;
+  readonly after: (state: World) => void;
+  readonly text: string;
+}[] = [
+  {
+    name: "already decided",
+    status: 409,
+    code: "STATE_CONFLICT",
+    reason: "approval_decided",
+    after: (state) => {
+      state.approvals = [
+        approval(3, {
+          status: "answered",
+          decision: "approve",
+          decidedBy: otherPrincipalId,
+          version: 8,
+        }),
+      ];
+    },
+    text: "already decided this: Approved.",
+  },
+  {
+    name: "a newer version",
+    status: 409,
+    code: "STATE_CONFLICT",
+    reason: "approval_superseded",
+    after: (state) => {
+      state.revisions = [revision(3, "superseded"), revision(4)];
+      state.approvals = [
+        approval(3, { status: "superseded", version: 8 }),
+        approval(4, { version: 2 }),
+      ];
+    },
+    text: "There is a newer version. It is shown now.",
+  },
+  {
+    name: "withdrawn",
+    status: 409,
+    code: "STATE_CONFLICT",
+    reason: "approval_revoked",
+    after: (state) => {
+      state.approvals = [approval(3, { status: "revoked", version: 8 })];
+    },
+    text: "This request was withdrawn. Nothing waits for a decision.",
+  },
+  {
+    name: "closed while deciding",
+    status: 409,
+    code: "STATE_CONFLICT",
+    reason: "approval_unavailable",
+    after: () => {},
+    text:
+      "This request closed while you were deciding. The current state is shown.",
+  },
+  {
+    name: "outside the audience",
+    status: 404,
+    code: "RESOURCE_NOT_FOUND",
+    after: () => {},
+    text: "This decision is for the people on this task. Ask one of them.",
+  },
+];
+
+for (const refusal of refusals) {
+  test(`a refused decision says one plain sentence: ${refusal.name}`, async ({ page }) => {
+    const state = world();
+    state.decideReply = (route) => {
+      refusal.after(state);
+      return route.fulfill({
+        status: refusal.status,
+        contentType: "application/problem+json",
+        json: problem(refusal.status, refusal.code, false, refusal.reason),
+      });
+    };
+    await open(page, state);
+    await showPlan(page);
+    await approve(page, 3).click();
+    await expect(plan(page)).toContainText(refusal.text);
+    await expect(plan(page)).not.toContainText(
+      "This plan changed before your decision was recorded",
+    );
+  });
+}
 
 test("an unknown decision outcome retries the same key", async ({ page }) => {
   const state = world();
@@ -1071,6 +1260,8 @@ test("an unknown outcome on revision 3 never leaks into revision 4", async ({ pa
   ];
   await expect(approve(page, 4)).toBeEnabled({ timeout: 15_000 });
   await page.getByRole("button", { name: "Reject", exact: true }).click();
+  await rejectDialog(page).getByRole("button", { name: "Reject", exact: true })
+    .click();
   await expect.poll(() => state.decisions.length).toBe(2);
   expect(state.decisions[0].id).toBe(approval(3).id);
   expect(state.decisions[1].id).toBe(approval(4).id);
@@ -1569,6 +1760,32 @@ test.describe("route states", () => {
   });
 });
 
+test("the phone header carries the notifications bell", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await open(page);
+  await expect(
+    page.locator('[data-ui-region="task-conversation"]').getByRole("button", {
+      name: /^Notifications/,
+    }),
+  ).toBeVisible();
+  await page.mouse.move(200, 800);
+  await still(page, "phone-header-bell-conversation");
+});
+
+test("the wide header keeps the bell in the shell bar only", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await open(page);
+  await expect(page.getByRole("button", { name: /^Notifications/ }))
+    .toHaveCount(
+      1,
+    );
+  await expect(
+    page.locator('[data-ui-region="task-conversation"]').getByRole("button", {
+      name: /^Notifications/,
+    }),
+  ).toHaveCount(0);
+});
+
 for (const locale of ["en-XA", "ar-XB"]) {
   test(`conversation reflows at 320px in ${locale}`, async ({ page }) => {
     await page.addInitScript((value) => {
@@ -2016,16 +2233,48 @@ test("Plan first creates the task with a human-approved plan stage and starts no
   await expect(conversation(page)).toBeVisible();
 });
 
+type Subscribe = {
+  connection: number;
+  scopes: { type: string; id: string }[];
+};
+
 /** A scripted /v1/events server: hello, then a cursor for every subscribe. */
 type Stream = {
-  subscribes: Record<string, unknown>[];
+  connections: WebSocketRoute[];
+  subscribes: Subscribe[];
   push: () => void;
   drop: () => void;
 };
-async function mockStream(page: Page): Promise<Stream> {
+
+const scopesByConnection = (stream: Stream) => {
+  const byConnection = new Map<number, string[]>();
+  for (const subscribe of stream.subscribes) {
+    const scopes = byConnection.get(subscribe.connection) ?? [];
+    for (const scope of subscribe.scopes) {
+      const named = `${scope.type}:${scope.id}`;
+      expect(scopes).not.toContain(named);
+      scopes.push(named);
+    }
+    byConnection.set(subscribe.connection, scopes);
+  }
+  return [...byConnection.values()].map((scopes) => scopes.sort());
+};
+
+const shellAndConversationScopes = () =>
+  [
+    `conversation:${conversationId}`,
+    `inbox:${principalId}`,
+    `task:${taskId}`,
+  ].sort();
+async function mockStream(page: Page, openAfterMs = 0): Promise<Stream> {
   const connections: WebSocketRoute[] = [];
   const requests = new Map<WebSocketRoute, string>();
-  const stream: Stream = { subscribes: [], push: () => {}, drop: () => {} };
+  const stream: Stream = {
+    connections,
+    subscribes: [],
+    push: () => {},
+    drop: () => {},
+  };
   let sequence = 1;
   const cursor = (socket: WebSocketRoute) => {
     sequence += 1;
@@ -2036,7 +2285,8 @@ async function mockStream(page: Page): Promise<Stream> {
       highwater: String(sequence),
     }));
   };
-  await page.routeWebSocket(/\/v1\/events/, (socket) => {
+  await page.routeWebSocket(/\/v1\/events/, async (socket) => {
+    await new Promise((done) => setTimeout(done, openAfterMs));
     connections.push(socket);
     socket.send(JSON.stringify({
       type: "hello",
@@ -2048,7 +2298,10 @@ async function mockStream(page: Page): Promise<Stream> {
     socket.onMessage((message) => {
       const frame = JSON.parse(String(message)) as Record<string, unknown>;
       if (frame.type !== "subscribe") return;
-      stream.subscribes.push(frame);
+      stream.subscribes.push({
+        connection: connections.length,
+        scopes: frame.scopes as { type: string; id: string }[],
+      });
       requests.set(socket, String(frame.requestId));
       cursor(socket);
     });
@@ -2105,10 +2358,9 @@ test.describe("participants and live updates", () => {
     const stream = await mockStream(page);
     await open(page, state);
     await showPlan(page);
-    await expect.poll(() => stream.subscribes.length).toBe(1);
-    expect(stream.subscribes[0].scopes).toEqual([
-      { type: "task", id: taskId },
-      { type: "conversation", id: conversationId },
+    await expect.poll(() => stream.connections.length).toBe(1);
+    await expect.poll(() => scopesByConnection(stream)).toEqual([
+      shellAndConversationScopes(),
     ]);
     await expect(approve(page, 3)).toBeVisible();
     state.messages.push(
@@ -2136,12 +2388,25 @@ test.describe("participants and live updates", () => {
       .toBeChecked();
   });
 
+  test("scopes learnt while the live socket is still connecting are all subscribed", async ({ page }) => {
+    const errors: string[] = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    const stream = await mockStream(page, 2500);
+    await open(page, world({ participants: [teammate, me] }));
+    await expect.poll(() => scopesByConnection(stream), { timeout: 10_000 })
+      .toEqual([shellAndConversationScopes()]);
+    expect(errors).toEqual([]);
+  });
+
   test("a second participant's planning-only change shows live and survives a reconnect", async ({ page }) => {
     const state = world({ participants: [teammate, me] });
     const stream = await mockStream(page);
     await open(page, state);
     await showPlan(page);
-    await expect.poll(() => stream.subscribes.length).toBe(1);
+    await expect.poll(() => stream.connections.length).toBe(1);
+    await expect.poll(() => scopesByConnection(stream)).toEqual([
+      shellAndConversationScopes(),
+    ]);
     const toggle = page.getByRole("switch", { name: "Planning only" });
     await expect(toggle).not.toBeChecked();
     // The teammate turns planning-only on: delivered by the live event.
@@ -2153,8 +2418,12 @@ test.describe("participants and live updates", () => {
     stream.drop();
     await expect(page.locator('[data-ui-region="live-lost"]')).toBeVisible();
     state.task = { ...state.task, planningOnly: false, version: 5 };
-    await expect.poll(() => stream.subscribes.length, { timeout: 15_000 })
+    await expect.poll(() => stream.connections.length, { timeout: 15_000 })
       .toBe(2);
+    await expect.poll(() => scopesByConnection(stream)).toEqual([
+      shellAndConversationScopes(),
+      shellAndConversationScopes(),
+    ]);
     await expect(toggle).not.toBeChecked();
     await expect(page.locator('[data-ui-region="live-lost"]')).toHaveCount(0);
     // Reading never wrote: this participant sent no task update.
@@ -2165,14 +2434,21 @@ test.describe("participants and live updates", () => {
     const state = world({ participants: [teammate, me] });
     const stream = await mockStream(page);
     await open(page, state);
-    await expect.poll(() => stream.subscribes.length).toBe(1);
+    await expect.poll(() => stream.connections.length).toBe(1);
+    await expect.poll(() => scopesByConnection(stream)).toEqual([
+      shellAndConversationScopes(),
+    ]);
     stream.drop();
     await expect(page.locator('[data-ui-region="live-lost"]')).toBeVisible();
     state.messages.push(
       message(5, "user", "While you were away.", otherPrincipalId),
     );
-    await expect.poll(() => stream.subscribes.length, { timeout: 15_000 })
+    await expect.poll(() => stream.connections.length, { timeout: 15_000 })
       .toBe(2);
+    await expect.poll(() => scopesByConnection(stream)).toEqual([
+      shellAndConversationScopes(),
+      shellAndConversationScopes(),
+    ]);
     await expect(page.getByRole("log").getByText("While you were away."))
       .toBeVisible();
     await expect(page.locator('[data-ui-region="live-lost"]')).toHaveCount(0);
@@ -2210,7 +2486,10 @@ test.describe("participants and live updates", () => {
     const state = world({ participants: [teammate, me] });
     const stream = await mockStream(page);
     await open(page, state);
-    await expect.poll(() => stream.subscribes.length).toBe(1);
+    await expect.poll(() => stream.connections.length).toBe(1);
+    await expect.poll(() => scopesByConnection(stream)).toEqual([
+      shellAndConversationScopes(),
+    ]);
     const box = page.getByRole("textbox", { name: "Message this task" });
     await box.fill("Not yet");
     state.messages.push(message(6, "user", "From Dana.", otherPrincipalId));
@@ -2768,7 +3047,7 @@ async function openStartRun(
         steps: [{ id: "implement", uses: "harness.implement" }],
         defaultBudgetLimitUsd: "5.00",
         availability: { minimumBudgetLimitUsd: null, ...availability },
-      }].map(presetRead)),
+      }].map((preset) => presetRead(preset))),
     }));
   await firstRender(
     () => page.goto(`/tasks/${taskId}`),
@@ -2920,6 +3199,159 @@ test("a press on a task with no repository profile focuses the notice and sends 
     ),
   ).toBeFocused();
   expect(runs).toHaveLength(0);
+});
+
+test("an expired approval hides Start a run, and Approve again brings it back", async ({ page }) => {
+  const state = world({
+    approvals: [
+      approval(3, {
+        status: "expired",
+        decision: "approve",
+        decidedBy: principalId,
+        decidedAt: stamp(13),
+        expiresAt: new Date(Date.parse(stamp(12)) + 7 * 86_400_000)
+          .toISOString(),
+      }),
+    ],
+  });
+  await mockWorld(page, state);
+  await page.route("**/v1/workflow-presets*", (route) =>
+    route.fulfill({
+      json: page_([{
+        id: "fixed-coding",
+        revision: 1,
+        digest: "a".repeat(64),
+        nameKey: "workflowPresets.fixedCoding.name",
+        steps: [{ id: "implement", uses: "harness.implement" }],
+        defaultBudgetLimitUsd: "5.00",
+        availability: {
+          minimumBudgetLimitUsd: null,
+          status: "ready",
+          reasons: [],
+        },
+      }].map((preset) => presetRead(preset))),
+    }));
+  await firstRender(
+    () => page.goto(`/tasks/${taskId}`),
+    (timeout) => expect(conversation(page)).toBeVisible({ timeout }),
+  );
+  await expect(page.locator('[data-ui-region="start-run"]')).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Start run", exact: true }))
+    .toHaveCount(0);
+  await showPlan(page);
+  await expect(plan(page)).toContainText("Approval expired");
+  await page.getByRole("button", { name: "Approve again" }).click();
+  await expect(page.locator('[data-ui-region="start-run"]')).toBeVisible();
+  await still(page, "task-plan-approved-again");
+  await expect(page.getByRole("button", { name: "Start run", exact: true }))
+    .toBeVisible();
+});
+
+test("still: an expired approval on a task already under way", async ({ page }) => {
+  test.skip(!process.env.BAKERY_STILLS_DIR, "BAKERY_STILLS_DIR is not set");
+  const state = world({
+    task: { ...baseTask, status: "active" },
+    approvals: [
+      approval(3, {
+        status: "expired",
+        decision: "approve",
+        decidedBy: principalId,
+        decidedAt: stamp(13),
+        expiresAt: new Date(Date.parse(stamp(12)) + 7 * 86_400_000)
+          .toISOString(),
+      }),
+    ],
+  });
+  await mockWorld(page, state);
+  await firstRender(
+    () => page.goto(`/tasks/${taskId}`),
+    (timeout) => expect(conversation(page)).toBeVisible({ timeout }),
+  );
+  await showPlan(page);
+  await expect(plan(page)).toContainText("Approval expired");
+  await still(page, "task-plan-approval-expired");
+  await page.getByRole("button", { name: "Approve again" }).click();
+  await expect(page.getByText("You approved plan, version 3.")).toBeVisible();
+  await expect(page.getByText(/Start the run when you are ready/)).toHaveCount(
+    0,
+  );
+  await still(page, "task-plan-approved-again-underway");
+});
+
+test("a Start run press that beats the expiry says the approval expired", async ({ page }) => {
+  const state = world();
+  await mockWorld(page, state);
+  await page.route("**/v1/workflow-presets*", (route) =>
+    route.fulfill({
+      json: page_([{
+        id: "fixed-coding",
+        revision: 1,
+        digest: "a".repeat(64),
+        nameKey: "workflowPresets.fixedCoding.name",
+        steps: [{ id: "implement", uses: "harness.implement" }],
+        defaultBudgetLimitUsd: "5.00",
+        availability: {
+          minimumBudgetLimitUsd: null,
+          status: "ready",
+          reasons: [],
+        },
+      }].map((preset) => presetRead(preset))),
+    }));
+  const runs: unknown[] = [];
+  await page.route(`**/v1/tasks/${taskId}/runs`, (route) => {
+    if (route.request().method() !== "POST") return route.fallback();
+    runs.push(route.request().postDataJSON());
+    state.approvals = [
+      approval(3, {
+        status: "expired",
+        decision: "approve",
+        decidedBy: principalId,
+        decidedAt: stamp(13),
+        expiresAt: new Date(Date.parse(stamp(12)) + 7 * 86_400_000)
+          .toISOString(),
+      }),
+    ];
+    return route.fulfill({
+      status: 409,
+      contentType: "application/problem+json",
+      json: problem(409, "STATE_CONFLICT", false, "approval_expired"),
+    });
+  });
+  await firstRender(
+    () => page.goto(`/tasks/${taskId}`),
+    (timeout) => expect(conversation(page)).toBeVisible({ timeout }),
+  );
+  await showPlan(page);
+  await approve(page, 3).click();
+  await expect(page.getByText("You approved plan, version 3")).toBeVisible();
+  const sheet = page.locator('[data-ui-region="plan-sheet"]');
+  if (await sheet.isVisible()) {
+    await page.keyboard.press("Escape");
+    await expect(sheet).toBeHidden();
+  }
+  await page.getByRole("combobox", { name: /^Workflow/ }).selectOption({
+    label: "Fixed coding",
+  });
+  await page.getByRole("button", { name: "Start run", exact: true }).click();
+  await expect(
+    page.getByText(
+      "This approval expired, so the run did not start. Approve the plan again, then start the run.",
+    ),
+  ).toBeVisible();
+  await expect(page.getByText(/Check the setup below/)).toHaveCount(0);
+  expect(runs).toHaveLength(1);
+  await page.reload();
+  await expect(
+    page.getByText(
+      "This approval expired, so the run did not start. Approve the plan again, then start the run.",
+    ),
+  ).toBeVisible();
+  await expect(page.locator('[data-ui-region="start-run"]')).toContainText(
+    "This approval expired",
+  );
+  await expect(page.getByRole("button", { name: "Start run", exact: true }))
+    .toHaveCount(0);
+  await still(page, "task-start-run-approval-expired");
 });
 
 test("still: Start run pressed with a requirement missing", async ({ page }) => {
@@ -3123,6 +3555,30 @@ test("the keys: arrows move, Enter chooses, Escape closes and keeps the text", a
   await expect(box).toHaveValue("@Samir Okafor ");
 });
 
+test("the message field owns the picker: a textbox with the listbox as its active-descendant while it shows", async ({ page }) => {
+  await open(page);
+  const box = messageBox(page);
+  await expect(box).toHaveAttribute("aria-autocomplete", "list");
+  await expect(box).not.toHaveAttribute("aria-controls", /.+/);
+  await expect(box).not.toHaveAttribute("aria-activedescendant", /.+/);
+  await box.fill("@");
+  const listbox = page.getByRole("listbox");
+  await expect(listbox).toBeVisible();
+  await expect(box).toHaveAttribute(
+    "aria-controls",
+    await listbox.getAttribute("id"),
+  );
+  const active = await box.getAttribute("aria-activedescendant");
+  expect(active).not.toBeNull();
+  await expect(page.locator(`[id="${active}"]`)).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await box.press("Escape");
+  await expect(box).not.toHaveAttribute("aria-controls", /.+/);
+  await expect(box).not.toHaveAttribute("aria-activedescendant", /.+/);
+});
+
 test("editing the inserted name drops its chip; the chip's button takes the @ name off; a typed @name mentions nobody", async ({ page }) => {
   const state = await open(page);
   const box = messageBox(page);
@@ -3139,8 +3595,7 @@ test("editing the inserted name drops its chip; the chip's button takes the @ na
   await page.getByRole("option", { name: "Ana Ruiz", exact: true }).click();
   await page.getByRole("button", { name: "Remove mention of Ana Ruiz" })
     .click();
-  await expect(box).not.toHaveValue(/@Ana Ruiz/);
-  // A name typed by hand is just text.
+  await expect(box).toHaveValue("Hi Ana Ruiz ");
   await box.fill("Thanks @Ana Ruiz");
   await expect(page.getByText("Will be notified")).toHaveCount(0);
   await page.getByRole("button", { name: "Send", exact: true }).click();
@@ -3945,4 +4400,510 @@ test("a change to someone's access is said plainly, and the link is for people w
   await expect(reader.getByRole("button", { name: /added by a mention/ }))
     .toHaveCount(0);
   await reader.close();
+});
+
+const requestFixture = (extra: Record<string, unknown> = {}) => ({
+  id: "00000000-0000-4000-8000-000000000701",
+  runId,
+  stepKey: "build.review",
+  questionId: null,
+  artifactVersionId: null,
+  intent: "fyi",
+  recipient: { principalId, displayName: "Alex Builder" },
+  askedBy: { principalId: otherPrincipalId, displayName: "Dana Teammate" },
+  askedByKind: "person",
+  note: null,
+  neededBy: null,
+  status: "open",
+  expiresAt: "2026-02-08T10:00:00.000Z",
+  ownerFallback: false,
+  fallbackForName: null,
+  audience: null,
+  createdAt: stamp(20),
+  updatedAt: stamp(20),
+  version: 1,
+  nextAsk: null,
+  passedOn: false,
+  ...extra,
+});
+
+const OLDER_RUN = "00000000-0000-4000-8000-000000000077";
+
+async function openRequests(
+  page: Page,
+  requests: Record<string, unknown>[],
+  overrides: Partial<World> = {},
+  setup: {
+    readonly runListStatus?: number;
+    readonly olderRun?: Record<string, unknown>;
+  } = {},
+) {
+  const restarts: unknown[] = [];
+  const reads = { current: 0, older: 0 };
+  const state = world({
+    task: { ...baseTask, status: "active", currentRunId: runId },
+    revisions: [],
+    approvals: [],
+    questions: [],
+    ...overrides,
+  });
+  await mockWorld(page, state);
+  await page.route(
+    `**/v1/runs/${runId}`,
+    (route) => route.fulfill({ json: runFixture("running") }),
+  );
+  await page.route(
+    `**/v1/runs/${runId}/steps*`,
+    (route) => route.fulfill({ json: page_([stepFixture]) }),
+  );
+  await page.route(
+    (url) => url.pathname === `/v1/tasks/${taskId}/runs`,
+    (route) =>
+      setup.runListStatus === undefined
+        ? route.fulfill({
+          json: setup.olderRun === undefined
+            ? page_([runFixture("running")])
+            : new URL(route.request().url()).searchParams.has("cursor")
+            ? page_([{ ...runFixture("completed"), id: OLDER_RUN }])
+            : { items: [runFixture("running")], nextCursor: "older" },
+        })
+        : route.fulfill({
+          status: setup.runListStatus,
+          contentType: "application/problem+json",
+          json: problem(setup.runListStatus, "AUTH_FORBIDDEN"),
+        }),
+  );
+  await page.route(
+    `**/v1/runs/${OLDER_RUN}/requests/mine`,
+    (route) => {
+      reads.older += 1;
+      return route.fulfill({
+        json: { requests: setup.olderRun ? [setup.olderRun] : [] },
+      });
+    },
+  );
+  await page.route(
+    `**/v1/runs/${runId}/requests/mine`,
+    (route) => {
+      reads.current += 1;
+      return route.fulfill({ json: { requests } });
+    },
+  );
+  await page.route(
+    "**/v1/artifacts?*",
+    (route) => route.fulfill({ json: page_([patchArtifact]) }),
+  );
+  await page.route(
+    `**/v1/artifacts/${patchArtifact.id}/versions*`,
+    (route) =>
+      route.fulfill({
+        json: page_([
+          versionFixture(
+            patchArtifact,
+            patchArtifact.currentVersionId,
+            2,
+            "text/x-diff",
+            40,
+          ),
+        ]),
+      }),
+  );
+  await page.route(
+    `**/v1/runs/${runId}/steps/build.review/takeover`,
+    (route) => {
+      restarts.push(route.request().postDataJSON());
+      return route.fulfill({ json: stepFixture });
+    },
+  );
+  await page.goto(`/tasks/${taskId}`);
+  const asked = page.locator('[data-ui-region="requests-for-you"]');
+  await expect(asked).toBeVisible();
+  return { asked, restarts, reads };
+}
+
+test.describe("what someone was asked, on the task page", () => {
+  test("a review request opens the version it asks about", async ({ page }) => {
+    const { asked } = await openRequests(page, [
+      requestFixture({
+        intent: "review",
+        artifactVersionId: patchArtifact.currentVersionId,
+        note: "Please check the retry path.",
+      }),
+    ]);
+    await expect(asked).toContainText("Dana Teammate asked you to review");
+    await expect(asked).toContainText("Please check the retry path.");
+    await expect(asked.getByRole("link", { name: "Open the document" }))
+      .toHaveAttribute(
+        "href",
+        new RegExp(
+          `/tasks/${taskId}/artifacts/${patchArtifact.id}\\?version=${patchArtifact.currentVersionId}`,
+        ),
+      );
+    await still(page, "request-review");
+  });
+
+  test("a request an agent made says it is the agent's action", async ({ page }) => {
+    const { asked } = await openRequests(page, [
+      requestFixture({ intent: "fyi", askedByKind: "agent" }),
+      requestFixture({
+        id: "00000000-0000-4000-8000-000000000899",
+        intent: "fyi",
+      }),
+    ]);
+    const items = asked.locator("[data-request-id]");
+    await expect(items.first()).toContainText("Agent's action");
+    await expect(items.nth(1)).not.toContainText("Agent's action");
+    await still(page, "request-agent-action", asked);
+  });
+
+  test("an answer request goes to the question", async ({ page }) => {
+    const { asked } = await openRequests(page, [
+      requestFixture({ intent: "answer", questionId: question().id }),
+    ], { questions: [question()] });
+    await asked.getByRole("button", { name: "Go to the question" }).click();
+    await expect(page.locator(`[data-question-id="${question().id}"]`).first())
+      .toBeFocused();
+  });
+
+  test("a take over request starts the step again with the note", async ({ page }) => {
+    const { asked, restarts } = await openRequests(page, [
+      requestFixture({ intent: "take_over" }),
+    ]);
+    await asked.getByRole("textbox", { name: /Note for the step/ })
+      .fill("Use the new key.");
+    await asked.getByRole("button", { name: "Start the step again" }).click();
+    await expect.poll(() => restarts).toEqual([
+      { mode: "restart", note: "Use the new key." },
+    ]);
+  });
+
+  test("someone who cannot list runs still sees what they were asked", async ({ page }) => {
+    const { asked } = await openRequests(page, [requestFixture()], {}, {
+      runListStatus: 403,
+    });
+    await expect(asked).toContainText("Dana Teammate wants you to see this");
+    await expect(page.getByText("What you were asked did not load."))
+      .toHaveCount(0);
+  });
+
+  test("answering closes the request without a reload", async ({ page }) => {
+    const request = requestFixture({
+      intent: "answer",
+      questionId: question().id,
+    });
+    const { asked } = await openRequests(page, [request], {
+      questions: [question()],
+    });
+    await asked.getByRole("button", { name: "Go to the question" }).click();
+    const card = page.locator(
+      `[data-ui-component="questionCard"][data-question-id="${question().id}"]`,
+    );
+    await card.getByRole("radio", { name: "Bakery only" }).check();
+    request.status = "answered";
+    await card.getByRole("button", { name: "Send answer" }).click();
+    await hidePlan(page);
+    await expect(asked).toContainText("You answered this.");
+    await expect(asked.getByRole("button", { name: "Go to the question" }))
+      .toHaveCount(0);
+  });
+
+  test("approving closes the request without a reload", async ({ page }) => {
+    const request = requestFixture({
+      intent: "approve",
+      questionId: approval(1).id,
+    });
+    const { asked } = await openRequests(page, [request], {
+      approvals: [
+        approval(1, {
+          subjectType: "run_step",
+          subjectId: runId,
+          runId,
+          scope: { stage: "step" },
+        }),
+      ],
+    });
+    await asked.getByRole("button", { name: "Review and decide" }).click();
+    const pane = page.locator('[data-ui-region="step-approval"]');
+    await expect(pane).toBeVisible();
+    request.status = "answered";
+    await page.getByRole("button", { name: "Approve", exact: true }).click();
+    await expect(asked).toContainText("You answered this.");
+  });
+
+  test("a request on an older run is still shown", async ({ page }) => {
+    const { asked } = await openRequests(page, [requestFixture()], {}, {
+      olderRun: requestFixture({
+        id: "00000000-0000-4000-8000-000000000709",
+        runId: OLDER_RUN,
+        intent: "review",
+        artifactVersionId: patchArtifact.currentVersionId,
+        note: "From last week.",
+      }),
+    });
+    await expect(asked).toContainText("From last week.");
+  });
+
+  test("information only asks nothing, so it names no deadline", async ({ page }) => {
+    const { asked } = await openRequests(page, [requestFixture()]);
+    await expect(asked).toContainText("Nothing to do.");
+    await expect(asked).not.toContainText("Silence is never approval.");
+  });
+
+  test("a run list that fails is said, with a way to try again", async ({ page }) => {
+    const { asked } = await openRequests(page, [requestFixture()], {}, {
+      runListStatus: 500,
+    });
+    await expect(asked).toContainText("Dana Teammate wants you to see this");
+    await expect(page.getByText("What you were asked did not load."))
+      .toBeVisible();
+    await expect(page.getByRole("button", { name: "Try again" }).first())
+      .toBeVisible();
+  });
+
+  test("a chat message re-reads only runs that can have changed", async ({ page }) => {
+    const { asked, reads } = await openRequests(page, [requestFixture()], {}, {
+      olderRun: requestFixture({
+        id: "00000000-0000-4000-8000-000000000709",
+        runId: OLDER_RUN,
+        status: "handled",
+        note: "Done last week.",
+      }),
+    });
+    await expect(asked).toContainText("Done last week.");
+    const before = { ...reads };
+    await page.getByRole("textbox", { name: "Message this task" })
+      .fill("Any news?");
+    await page.getByRole("button", { name: "Send", exact: true }).click();
+    await expect.poll(() => reads.current).toBeGreaterThan(before.current);
+    expect(reads.older).toBe(before.older);
+  });
+
+  test("an FYI and the closed states say where things stand", async ({ page }) => {
+    const { asked } = await openRequests(page, [
+      requestFixture({
+        audience: { roleKey: null, groupId: null, name: "Design reviewers" },
+      }),
+      requestFixture({
+        id: "00000000-0000-4000-8000-000000000702",
+        intent: "approve",
+        status: "expired",
+      }),
+      requestFixture({
+        id: "00000000-0000-4000-8000-000000000703",
+        intent: "review",
+        status: "withdrawn",
+      }),
+      requestFixture({
+        id: "00000000-0000-4000-8000-000000000704",
+        intent: "answer",
+        status: "handled",
+      }),
+    ]);
+    await expect(asked).toContainText(
+      "Dana Teammate wants Design reviewers to see this",
+    );
+    await expect(asked).toContainText("Nothing to do.");
+    await expect(asked).toContainText(
+      "Expired: nobody answered by Feb 8, 2026.",
+    );
+    await expect(asked).toContainText("Dana Teammate withdrew this request.");
+    await expect(asked).toContainText("This has been handled.");
+    await expect(asked.getByRole("button")).toHaveCount(0);
+    await still(page, "request-closed");
+  });
+});
+
+const waitingRequest = (extra: Record<string, unknown> = {}) => ({
+  id: "00000000-0000-4000-8000-000000000801",
+  runId,
+  stepKey: "build.ask",
+  questionId: null,
+  artifactVersionId: null,
+  intent: "review",
+  recipient: { principalId: otherPrincipalId, displayName: "Dana Teammate" },
+  askedBy: null,
+  askedByKind: "workflow",
+  note: null,
+  neededBy: null,
+  status: "open",
+  expiresAt: "2026-02-08T10:00:00.000Z",
+  ownerFallback: false,
+  fallbackForName: null,
+  audience: null,
+  createdAt: stamp(20),
+  updatedAt: stamp(20),
+  version: 1,
+  nextAsk: null,
+  passedOn: false,
+  ...extra,
+});
+
+async function openWaiting(page: Page, requests: unknown[], status = 200) {
+  await page.route(
+    `**/v1/runs/${runId}/requests`,
+    (route) =>
+      status === 200 ? route.fulfill({ json: { requests } }) : route.fulfill({
+        status,
+        contentType: "application/problem+json",
+        json: problem(status, "INTERNAL_ERROR"),
+      }),
+  );
+  await page.route(
+    (url) => url.pathname === `/v1/tasks/${taskId}/runs`,
+    (route) => route.fulfill({ json: page_([runFixture("running")]) }),
+  );
+  await openRun(page, "running");
+  return page.locator('[data-ui-region="waiting-for"]');
+}
+
+test.describe("who a run is waiting for", () => {
+  test("the run says who is asked, who is next and when it expires", async ({ page }) => {
+    const waiting = await openWaiting(page, [
+      waitingRequest({
+        nextAsk: {
+          dueAt: "2026-02-02T12:00:00.000Z",
+          askedAt: null,
+          who: "Administrators",
+        },
+      }),
+    ]);
+    await expect(waiting).toContainText("Waiting for Dana Teammate.");
+    await expect(waiting).toContainText("Administrators will be asked.");
+    await expect(waiting).toContainText("Expires Feb 8, 2026.");
+    await still(page, "run-waiting-next");
+    const help = waiting.getByRole("button", { name: "About expiry" });
+    await help.scrollIntoViewIfNeeded();
+    await page.evaluate(() =>
+      new Promise((settled) =>
+        requestAnimationFrame(() => requestAnimationFrame(settled))
+      )
+    );
+    await help.click();
+    await expect(
+      page.getByText("Bakery never treats silence as approval."),
+    ).toBeVisible();
+  });
+
+  test("a passed on request and a missing name are both said", async ({ page }) => {
+    const waiting = await openWaiting(page, [
+      waitingRequest({
+        nextAsk: {
+          dueAt: "2026-02-02T12:00:00.000Z",
+          askedAt: "2026-02-02T12:01:00.000Z",
+          who: "Lee Reviewer",
+        },
+      }),
+      waitingRequest({
+        id: "00000000-0000-4000-8000-000000000802",
+        recipient: {
+          principalId: principalId,
+          displayName: "Lee Reviewer",
+        },
+        passedOn: true,
+        createdAt: "2026-02-02T12:01:00.000Z",
+        fallbackForName: "Design reviewers",
+      }),
+    ]);
+    await expect(waiting).toContainText("Dana Teammate did not answer.");
+    await expect(waiting).toContainText("The request went to Lee Reviewer at");
+    await expect(waiting).toContainText(
+      "Design reviewers could not be found, so the workflow owner, Lee Reviewer, was asked instead.",
+    );
+    await still(page, "run-waiting-passed");
+  });
+
+  test("an expired request says the run needs a person", async ({ page }) => {
+    const waiting = await openWaiting(page, [
+      waitingRequest({ status: "expired" }),
+    ]);
+    await expect(waiting).toContainText(
+      /Expired: nobody answered by Feb 8, 2026\./,
+    );
+    await still(page, "run-waiting-expired");
+  });
+
+  test("a run nobody answered in time ends needing a person", async ({ page }) => {
+    await page.route(
+      `**/v1/runs/${runId}/requests`,
+      (route) =>
+        route.fulfill({
+          json: { requests: [waitingRequest({ status: "expired" })] },
+        }),
+    );
+    await page.route(
+      (url) => url.pathname === `/v1/tasks/${taskId}/runs`,
+      (route) => route.fulfill({ json: page_([runFixture("needs_human")]) }),
+    );
+    for (
+      const pattern of [
+        "**/v1/runs/*/delivery-decisions*",
+        "**/v1/runs/*/reviews*",
+        "**/v1/runs/*/checks*",
+        "**/v1/approvals?*",
+        "**/v1/pull-requests?*",
+      ]
+    ) {
+      await page.route(pattern, (route) => route.fulfill({ json: page_([]) }));
+    }
+    await openRun(page, "needs_human", {
+      capabilities: ["pause", "resume", "cancel", "interrupt"].map((
+        action,
+      ) => ({
+        action,
+        canRequest: false,
+        reason: "already_terminal",
+      })),
+    }, [{
+      ...stepFixture,
+      stepKey: "build.ask",
+      iteration: 0,
+      status: "needs_human",
+      output: { outcome: "expired", asked: 1 },
+    }], { finishedAt: "2026-02-08T10:00:00.000Z" });
+    await expect(page.getByText("Needs input", { exact: true }).first())
+      .toBeVisible();
+    await expect(page.locator('[data-ui-region="waiting-for"]')).toContainText(
+      "Expired: nobody answered by Feb 8, 2026. This run needs a person.",
+    );
+    await expect(page.locator('[data-ui-region="steering-unsupported"]'))
+      .toHaveCount(0);
+    await expect(page.getByText("A run is in progress.")).toHaveCount(0);
+    await still(page, "run-needs-human");
+  });
+
+  for (const status of [403, 404]) {
+    test(`a reader refused with ${status} sees nothing and no error`, async ({ page }) => {
+      const refused = page.waitForResponse((response) =>
+        response.url().endsWith(`/v1/runs/${runId}/requests`)
+      );
+      const waiting = await openWaiting(page, [], status);
+      expect((await refused).status()).toBe(status);
+      await expect(page.getByRole("heading", { name: "Current run" }))
+        .toBeVisible();
+      await expect(waiting).toHaveCount(0);
+      await expect(page.getByText("Who this run is waiting for did not load."))
+        .toHaveCount(0);
+    });
+  }
+
+  test("two waiting steps are captioned like the step list", async ({ page }) => {
+    const waiting = await openWaiting(page, [
+      waitingRequest({ stepKey: "plan.ask" }),
+      waitingRequest({
+        id: "00000000-0000-4000-8000-000000000803",
+        stepKey: "implement",
+      }),
+    ]);
+    await expect(waiting).toContainText("Plan ask");
+    await expect(waiting).toContainText("Implement");
+  });
+
+  test("a failed read is said with its own way to load it again", async ({ page }) => {
+    await openWaiting(page, [], 500);
+    await expect(
+      page.getByText("Who this run is waiting for did not load."),
+    ).toBeVisible();
+    await expect(page.getByRole("button", { name: "Load it again" }))
+      .toBeVisible();
+  });
 });

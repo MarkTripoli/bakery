@@ -5,8 +5,11 @@ import { integrationClientCredentialsQueryOptions } from "../api/query.ts";
 import { failureStatus, isForbiddenFailure } from "../app/async-state.ts";
 import { useSingleFlightSubmit } from "../app/auth-form.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
+import { useArrivalScroll } from "../app/arrival-scroll.ts";
 import {
   EMPTY_PROVIDER_CREDENTIALS,
+  NO_PROVIDER_CREDENTIALS_FAILURE,
+  type ProviderCredentialsFailure,
   ProviderCredentialsSection,
   type ProviderCredentialsStatus,
   type ProviderCredentialValues,
@@ -19,7 +22,12 @@ import {
  * as typed until the save succeeds.
  */
 export function InstallationProviderCredentials(
-  { provider, guideUrl }: { provider: string; guideUrl?: string },
+  { provider, guideUrl, connectAvailable, signingSecret }: {
+    provider: string;
+    guideUrl?: string;
+    connectAvailable?: boolean;
+    signingSecret?: boolean;
+  },
 ) {
   const api = useBakeryApi();
   const scope = useProtectedScope();
@@ -35,6 +43,9 @@ export function InstallationProviderCredentials(
   );
   const [status, setStatus] = useState<ProviderCredentialsStatus>("idle");
   const [forbidden, setForbidden] = useState(false);
+  const [failure, setFailure] = useState<ProviderCredentialsFailure>(
+    NO_PROVIDER_CREDENTIALS_FAILURE,
+  );
   useEffect(() => {
     setValues(EMPTY_PROVIDER_CREDENTIALS);
     setStatus("idle");
@@ -43,18 +54,17 @@ export function InstallationProviderCredentials(
   const loaded = credentials.data;
   const [, save] = useSingleFlightSubmit(async () => {
     const current = values;
-    // The secret leaves the form before the request does. The client ID is not a
-    // secret: it stays as typed, so a failed save costs one field to re-enter.
+    const signing = current.signingSecret.trim();
     setValues({ ...EMPTY_PROVIDER_CREDENTIALS, clientId: current.clientId });
+    setFailure(NO_PROVIDER_CREDENTIALS_FAILURE);
     setStatus("saving");
     const started = scope.sessionGeneration;
     const result = await api.integrationClientCredentials.put({
       provider,
       input: {
         clientId: current.clientId.trim(),
-        // Pasted from a provider page, a secret often carries a trailing space or
-        // newline, which the server refuses: trim it as the client ID is trimmed.
         clientSecret: current.clientSecret.trim(),
+        ...(signing === "" ? {} : { signingSecret: signing }),
       },
       ...(loaded && loaded.configured ? { version: loaded.version } : {}),
       idempotencyKey: crypto.randomUUID(),
@@ -74,13 +84,24 @@ export function InstallationProviderCredentials(
     }
     const code = failureStatus(result.error);
     if (code === 412 || code === 428) {
-      // Someone saved first: show what is stored now, and nothing of what was typed.
       setValues(EMPTY_PROVIDER_CREDENTIALS);
       setStatus("stale");
       await credentials.refetch();
       return;
     }
-    // Any other failure saved nothing: the form stays open with the client ID kept.
+    const issues = result.error.kind === "problem"
+      ? result.error.problem.issues ?? []
+      : [];
+    setFailure({
+      signingSecretSent: signing !== "",
+      signingSecretRefused: issues.some((issue) =>
+        issue.path.endsWith("signingSecret")
+      ) ||
+        (result.error.kind === "problem" &&
+          (result.error.problem.issueCodes ?? []).includes(
+            "invalid_signing_secret",
+          )),
+    });
     setStatus("failed");
   });
   const view = forbidden || (credentials.isError &&
@@ -91,8 +112,10 @@ export function InstallationProviderCredentials(
     : loaded
     ? "ready"
     : "loading";
+  useArrivalScroll(provider, view === "ready");
   return (
     <ProviderCredentialsSection
+      connectAvailable={connectAvailable}
       guideUrl={guideUrl}
       onChange={(field, value) =>
         setValues((current) => ({ ...current, [field]: value }))}
@@ -103,11 +126,14 @@ export function InstallationProviderCredentials(
       onReload={() => void credentials.refetch()}
       onSubmit={() => void save()}
       provider={provider}
+      signingSecret={signingSecret}
+      failure={failure}
       saved={loaded
         ? {
           configured: loaded.configured,
           clientId: loaded.clientId,
           clientSecretSavedAt: loaded.clientSecretSavedAt,
+          signingSecretSavedAt: loaded.signingSecretSavedAt,
           callbackUrl: loaded.callbackUrl,
         }
         : null}

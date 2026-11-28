@@ -290,7 +290,7 @@ export type ScopeProfile = z.output<typeof ScopeProfileSchema>;
 
 export type ScopeProfileResolutionInput = {
   organizationId: string;
-  applicationId: string;
+  applicationId: string | null;
   profile:
     | (ScopeProfile & { applicationId?: string })
     | null;

@@ -1,5 +1,5 @@
 {
-  "revision": "6fe4479550eeff7b15baa03aee29c2bb21473a411b6f3ca13c6dea5a62306c8f",
+  "revision": "7dfb572ea14bb9d2c61e5ecfa4e1c7699fd758efc3695692e790c493d75e0b15",
   "schemaVersion": 1,
   "owner": "Mark Tripoli",
   "rules": [
@@ -6305,6 +6305,120 @@
       }
     },
     {
+      "id": "ui.taskSetupNotice",
+      "name": "TaskSetupNotice",
+      "description": "Explains why a workflow cannot start using one shared, focusable warning in the task composer and task page.",
+      "level": "molecule",
+      "owner": "Mark Tripoli",
+      "storyTitle": "Bakery/Molecules/TaskSetupNotice",
+      "usage": {
+        "whenToUse": "Display the server's setup reasons beside a blocked workflow start; pass the composer-only No workflow guidance as nextStep.",
+        "whenNotToUse": "Use InlineNotice for unrelated warnings or AlertBanner for page-level conditions.",
+        "ruleIds": [
+          "ui.semantic-import",
+          "ui.layout-containment",
+          "ui.accessible-control",
+          "ui.translated-copy"
+        ],
+        "alternatives": [],
+        "replacesElements": [],
+        "allowedLevels": [
+          "molecule",
+          "organism",
+          "template",
+          "page",
+          "app"
+        ]
+      },
+      "paper": [],
+      "paperAbsentReason": "The approved #67 design addendum specifies this shared warning without a separate Paper frame.",
+      "a11y": {
+        "role": "none",
+        "accessibleName": "none",
+        "keyboard": [
+          "Blocked Start moves focus to the warning"
+        ],
+        "notes": "The inner InlineNotice receives focus and the existing focus ring. One reason is a sentence; several reasons retain server order in a list."
+      },
+      "tokens": [
+        "--color-fg",
+        "--space-0",
+        "--space-2",
+        "--space-5"
+      ],
+      "variants": [
+        "warning"
+      ],
+      "states": [
+        "default"
+      ],
+      "themes": [
+        "light",
+        "dark"
+      ],
+      "layoutProfiles": [
+        "sheet",
+        "pane",
+        "rail"
+      ],
+      "pointerProfiles": [
+        "coarse",
+        "fine"
+      ],
+      "requirementIds": [
+        "theme.paired",
+        "layout.reflow",
+        "pointer.independent",
+        "a11y.semantic-focus",
+        "i18n.translated-logical"
+      ],
+      "requiredCases": [
+        {
+          "id": "contract",
+          "description": "Shows one reason as a sentence and several in server order with optional composer guidance.",
+          "variants": [
+            "warning"
+          ],
+          "states": [
+            "default"
+          ],
+          "baselineIds": []
+        }
+      ],
+      "evidenceRefs": [
+        "design.components"
+      ],
+      "status": "implemented",
+      "coverage": {
+        "automated": {
+          "theme:light": [
+            "runtime:ui.taskSetupNotice.contract.desktop-light-fine"
+          ],
+          "theme:dark": [
+            "suite:storybook.canonical-dark-axe"
+          ],
+          "layout:sheet": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:pane": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:rail": [
+            "runtime:ui.taskSetupNotice.contract.desktop-light-fine"
+          ],
+          "pointer:fine": [
+            "runtime:ui.taskSetupNotice.contract.desktop-light-fine"
+          ]
+        },
+        "notApplicable": {
+          "pointer:coarse": "The notice has no pointer-only action; blocked Start stays a native button."
+        },
+        "visualContexts": [
+          "desktop-light-fine"
+        ]
+      }
+    },
+    {
       "id": "ui.alertBanner",
       "name": "AlertBanner",
       "description": "Announces a persistent page-level condition with a clear recovery action.",
@@ -6866,6 +6980,123 @@
           "desktop-light-fine"
         ]
       }
+    },
+    {
+      "id": "ui.spinner",
+      "name": "Spinner",
+      "description": "A small turning ring beside a line that says what is being waited for; it stays still under reduced motion and is hidden from screen readers.",
+      "level": "atom",
+      "owner": "Mark Tripoli",
+      "storyTitle": "Bakery/Atoms/Spinner",
+      "usage": {
+        "whenToUse": "Mark a wait with no known end beside a line of text that says what is awaited.",
+        "whenNotToUse": "Do not use it alone, for a wait with a known length, or to reserve the layout of content that is loading (use Skeleton).",
+        "ruleIds": [
+          "ui.semantic-import",
+          "ui.layout-containment",
+          "ui.accessible-control",
+          "ui.translated-copy"
+        ],
+        "alternatives": [
+          {
+            "when": "The wait reserves layout for content to come",
+            "use": "ui.skeleton"
+          }
+        ],
+        "replacesElements": [],
+        "allowedLevels": [
+          "atom",
+          "molecule",
+          "organism",
+          "template",
+          "page",
+          "app"
+        ]
+      },
+      "paper": [],
+      "a11y": {
+        "accessibleName": "none",
+        "keyboard": []
+      },
+      "tokens": [
+        "--border-default",
+        "--color-border",
+        "--color-fg-muted",
+        "--duration-transition",
+        "--space-3-5"
+      ],
+      "variants": [
+        "default"
+      ],
+      "states": [
+        "loading"
+      ],
+      "themes": [
+        "light",
+        "dark"
+      ],
+      "layoutProfiles": [
+        "sheet",
+        "pane",
+        "rail"
+      ],
+      "pointerProfiles": [
+        "coarse",
+        "fine"
+      ],
+      "requirementIds": [
+        "theme.paired",
+        "layout.reflow",
+        "pointer.independent",
+        "a11y.semantic-focus",
+        "i18n.translated-logical"
+      ],
+      "requiredCases": [
+        {
+          "id": "contract",
+          "description": "Exercises the documented Spinner states across required contexts.",
+          "variants": [
+            "default"
+          ],
+          "states": [
+            "loading"
+          ],
+          "baselineIds": []
+        }
+      ],
+      "evidenceRefs": [
+        "design.components"
+      ],
+      "status": "implemented",
+      "coverage": {
+        "automated": {
+          "theme:light": [
+            "runtime:ui.spinner.contract.desktop-light-fine"
+          ],
+          "theme:dark": [
+            "suite:storybook.canonical-dark-axe"
+          ],
+          "layout:sheet": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:pane": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:rail": [
+            "runtime:ui.spinner.contract.desktop-light-fine"
+          ],
+          "pointer:fine": [
+            "runtime:ui.spinner.contract.desktop-light-fine"
+          ]
+        },
+        "notApplicable": {
+          "pointer:coarse": "Spinner renders no interactive target, so coarse-pointer hit-area behavior does not apply."
+        },
+        "visualContexts": [
+          "desktop-light-fine"
+        ]
+      },
+      "paperAbsentReason": "Designed in the #70 UX design revision 2 (comment 7087868212); no Paper frame names it."
     },
     {
       "id": "ui.emptyState",
@@ -8007,7 +8238,7 @@
         "--type-control"
       ],
       "variants": [
-        "default"
+        "default", "row"
       ],
       "states": [
         "closed",
@@ -8038,7 +8269,7 @@
           "id": "contract",
           "description": "Exercises the documented Disclosure states across required contexts: closed and open.",
           "variants": [
-            "default"
+            "default", "row"
           ],
           "states": [
             "closed",
@@ -20350,6 +20581,120 @@
           ],
           "pointer:fine": [
             "runtime:ui.segmentedBar.contract.desktop-light-fine"
+          ],
+          "pointer:coarse": [
+            "suite:storybook.coarse-targets"
+          ]
+        },
+        "notApplicable": {},
+        "visualContexts": [
+          "desktop-light-fine"
+        ]
+      },
+      "paperAbsentReason": "Designed in the UX design comment on issue 75, not in Paper; the Paper manifests have no segmented or stacked bar."
+    },
+    {
+      "id": "ui.lineChart",
+      "name": "LineChart",
+      "description": "A line over time with named gaps where nothing was measured, so a gap is never drawn as zero.",
+      "level": "molecule",
+      "owner": "Mark Tripoli",
+      "storyTitle": "Bakery/Molecules/LineChart",
+      "usage": {
+        "whenToUse": "A single measure over time where missing stretches must stay visible as named gaps.",
+        "whenNotToUse": "Keep content verification, authorization, and mutation orchestration in the caller.",
+        "ruleIds": [
+          "ui.semantic-import",
+          "ui.layout-containment",
+          "ui.accessible-control",
+          "ui.translated-copy"
+        ],
+        "alternatives": [],
+        "replacesElements": [],
+        "allowedLevels": [
+          "organism",
+          "template",
+          "page",
+          "app"
+        ]
+      },
+      "paper": [],
+      "a11y": {
+        "role": "img",
+        "accessibleName": "aria-label",
+        "keyboard": [],
+        "notes": "The chart is a picture named by the caller; its description and the table the caller offers are the content."
+      },
+      "tokens": [
+        "--border-emphasis",
+        "--color-fg",
+        "--color-fg-muted",
+        "--space-2",
+        "--type-body",
+        "--type-caption"
+      ],
+      "variants": [
+        "default"
+      ],
+      "states": [
+        "default"
+      ],
+      "themes": [
+        "light",
+        "dark"
+      ],
+      "layoutProfiles": [
+        "sheet",
+        "pane",
+        "rail"
+      ],
+      "pointerProfiles": [
+        "coarse",
+        "fine"
+      ],
+      "requirementIds": [
+        "theme.paired",
+        "layout.reflow",
+        "pointer.independent",
+        "a11y.semantic-focus",
+        "i18n.translated-logical"
+      ],
+      "requiredCases": [
+        {
+          "id": "contract",
+          "description": "A line over time with named gaps where nothing was measured, so a gap is never drawn as zero.",
+          "variants": [
+            "default"
+          ],
+          "states": [
+            "default"
+          ],
+          "baselineIds": []
+        }
+      ],
+      "evidenceRefs": [
+        "design.components"
+      ],
+      "status": "implemented",
+      "coverage": {
+        "automated": {
+          "theme:light": [
+            "runtime:ui.lineChart.contract.desktop-light-fine"
+          ],
+          "theme:dark": [
+            "suite:storybook.canonical-dark-axe"
+          ],
+          "layout:sheet": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:pane": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:rail": [
+            "runtime:ui.lineChart.contract.desktop-light-fine"
+          ],
+          "pointer:fine": [
+            "runtime:ui.lineChart.contract.desktop-light-fine"
           ],
           "pointer:coarse": [
             "suite:storybook.coarse-targets"

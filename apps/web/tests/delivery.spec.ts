@@ -1,10 +1,105 @@
-import { expect, type Route, test } from "@playwright/test";
+import {
+  expect as baseExpect,
+  type Page,
+  type Route,
+  test,
+} from "@playwright/test";
+import AxeBuilder from "@axe-core/playwright";
 import { deliveryFixture } from "./helpers/delivery-fixture.ts";
 import { registerPageHealth } from "./helpers/page-health.ts";
 import { still } from "./helpers/stills.ts";
 import { MOCK_ORGANIZATION_ID } from "./helpers/mock-session.ts";
+import { repository, uuid } from "./helpers/projects-fixture.ts";
 
 registerPageHealth(test);
+const expect = baseExpect.configure({ timeout: 15_000 });
+test("selected merged chart and table use the merge-count samples, not line counts", async ({ page }) => {
+  const samples = Array.from({ length: 7 }, (_, index) => ({
+    at: new Date(Date.UTC(2026, 10, 5 + index * 3)).toISOString(),
+    value: 1,
+    unknownReason: null,
+  }));
+  await deliveryFixture(page, {
+    metricPoints: {
+      "prs.merged": samples,
+      "prs.changedLines": samples.map((sample, index) => ({
+        ...sample,
+        at: new Date(Date.UTC(2026, 10, 4 + index * 3)).toISOString(),
+        value: 34 + index * 6,
+      })),
+    },
+  });
+  await page.goto("/delivery");
+  const chart = page.getByTestId("delivery-chart");
+  await expect(chart.locator("[data-chart-tick='max']")).toHaveText("1");
+  await page.getByRole("button", { name: "Show as table" }).click();
+  const table = page.getByRole("table", { name: "Pull requests merged" });
+  await expect(table.getByRole("row")).toHaveCount(8);
+  for (const [index, sample] of samples.entries()) {
+    const row = table.getByRole("row").nth(index + 1);
+    await expect(row.getByRole("cell")).toHaveText([
+      `Nov ${5 + index * 3}, 2026`,
+      String(sample.value),
+    ]);
+  }
+});
+const SHOW_CHOICES = [
+  "Pull requests merged",
+  "Pull requests opened",
+  "Still open",
+  "Closed without merging",
+  "Lines changed",
+  "Time a task took (typical)",
+];
+
+async function chooseShow(page: Page, label: string) {
+  await page.getByRole("button", { name: /^Show:/ }).click();
+  await page.getByRole("navigation", { name: "Show" }).getByRole("button", {
+    name: label,
+    exact: true,
+    pressed: false,
+  }).click();
+}
+
+test("Show is a menu of all six series and displays opened and changed lines", async ({ page }) => {
+  await deliveryFixture(page);
+  await page.goto("/delivery");
+  await expect(page.getByRole("combobox", { name: "Show" })).toHaveCount(0);
+  await page.getByRole("button", { name: /^Show:/ }).click();
+  const menu = page.getByRole("navigation", { name: "Show" });
+  const triggerBox = await page.getByRole("button", { name: /^Show:/ })
+    .boundingBox();
+  const menuBox = await menu.boundingBox();
+  expect(menuBox!.x).toBeGreaterThanOrEqual(triggerBox!.x - 1);
+  for (const choice of SHOW_CHOICES) {
+    await expect(menu.getByRole("button", { name: choice, exact: true }))
+      .toBeVisible();
+  }
+  await expect(
+    menu.getByRole("button", {
+      name: "Pull requests merged",
+      exact: true,
+      pressed: true,
+    }),
+  ).toBeVisible();
+  await page.mouse.move(700, 700);
+  await still(page, "delivery-show-menu");
+  await page.keyboard.press("Escape");
+  await chooseShow(page, "Pull requests opened");
+  await expect(
+    page.getByRole("img", { name: "Pull requests opened" }),
+  ).toBeVisible();
+  await chooseShow(page, "Lines changed");
+  await expect(page.getByRole("img", { name: "Lines changed" }))
+    .toBeVisible();
+  await page.getByRole("button", { name: "Show as table" }).click();
+  await expect(
+    page.getByRole("table", { name: "Lines changed" }).getByRole(
+      "columnheader",
+      { name: "Lines changed" },
+    ),
+  ).toBeVisible();
+});
 
 /** Answers the effective-access read with a role and the given capabilities. */
 const access = (route: Route, capabilities: string[]) => {
@@ -17,6 +112,11 @@ const access = (route: Route, capabilities: string[]) => {
     body: JSON.stringify({ organizationId, role: "developer", capabilities }),
   });
 };
+
+async function accessible(page: Page) {
+  const results = await new AxeBuilder({ page }).include("main").analyze();
+  expect(results.violations.map((violation) => violation.id)).toEqual([]);
+}
 
 /** The Delivery page (#75): what was delivered, how long a task took, where the time went. */
 for (
@@ -38,6 +138,11 @@ for (
         .toBeVisible();
       await expect(page.getByRole("button", { name: /^Period:/ }))
         .toBeVisible();
+      await expect(
+        page.locator("[data-section='delivery-over-time']").getByText(
+          "Every day has a measurement for Pull requests merged in this period.",
+        ),
+      ).toBeVisible();
       const time = page.getByTestId("delivery-time");
       await expect(time.getByRole("heading", { name: "How long a task took" }))
         .toBeVisible();
@@ -100,11 +205,13 @@ for (
             .toBeVisible();
         }
       }
-      // No Blocked column while nothing records it.
       await expect(records.getByRole("columnheader", { name: "Blocked" }))
         .toHaveCount(0);
+      await expect(records.getByRole("columnheader", { name: "Repository" }))
+        .toHaveCount(0);
+      await accessible(page);
       await page.mouse.move(700, 700);
-      await still(page, "delivery-records-tasks");
+      await still(page, "delivery-records-tasks", records);
     });
 
     test("fewer than five tasks are listed, not summarised", async ({ page }) => {
@@ -164,11 +271,6 @@ for (
         pressed: false,
       });
       const before = await tile.boundingBox();
-      const heading = await page.getByRole("heading", {
-        name: "Delivery",
-        level: 1,
-      })
-        .boundingBox();
       await tile.click();
       const chosen = page.getByRole("button", {
         name: /^Tasks delivered, 8\./,
@@ -179,15 +281,300 @@ for (
       await expect(records.getByText("Tidy the settings page")).toBeVisible();
       await expect(records.getByText("The records could not be loaded."))
         .toHaveCount(0);
-      // Choosing a figure marks it without moving it or anything below it.
       const after = await chosen.boundingBox();
       expect(after).toEqual(before);
       expect(
-        await page.getByRole("heading", { name: "Delivery", level: 1 })
-          .boundingBox(),
-      ).toEqual(heading);
+        await page.evaluate(() => document.activeElement?.id),
+      ).toBe("delivery-records-heading");
+      await expect(records.getByRole("heading", { level: 2 }))
+        .toContainText("Tasks delivered");
       await page.mouse.move(700, 700);
       await still(page, "delivery-pull-requests");
+    });
+
+    test("Lines changed records show counts and missing reasons", async ({ page }) => {
+      await deliveryFixture(page);
+      await page.goto("/delivery");
+      await chooseShow(page, "Lines changed");
+      const records = page.getByTestId("delivery-records");
+      const rowRole = viewport.name === "phone" ? "listitem" : "row";
+      const known = records.getByRole(rowRole).filter({
+        hasText: "Fix the retry window",
+      });
+      const missing = records.getByRole(rowRole).filter({
+        hasText: "Tidy the settings copy",
+      });
+      if (viewport.name === "phone") {
+        await expect(missing).toContainText(
+          "Lines: Not line-counted · diff totals unavailable",
+        );
+      } else {
+        await expect(records.getByRole("columnheader", { name: "Lines" }))
+          .toBeVisible();
+        await expect(known.getByRole("cell", { name: "51" })).toBeVisible();
+        await expect(missing.getByRole("cell", {
+          name: "Not line-counted · diff totals unavailable",
+        })).toBeVisible();
+      }
+      await chooseShow(page, "Pull requests merged");
+      const merged = records.getByRole(rowRole).filter({
+        hasText: "Fix the retry window",
+      });
+      await expect(merged).toContainText("51");
+    });
+
+    test("Size and quality: lines, what could not be counted as a link to those records, and an honest Unknown", async ({ page }) => {
+      await deliveryFixture(page);
+      await page.goto("/delivery");
+      const section = page.getByTestId("delivery-quality");
+      await expect(section.getByRole("heading", { name: "Size and quality" }))
+        .toBeVisible();
+      await expect(section.getByText("237 lines in 4 pull requests"))
+        .toBeVisible();
+      await expect(
+        page.getByText(/merged pull requests? could not be line-counted/),
+      ).toHaveCount(0);
+      const sizes = await section.evaluate((root) => {
+        const fontSize = (text: string) =>
+          parseFloat(
+            getComputedStyle(
+              Array.from(root.querySelectorAll("*")).find((element) =>
+                element.children.length === 0 && element.textContent === text
+              )!,
+            ).fontSize,
+          );
+        return {
+          label: fontSize("Could not be line-counted"),
+          value: fontSize("237 lines in 4 pull requests"),
+        };
+      });
+      expect(sizes.value).toBeGreaterThanOrEqual(sizes.label);
+      await expect(
+        section.getByText("Counted once for each merged pull request."),
+      ).toBeHidden();
+      await section.getByRole("button", { name: "About lines changed" })
+        .click();
+      await expect(
+        page.getByText("Counted once for each merged pull request."),
+      ).toBeVisible();
+      await page.keyboard.press("Escape");
+      await expect(
+        section.getByText("Unknown. Not counted for the whole period yet."),
+      )
+        .toBeVisible();
+      await section.getByRole("button", {
+        name: "Show the 1 pull request that could not be line-counted",
+      }).click();
+      expect(
+        await page.evaluate(() => document.activeElement?.id),
+      ).toBe("delivery-records-heading");
+      await expect(page).toHaveURL(/show=lines/);
+      await expect(page).toHaveURL(/missing=/);
+      const records = page.getByTestId("delivery-records");
+      const rowRole = viewport.name === "phone" ? "listitem" : "row";
+      await expect(records.getByText("Tidy the settings copy")).toBeVisible();
+      await expect(records.getByText("Fix the retry window")).toHaveCount(0);
+      await expect(
+        records.getByRole(rowRole).filter({
+          hasText: "Not line-counted",
+        }),
+      ).toHaveCount(1);
+      await page.mouse.move(700, 700);
+      await still(page, "delivery-size-and-quality");
+    });
+
+    test("Size and quality hides the uncounted row when every pull request was counted", async ({ page }) => {
+      await deliveryFixture(page, { uncounted: 0 });
+      await page.goto("/delivery");
+      const section = page.getByTestId("delivery-quality");
+      await expect(section.getByText("237 lines in 4 pull requests"))
+        .toBeVisible();
+      await expect(section.getByText("Could not be line-counted"))
+        .toHaveCount(0);
+    });
+
+    test("offline says when the figures were last updated, and online says nothing", async ({ page, context }) => {
+      await deliveryFixture(page);
+      await page.goto("/delivery");
+      await expect(page.getByTestId("delivery-quality")).toBeVisible();
+      await expect(page.getByText(/^You are offline\./)).toHaveCount(0);
+      await context.setOffline(true);
+      await page.evaluate(() => globalThis.dispatchEvent(new Event("offline")));
+      await expect(
+        page.getByText(/^You are offline\. These figures were loaded at \d/),
+      ).toHaveCount(1);
+      await page.mouse.move(700, 700);
+      await still(page, "delivery-offline");
+      await context.setOffline(false);
+      await page.evaluate(() => globalThis.dispatchEvent(new Event("online")));
+      await expect(page.getByText(/^You are offline\./)).toHaveCount(0);
+    });
+
+    test("a reversed custom range names the end to fix, and asks for nothing", async ({ page }) => {
+      const seen = await deliveryFixture(page);
+      const before = seen.metricReads;
+      await page.goto("/delivery?period=custom&from=2026-11-20&to=2026-11-10");
+      await expect(
+        page.getByText("Choose an end date after the start date."),
+      ).toBeVisible();
+      expect(seen.metricReads).toBe(before);
+      await page.mouse.move(700, 700);
+      await still(page, "delivery-range-reversed");
+    });
+
+    test("over time: one line, a named gap, the Show menu and the table", async ({ page }) => {
+      await deliveryFixture(page);
+      await page.goto("/delivery?show=tasks");
+      await expect(page.getByRole("heading", { name: "Over time" }))
+        .toBeVisible();
+      const chart = page.getByTestId("delivery-chart");
+      await expect(chart).toBeVisible();
+      await expect(page.getByText(/A gap is not zero/)).toBeVisible();
+      const band = chart.locator("[data-gap-band]");
+      await expect(band).toHaveCount(1);
+      expect(Number(await band.getAttribute("width"))).toBeGreaterThan(100);
+      if (viewport.name === "phone") {
+        await expect(chart.getByText(/^No data, /)).toHaveCount(0);
+        await expect(page.getByText(/\(Nov 3, 2026\)/))
+          .toBeVisible();
+      } else {
+        await expect(chart.getByText("No data, Nov 3, 2026")).toBeVisible();
+        await expect(
+          page.getByText("No data for 1 day. A gap is not zero."),
+        ).toBeVisible();
+      }
+      await expect(chart.locator("[data-chart-tick='max']")).toHaveText("40 h");
+      const chartBox = await chart.locator("svg").boundingBox();
+      expect(chartBox!.height).toBe(200);
+      await expect(chart.locator("[data-chart-point]")).toHaveCount(1);
+      const firstCaption = await page.getByText(/^Nov 1, 2026$/).boundingBox();
+      const lastCaption = await page.getByText(/^Nov 4, 2026$/).boundingBox();
+      expect(Math.abs(firstCaption!.y - lastCaption!.y)).toBeLessThan(2);
+      expect(lastCaption!.x).toBeGreaterThan(firstCaption!.x);
+      const table2 = page.getByRole("table", {
+        name: "Time a task took (typical)",
+      });
+      await page.getByRole("button", { name: "Show as table" }).click();
+      await expect(table2).toBeVisible();
+      await expect(table2.getByRole("columnheader", { name: "Date" }))
+        .toBeVisible();
+      await expect(
+        table2.getByRole("columnheader", {
+          name: "Time a task took (typical)",
+        }),
+      ).toBeVisible();
+      await expect(table2.getByText("40 h")).toBeVisible();
+      await expect(table2.getByText("No data")).toHaveCount(1);
+      await page.getByRole("button", { name: "Show as chart" }).click();
+      await expect(page.getByTestId("delivery-chart")).toBeVisible();
+      await accessible(page);
+      await page.mouse.move(700, 700);
+      await still(page, "delivery-over-time");
+    });
+    test("a period over 90 days labels complete weekly samples as weeks", async ({ page }) => {
+      const samples = Array.from({ length: 13 }, (_, index) => ({
+        at: new Date(Date.UTC(2026, 0, 1 + index * 7)).toISOString(),
+        value: 1,
+        unknownReason: null,
+      }));
+      const seen = await deliveryFixture(page, {
+        metricPoints: { "prs.merged": samples },
+      });
+      await page.goto(
+        "/delivery?period=custom&from=2026-01-01&to=2026-04-01",
+      );
+      await expect(page.getByTestId("delivery-chart")).toBeVisible();
+      await expect.poll(() => seen.metricResolutions).toContain("week");
+      await expect(
+        page.locator("[data-section='delivery-over-time']").getByText(
+          "Every week has a measurement for Pull requests merged in this period.",
+        ),
+      ).toBeVisible();
+    });
+
+    test("a failed chart stays inside Over time and retries without replacing the page", async ({ page }) => {
+      const seen = await deliveryFixture(page, { chartFailsUntilRetry: true });
+      await page.goto(
+        "/delivery?period=custom&from=2026-01-01&to=2026-06-01",
+      );
+      const chart = page.locator("[data-section='delivery-over-time']");
+      await expect(chart.getByText("The chart could not be loaded."))
+        .toBeVisible();
+      await expect(
+        page.getByRole("button", { name: /^Pull requests merged, 11\./ }),
+      ).toBeVisible();
+      seen.restoreChart();
+      await chart.getByRole("button", { name: "Try again" }).click();
+      await expect(chart.getByTestId("delivery-chart")).toBeVisible();
+    });
+
+    test("a dense series keeps the band label off the line", async ({ page }) => {
+      await deliveryFixture(page);
+      const days = Array.from({ length: 90 }, (_, index) => {
+        const at = new Date(Date.UTC(2026, 7, 1 + index)).toISOString();
+        return {
+          at,
+          value: index === 45 ? null : 30 + (index % 7),
+          unknownReason: null,
+        };
+      });
+      await page.route(
+        (url) => url.pathname === "/v1/metrics",
+        (route) => {
+          const metric = new URL(route.request().url()).searchParams.get(
+            "metric",
+          );
+          if (metric !== "tasks.leadTimeHours") return route.fallback();
+          return route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify({
+              name: metric,
+              points: days,
+              from: days[0]!.at,
+              to: days.at(-1)!.at,
+              resolution: "day",
+              unit: "hours",
+              cohort: "Tasks delivered in the window.",
+              sampleCount: 89,
+              missingCount: 1,
+              measurementRevision: "metrics@3",
+              lastSyncAt: "2026-10-30T09:00:00.000Z",
+              completeness: "complete",
+              missingReasons: [],
+              hiddenCount: 0,
+              repositories: [{
+                repositoryId: repository(1, uuid(100), "web").id,
+                state: "connected",
+                since: null,
+                lastSyncAt: "2026-10-30T09:00:00.000Z",
+              }],
+              summary: {
+                median: 32,
+                p90: 36,
+                mean: 33,
+                breakdown: [],
+                deliveryPoints: [],
+              },
+            }),
+          });
+        },
+      );
+      await page.goto("/delivery?show=tasks");
+      const chart = page.getByTestId("delivery-chart");
+      await expect(chart).toBeVisible();
+      await expect(chart.locator("[data-gap-band]")).toHaveCount(1);
+      await expect(chart.getByText(/^No data, /)).toHaveCount(0);
+      await expect(page.getByText(/A gap is not zero/)).toBeVisible();
+    });
+
+    test("a period with no measurement says so and draws no line", async ({ page }) => {
+      await deliveryFixture(page, { nothingMeasured: true });
+      await page.goto("/delivery?show=tasks");
+      await expect(
+        page.getByText("No data for this period. A gap is not zero."),
+      ).toBeVisible();
+      await expect(page.getByTestId("delivery-chart")).toHaveCount(0);
     });
 
     test("every metrics read is made for the page's organization", async ({ page }) => {
@@ -201,33 +588,32 @@ for (
       );
     });
 
-    test("the rail lists Delivery for a reader with metric:read", async ({ page }) => {
-      // A phone keeps the rail behind its menu; the rule is the same there.
-      test.skip(viewport.name === "phone");
-      await deliveryFixture(page);
-      await page.route(
-        "**/v1/organizations/*/effective-access",
-        (route) => access(route, ["metric:read"]),
-      );
-      await page.goto("/delivery");
-      await expect(page.getByRole("link", { name: "Delivery", exact: true }))
-        .toBeVisible();
-      await page.mouse.move(700, 700);
-      await still(page, "delivery-rail");
-    });
+    if (viewport.name === "desktop") {
+      test("the rail lists Delivery for a reader with metric:read", async ({ page }) => {
+        await deliveryFixture(page);
+        await page.route(
+          "**/v1/organizations/*/effective-access",
+          (route) => access(route, ["metric:read"]),
+        );
+        await page.goto("/delivery");
+        await expect(page.getByRole("link", { name: "Delivery", exact: true }))
+          .toBeVisible();
+        await page.mouse.move(700, 700);
+        await still(page, "delivery-rail");
+      });
 
-    test("the rail does not list Delivery without metric:read", async ({ page }) => {
-      test.skip(viewport.name === "phone");
-      await deliveryFixture(page);
-      await page.route(
-        "**/v1/organizations/*/effective-access",
-        (route) => access(route, []),
-      );
-      await page.goto("/delivery");
-      await expect(page.getByRole("link", { name: "Projects", exact: true }))
-        .toBeVisible();
-      await expect(page.getByRole("link", { name: "Delivery", exact: true }))
-        .toHaveCount(0);
-    });
+      test("the rail does not list Delivery without metric:read", async ({ page }) => {
+        await deliveryFixture(page);
+        await page.route(
+          "**/v1/organizations/*/effective-access",
+          (route) => access(route, []),
+        );
+        await page.goto("/delivery");
+        await expect(page.getByRole("link", { name: "Projects", exact: true }))
+          .toBeVisible();
+        await expect(page.getByRole("link", { name: "Delivery", exact: true }))
+          .toHaveCount(0);
+      });
+    }
   });
 }

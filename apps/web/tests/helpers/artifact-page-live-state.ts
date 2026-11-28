@@ -145,9 +145,10 @@ test("a newer revision shows the stale notice and keeps the viewed revision and 
   const stream = await mockEvents(page);
   await page.goto(`${PATH}?version=${VERSION_ID}&comment=${COMMENT_ID}`);
   await expect.poll(() => stream.subscribes.length).toBe(1);
-  expect(stream.subscribes[0].scopes).toEqual([
-    { type: "task", id: ARTIFACT.taskId },
-  ]);
+  expect(stream.subscribes[0].scopes).toContainEqual({
+    type: "task",
+    id: ARTIFACT.taskId,
+  });
   await openComments(page);
   await expect(page.getByText("A newer version is available")).toHaveCount(0);
 

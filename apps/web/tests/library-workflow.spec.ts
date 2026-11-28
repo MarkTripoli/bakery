@@ -208,6 +208,171 @@ for (
       await shot(page, "workflow-groups", [], { windowOnly: true });
     });
 
+    test("steps that run at the same time are drawn lane by lane", async ({ page }) => {
+      await libraryFixture(page, {
+        ...GROUPED,
+        versions: [
+          ...VERSIONS,
+          {
+            ...version(6, 6, "published", [{
+              id: "brief",
+              uses: "task.brief",
+            }]),
+            spec: [
+              { kind: "action", id: "brief", uses: "task.brief" },
+              {
+                kind: "parallel",
+                lanes: [
+                  {
+                    steps: [
+                      {
+                        kind: "action",
+                        id: "implement",
+                        uses: "harness.implement",
+                      },
+                      { kind: "action", id: "checks", uses: "quality.check" },
+                    ],
+                  },
+                  {
+                    steps: [
+                      { kind: "action", id: "review", uses: "agent.review" },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      });
+      await page.goto(
+        `/library/workflows/${WORKFLOW.id}?version=${uuid(1006)}`,
+      );
+      const together = page.getByTestId("workflow-steps")
+        .locator("[data-group=together]");
+      await expect(together).toContainText("At the same time");
+      const box = async (id: string) =>
+        (await page.getByTestId("workflow-steps")
+          .locator(`[data-card='${id}']`).boundingBox())!;
+      await expect(
+        page.getByTestId("workflow-steps").locator("[data-card='review']"),
+      )
+        .toBeVisible();
+      if (viewport.name === "desktop") {
+        await expect.poll(async () =>
+          Math.abs((await box("implement")).y - (await box("review")).y)
+        ).toBeLessThanOrEqual(1);
+        const [first, second, other] = [
+          await box("implement"),
+          await box("checks"),
+          await box("review"),
+        ];
+        expect(second.y).toBeGreaterThan(first.y + first.height);
+        expect(other.x).toBeGreaterThan(first.x + first.width);
+      } else {
+        expect((await box("review")).y).toBeGreaterThan(
+          (await box("checks")).y,
+        );
+        await expect(together.locator(".ui-outline")).toHaveCount(2);
+        await expect(together).toContainText("Lane 1");
+        await expect(together).toContainText("Lane 2");
+      }
+      await page.mouse.move(700, 700);
+      await still(page, "workflow-lanes");
+    });
+
+    test("closing the page asks only when something typed is unsaved", async ({ page }) => {
+      await libraryFixture(page, WORLD);
+      const guarded = () =>
+        page.evaluate(() => {
+          const { history } = (globalThis as unknown as {
+            __TSR_ROUTER__: {
+              history: { _getBlockers: () => readonly unknown[] };
+            };
+          }).__TSR_ROUTER__;
+          return history._getBlockers().length;
+        });
+      const asks = () =>
+        page.evaluate(() => {
+          const leaving = new Event("beforeunload", { cancelable: true });
+          globalThis.dispatchEvent(leaving);
+          return leaving.defaultPrevented;
+        });
+      for (
+        const path of [
+          "/library",
+          `/library/workflows/${WORKFLOW.id}`,
+          "/settings/appearance",
+        ]
+      ) {
+        await page.goto(path);
+        await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+        await expect.poll(guarded, { message: path }).toBeGreaterThan(0);
+        expect(await asks(), path).toBe(false);
+      }
+      const language = page.getByRole("combobox", { name: /language/i });
+      await expect(language).toBeEnabled();
+      await language.selectOption({ index: 1 });
+      await expect.poll(asks).toBe(true);
+    });
+
+    test("six lanes keep their written order, say when empty, and can all be reached", async ({ page }) => {
+      const lane = (id: string) => ({
+        steps: [{ kind: "action", id, uses: "agent.review" }],
+      });
+      const ids = ["one", "two", "three", "four", "five", "six"];
+      await libraryFixture(page, {
+        ...GROUPED,
+        versions: [
+          ...VERSIONS,
+          {
+            ...version(6, 6, "published", [{
+              id: "brief",
+              uses: "task.brief",
+            }]),
+            spec: [{
+              kind: "parallel",
+              lanes: [...ids.map(lane), { steps: [] }],
+            }],
+          },
+        ],
+      });
+      await page.goto(
+        `/library/workflows/${WORKFLOW.id}?version=${uuid(1006)}`,
+      );
+      const steps = page.getByTestId("workflow-steps");
+      await expect(steps.locator("[data-card='six']")).toBeAttached();
+      await expect(steps.getByText("No steps")).toBeAttached();
+      const at = async (id: string) =>
+        (await steps.locator(`[data-card='${id}']`).boundingBox())!;
+      if (viewport.name !== "desktop") {
+        const tops = [];
+        for (const id of ids) tops.push((await at(id)).y);
+        expect(tops).toEqual([...tops].sort((a, b) => a - b));
+        return;
+      }
+      await expect(steps.locator('[data-layout="ready"]')).toBeVisible();
+      await expect.poll(async () => {
+        const lefts = [];
+        for (const id of ids) lefts.push((await at(id)).x);
+        return lefts.every((x, index) => index === 0 || x > lefts[index - 1]);
+      }).toBe(true);
+      await steps.locator('[data-fit="true"]').click();
+      const frame = (await steps.locator('[data-ui-region="workflow-canvas"]')
+        .boundingBox())!;
+      await expect.poll(async () => {
+        const first = await at("one");
+        const last = await at("six");
+        const empty = (await steps.getByText("No steps").boundingBox())!;
+        const box = (await steps.locator("[data-group=together]")
+          .boundingBox())!;
+        return first.x >= frame.x - 1 &&
+          last.x + last.width <= frame.x + frame.width &&
+          empty.x + empty.width <= frame.x + frame.width &&
+          box.x >= frame.x - 1;
+      }).toBe(true);
+      await still(page, "workflow-lanes-six");
+    });
+
     test("opens from the list and shows the version in use: its steps, agents, and every version with its state", async ({ page }) => {
       await libraryFixture(page, WORLD);
       await page.goto("/library");
@@ -814,7 +979,7 @@ for (
       await expect(picker).toBeVisible();
       // The picker says what each step does, and its search narrows the list:
       // a bare list of names told a person nothing (#67 UX ruling 6934081003).
-      await expect(picker.locator("[data-pick-step]")).toHaveCount(8);
+      await expect(picker.locator("[data-pick-step]")).toHaveCount(11);
       await expect(
         picker.locator("[data-pick-step='review.independent']"),
       ).toContainText(
@@ -939,6 +1104,48 @@ for (
         .toBeGreaterThan(0);
       expect(seen.draftSaves[0].ifMatch).not.toBeNull();
       await expect(saveStatus(page)).toContainText("Saved");
+    });
+
+    test("Escape closes the panel and returns focus to the block, and Move says why it cannot", async ({ page }) => {
+      await openEditor(page);
+      await page.getByRole("button", { name: /Add a step after/ }).last()
+        .click();
+      await page
+        .getByTestId("step-picker")
+        .locator("[data-pick-step='review.independent']")
+        .click();
+      const block = page.locator("[data-card]").filter({ hasText: "Review" })
+        .getByRole("button").first();
+      await block.click();
+      const panel = page.getByRole("complementary", {
+        name: "The selected step",
+      });
+      const up = panel.getByRole("button", { name: "Move up" });
+      const down = panel.getByRole("button", { name: "Move down" });
+      await expect(down).toBeDisabled();
+      await down.focus();
+      await expect(panel.getByText("This is already the last step."))
+        .toBeVisible();
+      await up.focus();
+      await expect(panel.getByText("This is already the last step."))
+        .toBeHidden();
+      await up.press("Enter");
+      await expect(up).toBeDisabled();
+      await expect(up).toBeFocused();
+      await expect(panel.getByText("This is already the first step."))
+        .toBeVisible();
+      const tip = (await panel.getByText("This is already the first step.")
+        .boundingBox())!;
+      expect(tip.x).toBeGreaterThanOrEqual(0);
+      expect(tip.x + tip.width).toBeLessThanOrEqual(page.viewportSize()!.width);
+      await shot(page, "workflow-editor-move-blocked");
+      await page.keyboard.press("Escape");
+      await expect(panel.getByText("This is already the first step."))
+        .toBeHidden();
+      await expect(panel).toBeVisible();
+      await page.keyboard.press("Escape");
+      await expect(panel).toHaveCount(0);
+      await expect(block).toBeFocused();
     });
 
     test("publish offers both forms when the draft differs from the version in use", async ({ page }) => {
@@ -1860,8 +2067,10 @@ for (
       await expect(panel).toContainText(
         "This part of the workflow is written in code.",
       );
+      await expect(page.getByRole("button", { name: "View as code" }))
+        .toHaveCount(1);
       await expect(panel.getByRole("button", { name: "View as code" }))
-        .toBeVisible();
+        .toHaveCount(viewport.name === "phone" ? 0 : 1);
       await expect(panel.getByRole("button", { name: "Delete" })).toHaveCount(
         0,
       );
@@ -2274,10 +2483,15 @@ for (
       const restBox = (await panel.getByText(
         "The rest of this step is written in code.",
       ).boundingBox())!;
-      const codeBox = (await panel.getByRole("button", { name: "View as code" })
-        .boundingBox())!;
       expect(skillsBox.y).toBeLessThan(restBox.y);
-      expect(restBox.y).toBeLessThan(codeBox.y);
+      await expect(page.getByRole("button", { name: "View as code" }))
+        .toHaveCount(1);
+      if (viewport.name === "desktop") {
+        const codeBox = (await panel.getByRole("button", {
+          name: "View as code",
+        }).boundingBox())!;
+        expect(restBox.y).toBeLessThan(codeBox.y);
+      }
       const slot = skills.locator("[data-skill-status='missing']");
       await expect(slot.getByRole("button", { name: "Choose a skill…" }))
         .toBeVisible();
@@ -2667,6 +2881,28 @@ for (
       await expect.poll(() => savedSkills(seen).skills).toEqual([uuid(7000)]);
     });
 
+    test("a skill added after a removal takes that Undo offer away", async ({ page }) => {
+      const { seen, skills } = await openSkills(page, {
+        skills: { items: [skill({ stepPath: "/steps/1" })] },
+        catalog: [
+          catalogSkill({}),
+          catalogSkill({
+            id: uuid(8003),
+            slug: "release-notes",
+            name: "Release notes",
+            activeVersionId: uuid(8101),
+            activeRevision: 3,
+          }),
+        ],
+      });
+      await skills.getByRole("button", { name: "Remove Code style" }).click();
+      const offer = page.getByRole("button", { name: "Undo", exact: true });
+      await expect(offer).toBeVisible();
+      await pickSkill(skills, "Release notes · Version 3");
+      await expect(offer).toHaveCount(0);
+      await expect.poll(() => savedSkills(seen).skills).toEqual([uuid(8101)]);
+    });
+
     test("removing someone else's private skill that a published version uses says so", async ({ page }) => {
       const { skills } = await openSkills(page, {
         skills: {
@@ -2795,7 +3031,8 @@ for (
       await skills.getByRole("button", { name: "Remove Code style" }).click();
       await expect.poll(() => seen.draftSaves.length, { timeout: 10_000 })
         .toBe(2);
-      await expect(page.getByText("Not saved")).toHaveCount(0);
+      await expect(page.getByText("Not saved", { exact: true }))
+        .toHaveCount(0);
       // The second save carries what the first returned (version 2), not what was read before it.
       expect(seen.draftSaves[1].ifMatch).toBe('"v2"');
       expect(savedSkills(seen).skills ?? []).toEqual([]);
@@ -2980,17 +3217,232 @@ for (
       await expect(fix).toContainText("At most 2 tries");
       await expect.poll(async () => (await cardsInside(fix)).join(" "))
         .toContain("Fix problems");
-      // The other repeat is still just a repeat, with no limit claimed.
       const plain = page.locator("[data-group=repeat]");
       await expect(plain).toHaveCount(1);
       await expect(plain).toContainText("Repeat");
-      await expect(plain).not.toContainText("tries");
+      await expect(plain).toContainText("At most 3 tries");
       // A read-only page never says "Edited in code".
       await expect(page.getByTestId("workflow-steps")).not.toContainText(
         "Edited in code",
       );
       await page.mouse.move(700, 700);
       await shot(page, "workflow-fix-block");
+    });
+
+    test("the block's panel edits its three numbers and the card says the range", async ({ page }) => {
+      const seen = await libraryFixture(page, FIXING);
+      await page.goto(`/library/workflows/${WORKFLOW.id}/edit`);
+      const fix = page.locator("[data-group=fix]");
+      await fix.getByRole("button", { name: "Fix until it passes" }).click();
+      await expect(fix.getByRole("img", { name: "Edited in code" }))
+        .toBeVisible();
+      const panel = page.locator("#editor-step-panel");
+      await expect(panel).toContainText("Fix until it passes");
+      await expect(panel.getByRole("spinbutton", { name: "Fewest tries" }))
+        .toBeVisible();
+      const most = panel.getByRole("spinbutton", { name: "Most tries" });
+      await expect(most).toHaveValue("2");
+      await expect(panel).toContainText("From 1 to 8.");
+      await expect(panel).toContainText(
+        "When to stop early is written in code.",
+      );
+
+      await panel.getByRole("spinbutton", { name: "Fewest tries" })
+        .fill("2");
+      await most.fill("5");
+      await most.blur();
+      await expect(fix).toContainText("2 to 5 tries");
+      const fewest = panel.getByRole("spinbutton", { name: "Fewest tries" });
+      await fewest.fill("3");
+      await fewest.press("Enter");
+      await expect(fix).toContainText("3 to 5 tries");
+      await panel.getByRole("spinbutton", { name: "Ask a person after" })
+        .fill("3");
+      await panel.getByRole("spinbutton", { name: "Ask a person after" })
+        .blur();
+      await expect(fix).toContainText("3 to 5 tries · asks after 3");
+      await expect(page.getByRole("button", { name: "View as code" }))
+        .toHaveCount(1);
+      await expect.poll(() => seen.draftSaves.length, { timeout: 10_000 })
+        .toBeGreaterThan(0);
+      const written = seen.draftSaves.at(-1)!.body.definition as {
+        steps: Record<string, unknown>[];
+      };
+      expect(written.steps[1]).toMatchObject({ min: 3, max: 5, allow: 3 });
+    });
+
+    const AUTHORED_REPEAT = {
+      ...WORLD,
+      versions: [
+        ...VERSIONS.filter((row) => row.status !== "draft"),
+        {
+          ...version(4, 4, "draft", [{ id: "brief", uses: "task.brief" }]),
+          spec: [
+            { id: "brief", uses: "task.brief" },
+            {
+              id: "again",
+              repeat: {
+                max: 3,
+                seed: { form: "prepared" },
+                steps: [{ id: "fix", uses: "harness.implement" }],
+              },
+            },
+          ],
+        },
+      ],
+    };
+
+    test("a number of a repeat: block is saved inside repeat and the card says it", async ({ page }) => {
+      const seen = await libraryFixture(page, AUTHORED_REPEAT);
+      await page.goto(`/library/workflows/${WORKFLOW.id}/edit`);
+      const block = page.locator("[data-group=repeat]");
+      await block.getByRole("button", { name: /Repeat/ }).first().click();
+      const most = page.locator("#editor-step-panel").getByRole("spinbutton", {
+        name: "Most tries",
+      });
+      await expect(most).toHaveValue("3");
+      await most.fill("5");
+      await expect(block).toContainText("At most 5 tries");
+      await expect.poll(() => seen.draftSaves.length, { timeout: 10_000 })
+        .toBeGreaterThan(0);
+      await expect(most).toBeFocused();
+      const written = seen.draftSaves.at(-1)!.body.definition as {
+        steps: { max?: number; repeat?: { max: number } }[];
+      };
+      expect(written.steps[1]!.repeat!.max).toBe(5);
+      expect(written.steps[1]).not.toHaveProperty("max");
+    });
+
+    test("a second loop change made while the first is saving is sent too", async ({ page }) => {
+      const seen = await libraryFixture(page, {
+        ...AUTHORED_REPEAT,
+        saveDelayMs: 1500,
+      });
+      await page.goto(`/library/workflows/${WORKFLOW.id}/edit`);
+      const block = page.locator("[data-group=repeat]");
+      await block.getByRole("button", { name: /Repeat/ }).first().click();
+      const most = page.locator("#editor-step-panel").getByRole("spinbutton", {
+        name: "Most tries",
+      });
+      await most.fill("5");
+      await expect.poll(() => seen.draftSaves.length).toBe(1);
+      await most.fill("6");
+      await expect.poll(() => seen.draftSaves.length, { timeout: 10_000 })
+        .toBe(2);
+      const written = seen.draftSaves[1]!.body.definition as {
+        steps: { repeat?: { max: number } }[];
+      };
+      expect(written.steps[1]!.repeat!.max).toBe(6);
+    });
+
+    test("authored parallel:, forEach: and call: blocks draw what they hold", async ({ page }) => {
+      await libraryFixture(page, {
+        ...WORLD,
+        versions: [
+          ...VERSIONS.filter((row) => row.status !== "draft"),
+          {
+            ...version(4, 4, "draft", [{ id: "brief", uses: "task.brief" }]),
+            spec: [
+              {
+                id: "fan",
+                parallel: {
+                  branches: [
+                    {
+                      id: "a",
+                      steps: [{ id: "one", uses: "harness.implement" }],
+                    },
+                    { id: "b", steps: [{ id: "two", uses: "agent.review" }] },
+                  ],
+                },
+              },
+              {
+                id: "each",
+                forEach: {
+                  max: 3,
+                  steps: [{ id: "item_step", uses: "harness.implement" }],
+                },
+              },
+              { id: "sub", call: { workflow: uuid(9001) } },
+            ],
+          },
+        ],
+      });
+      await page.goto(`/library/workflows/${WORKFLOW.id}/edit`);
+      for (const id of ["one", "two", "item_step"]) {
+        await expect(page.locator(`[data-card='${id}']`)).toBeVisible();
+      }
+      await expect(page.locator("[data-group=together]"))
+        .not.toContainText("No steps");
+      await expect(page.locator("[data-group=each]"))
+        .toContainText("At most 3 items");
+      const call = page.locator("[data-group=call]");
+      await expect(call).toContainText("Run another workflow");
+      await expect(call).toContainText("Its steps are in that workflow");
+      await still(page, "workflow-authored-blocks");
+    });
+
+    test("browser Back before a typed Repeat number is saved asks first", async ({ page }) => {
+      const seen = await libraryFixture(page, AUTHORED_REPEAT);
+      await page.goto(`/library/workflows/${WORKFLOW.id}`);
+      if ((page.viewportSize()?.width ?? 1440) < 744) {
+        await page.getByRole("button", { name: /More actions/ }).click();
+        await page.getByRole("button", { name: "Edit", exact: true }).click();
+      } else {
+        await page.getByRole("link", { name: "Edit" }).click();
+      }
+      await expect(page).toHaveURL(/\/edit$/);
+      const block = page.locator("[data-group=repeat]");
+      await block.getByRole("button", { name: /Repeat/ }).first().click();
+      const most = page.locator("#editor-step-panel").getByRole("spinbutton", {
+        name: "Most tries",
+      });
+      await most.fill("5");
+      await page.evaluate(() => history.back());
+      const leave = page.getByRole("alertdialog");
+      await expect(leave).toContainText(
+        "Leave before your changes are saved?",
+      );
+      expect(seen.draftSaves).toHaveLength(0);
+      await leave.getByRole("button", { name: "Stay" }).click();
+      await expect.poll(() => seen.draftSaves.length, { timeout: 10_000 })
+        .toBeGreaterThan(0);
+    });
+
+    test("a block whose Fewest equals its Most says Exactly on the card", async ({ page }) => {
+      await libraryFixture(page, FIXING);
+      await page.goto(`/library/workflows/${WORKFLOW.id}/edit`);
+      const fix = page.locator("[data-group=fix]");
+      await fix.getByRole("button", { name: "Fix until it passes" }).click();
+      const fewest = page.locator("#editor-step-panel").getByRole(
+        "spinbutton",
+        { name: "Fewest tries" },
+      );
+      await fewest.fill("2");
+      await fewest.blur();
+      await expect(fix).toContainText("Exactly 2 tries");
+    });
+
+    test("a Most below what the block needs shows one error and saves nothing", async ({ page }) => {
+      const seen = await libraryFixture(page, FIXING);
+      await page.goto(`/library/workflows/${WORKFLOW.id}/edit`);
+      const fix = page.locator("[data-group=fix]");
+      await fix.getByRole("button", { name: "Fix until it passes" }).click();
+      const panel = page.locator("#editor-step-panel");
+      const most = panel.getByRole("spinbutton", { name: "Most tries" });
+      await most.fill("0");
+      await most.blur();
+      await expect(panel).toContainText(
+        "Enter a whole number from 1 to 8. Not saved.",
+      );
+      await expect(most).toHaveValue("0");
+      await expect(fix).toContainText("At most 2 tries");
+      expect(seen.draftSaves).toHaveLength(0);
+      await most.fill("4");
+      await most.blur();
+      await expect(panel).not.toContainText("Not saved.");
+      await expect(fix).toContainText("At most 4 tries");
+      await expect.poll(() => seen.draftSaves.length, { timeout: 10_000 })
+        .toBe(1);
     });
 
     test("the built-in page draws the repair loop as the same block, with its limit", async ({ page }) => {
@@ -3030,7 +3482,7 @@ for (
                 ],
                 defaultBudgetLimitUsd: "8.00",
                 availability: null,
-              }].map(presetRead),
+              }].map((preset) => presetRead(preset)),
               nextCursor: null,
             },
           }),
@@ -3049,37 +3501,35 @@ for (
       await shot(page, "workflow-built-in-fix-block");
     });
 
-    test("in the editor the block says what it does and its limit as text, with no field", async ({ page }) => {
+    test("the block's panel is its three numbers, and one card keeps one noun", async ({ page }) => {
       await libraryFixture(page, FIXING);
       await page.goto(`/library/workflows/${WORKFLOW.id}/edit`);
       const fix = page.locator("[data-group=fix]");
       await expect(fix).toContainText("Fix until it passes");
       await expect(fix).toContainText("At most 2 tries");
-      await expect(fix.getByRole("img", { name: "Edited in code" }))
-        .toBeVisible();
       await fix.getByRole("button", { name: "Fix until it passes" }).click();
-      const panel = page.getByRole("complementary", {
-        name: "The selected step",
-      });
-      await expect(panel).toContainText("Fix until it passes");
+      const panel = page.locator("#editor-step-panel");
       await expect(panel).toContainText(
         "Fixes what the checks and the review found, then checks and reviews again.",
       );
-      await expect(panel).toContainText(
+      await expect(panel).not.toContainText(
         "If the first review is already clean, this block is skipped.",
       );
-      // The limit is said once, on the block, not again in the panel.
+      await expect(panel.getByRole("spinbutton")).toHaveCount(3);
       await expect(panel).not.toContainText("At most");
-      await expect(panel.getByRole("textbox")).toHaveCount(0);
-      await expect(panel.getByRole("spinbutton")).toHaveCount(0);
-      // The other repeat's panel claims nothing of the kind.
-      await page.locator("[data-group=repeat]").getByRole("button", {
-        name: "Repeat",
-      }).click();
-      await expect(panel).not.toContainText("At most");
-      await fix.getByRole("button", { name: "Fix until it passes" }).click();
+      const repeat = page.locator("[data-group=repeat]");
+      await repeat.getByRole("button", { name: "Repeat" }).click();
+      await expect(panel).toContainText("Repeat");
+      await expect(panel).not.toContainText("Rounds");
+      await expect(panel.getByRole("spinbutton", { name: "Most tries" }))
+        .toHaveValue("3");
+      await panel.getByRole("spinbutton", { name: "Fewest tries" }).fill("2");
+      await panel.getByRole("spinbutton", { name: "Fewest tries" }).blur();
+      await expect(repeat).toContainText("2 to 3 tries");
+      await expect(page.getByRole("button", { name: "View as code" }))
+        .toHaveCount(1);
       await page.mouse.move(600, 700);
-      await shot(page, "workflow-fix-block-editor");
+      await shot(page, "workflow-loop-panel");
     });
   });
 }

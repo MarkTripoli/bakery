@@ -5176,7 +5176,21 @@
       "routeId": "machine-new",
       "path": "/machines/new",
       "status": "no-mock",
-      "rationale": "The add-a-machine wizard (#70): three steps (name and system, coding agent, install) that create one setup and then wait for the machine to connect. Its design is the UX design on #70 (design-ux, 2026-11-12 and 2026-11-13) and the Paper worker-readiness K-0 manifest has no wizard frame, so none is invented. Organization-scoped API data and a setup code shown once make it real-API only; it is not scored against synthetic records.",
+      "rationale": "The one-command add page (#70, UX design revision 2 on comment 7087868212): the settings, then one command to paste, and one status line that follows the machine to ready. No Paper frame names it, so none is invented. Organization-scoped API data and a command shown once make it real-API only; it is not scored against synthetic records.",
+      "frames": []
+    },
+    {
+      "routeId": "machine-link",
+      "path": "/machines/link",
+      "status": "no-mock",
+      "rationale": "The approve-a-machine page the link command prints (#70, UX design revision 2 on comment 7087868212 and the states on 7068595506): an Admin types the code a terminal shows, checks the computer, and approves or declines it. No Paper frame names it, so none is invented. It reads one waiting link request, so it stays real-API only and is not scored against synthetic records.",
+      "frames": []
+    },
+    {
+      "routeId": "machine-new-by-hand",
+      "path": "/machines/new/by-hand",
+      "status": "no-mock",
+      "rationale": "The add-a-machine wizard (#70), kept as the by-hand way: three steps (name and system, coding agent, install) that create one setup and then wait for the machine to connect. Its design is the UX design on #70 (design-ux, 2026-11-12 and 2026-11-13) and the Paper worker-readiness K-0 manifest has no wizard frame, so none is invented. Organization-scoped API data and a setup code shown once make it real-API only.",
       "frames": []
     },
     {
@@ -5184,6 +5198,20 @@
       "path": "/machines/$machineId",
       "status": "no-mock",
       "rationale": "Live machine detail includes server-derived readiness, bounded dispatch blockers and Admin-only provider auth state. The approved worker-readiness K-0 detail Paper reference remains available through /__fixtures__/machines/detail for deterministic template coverage; this production route intentionally stays real-API only and is not scored against synthetic records.",
+      "frames": []
+    },
+    {
+      "routeId": "machine-checks",
+      "path": "/machines/$machineId/checks",
+      "status": "no-mock",
+      "rationale": "The Checks and software tab shows the failed checks and the software inventory served for one machine. It was designed in the #70 slice 3 to 6 comment (design-70/fleet images), not as a Paper frame, and stays real-API only; it is not scored against synthetic records.",
+      "frames": []
+    },
+    {
+      "routeId": "machine-work",
+      "path": "/machines/$machineId/work",
+      "status": "no-mock",
+      "rationale": "The Work tab shows the attempts a machine holds, has lost or has finished, and its slot count, as the server serves them (#70 slice 6). The slot and work wording is mine, since design-ux is parked and its older words (a slot per task) are false; the tab stays real-API only and is not scored against synthetic records.",
       "frames": []
     },
     {
@@ -5257,10 +5285,31 @@
       "frames": []
     },
     {
+      "routeId": "library-skill-add",
+      "path": "/library/skills/add",
+      "status": "no-mock",
+      "rationale": "Adding a skill from a Git repository or a saved source (the form with what will happen beside it, and its failures) is designed by design-ux on #74 (revision 4, mocks at design-74/v4/); Paper has no frame for it.",
+      "frames": []
+    },
+    {
       "routeId": "library-skill",
       "path": "/library/skills/$skillId",
       "status": "no-mock",
       "rationale": "One skill, read only (its files as the version in use lists them, its versions, what uses it, who may use a private one, where it came from) is designed by design-ux on #74 (revision 3, mocks at design-74/v3/); Paper has no frame for it.",
+      "frames": []
+    },
+    {
+      "routeId": "library-skill-edit",
+      "path": "/library/skills/$skillId/edit",
+      "status": "no-mock",
+      "rationale": "Editing one skill (its files, saved by themselves, the check that names problems, Publish) is designed by design-ux on #74 (revisions 2 to 4 and the slice 3 build sheet, mocks at design-74/v2/editing.png); Paper has no frame for it.",
+      "frames": []
+    },
+    {
+      "routeId": "library-skill-update",
+      "path": "/library/skills/$skillId/update",
+      "status": "no-mock",
+      "rationale": "Reviewing what a skill's source changed, file by file, before taking it is designed by design-ux on #74 (revision 4 section 2, mocks at design-74/v4/); Paper has no frame for it.",
       "frames": []
     },
     {
@@ -5289,6 +5338,20 @@
       "path": "/installation/updates",
       "status": "no-mock",
       "rationale": "The Updates page (#59 slice 4) is designed by design-ux on #59 (revisions 3 and 4, mock at pr-evidence design-59/v3/); Paper has no frame for it.",
+      "frames": []
+    },
+    {
+      "routeId": "installation-backups",
+      "path": "/installation/backups",
+      "status": "no-mock",
+      "rationale": "The Backups page (#64 slice 1) is designed by design-ux on #64 (comment 7071834654, mocks at design-64/backups/); Paper has no frame for it.",
+      "frames": []
+    },
+    {
+      "routeId": "installation-backups-settings",
+      "path": "/installation/backups/settings",
+      "status": "no-mock",
+      "rationale": "The Backup settings page (#64 slice 2) is designed by design-ux on #64 (comment 7071834654, section 3, mock settings-desktop-light at design-64/backups/); Paper has no frame for it.",
       "frames": []
     },
     {

@@ -17,6 +17,7 @@ import {
   type SelectionChange,
   selectionChanges,
 } from "./model.ts";
+import { hasSetupPages } from "./providers/index.ts";
 
 const REPOSITORY_PAGE = 100;
 
@@ -92,6 +93,7 @@ export function useConnectionActions(
     string | undefined
   >({
     queryKey: repositoriesKey,
+    enabled: hasSetupPages(connection.provider),
     initialPageParam: undefined,
     queryFn: async ({ pageParam, signal }) => {
       const result = await api.integrationResources.list({
@@ -243,7 +245,7 @@ export function useConnectionActions(
       const code = failureStatus(result.error);
       if (problemReason(result.error) === "no_selected_resource") {
         setSwitchStatus("noSelection");
-        void repositories.refetch();
+        if (hasSetupPages(connection.provider)) void repositories.refetch();
       } else if (code === 409 || code === 412) {
         setSwitchStatus("stale");
         await refreshConnection();
@@ -252,6 +254,39 @@ export function useConnectionActions(
       }
     } catch {
       setSwitchStatus("failed");
+    } finally {
+      switching.current = false;
+    }
+  };
+
+  const [removeStatus, setRemoveStatus] = useState<
+    "idle" | "removing" | "failed"
+  >("idle");
+  const remove = async (): Promise<boolean> => {
+    if (switching.current) return false;
+    switching.current = true;
+    setRemoveStatus("removing");
+    try {
+      const attempt = (version: number) =>
+        api.integrationConnections.remove({
+          organizationId,
+          id: connection.id,
+          version,
+          idempotencyKey: crypto.randomUUID(),
+        });
+      let result = await attempt(connection.version);
+      if (!result.ok && failureStatus(result.error) === 412) {
+        result = await attempt(await currentVersion());
+      }
+      if (!result.ok) {
+        setRemoveStatus("failed");
+        return false;
+      }
+      await refreshConnection();
+      return true;
+    } catch {
+      setRemoveStatus("failed");
+      return false;
     } finally {
       switching.current = false;
     }
@@ -308,6 +343,8 @@ export function useConnectionActions(
     changes,
     discard,
     paging,
+    remove,
+    removeStatus,
     repositories,
     resources,
     saveSelection,

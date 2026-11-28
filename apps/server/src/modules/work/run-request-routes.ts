@@ -12,16 +12,22 @@ export function createRunRequestRoutes(
   options: {
     database: PgDatabase;
     session: MiddlewareHandler<{ Variables: AuthVariables }>;
+    cursorSecret: string;
   },
 ) {
   const app = new Hono<{ Variables: AuthVariables }>();
   app.use("/v1/runs/:id/requests", options.session);
   app.use("/v1/runs/:id/requests/*", options.session);
   app.use("/v1/run-requests/*", options.session);
+  app.use("/v1/runs/:id/access", options.session);
+  app.use("/v1/runs/:id/access/*", options.session);
   app.route(
     "/",
     createApiRouter({
-      registry: createRunRequestActionRegistry(options.database),
+      registry: createRunRequestActionRegistry(
+        options.database,
+        options.cursorSecret,
+      ),
       createContext: createActionContext,
       deadlineMs: RUN_REQUEST_DEADLINE_MS,
     }),

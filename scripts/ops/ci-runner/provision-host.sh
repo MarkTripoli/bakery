@@ -61,7 +61,7 @@ fi
 apt-get update -q
 apt-get install -y -q --no-install-recommends \
   docker.io docker-compose-v2 rootlesskit slirp4netns uidmap dbus-user-session fuse-overlayfs \
-  bubblewrap postgresql-client zip unzip jq git curl ca-certificates gnupg build-essential \
+  bubblewrap postgresql-client-18 zip unzip jq git curl ca-certificates gnupg build-essential \
   nodejs xvfb sysstat tmux htop tailscale tailscale-archive-keyring \
   libicu78 libkrb5-3 liblttng-ust1t64 \
   libnss3 libnspr4 libatk1.0-0t64 libatk-bridge2.0-0t64 libatspi2.0-0t64 libcups2t64 libdrm2 \

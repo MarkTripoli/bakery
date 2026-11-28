@@ -15,6 +15,23 @@ import { z } from "zod";
  * start on a version that is not the one in use.
  */
 
+export const WORKFLOW_START_EVENT_KINDS = Object.freeze(
+  [
+    "work_item.opened",
+    "work_item.edited",
+    "work_item.closed",
+    "work_item.reopened",
+    "work_item.labeled",
+    "work_item.unlabeled",
+    "change_request.opened",
+    "change_request.updated",
+    "change_request.closed",
+    "change_request.reopened",
+    "change_request.ready",
+    "check.completed",
+  ] as const,
+);
+
 /** A filter value: equality on a named field of the event's neutral projection. */
 export const WorkflowStartFilterValueSchema = z.union([
   z.string().max(512).describe("Text a field must equal."),
@@ -34,6 +51,10 @@ const startId = z.string().min(1).max(64).regex(/^[a-z0-9][a-z0-9-]*$/)
   .describe(
     "Stable identifier of the start within its version, lowercase letters, digits and hyphens.",
   );
+
+export const WorkflowStartEventValueSchema = z.enum(["repositoryId"]).describe(
+  "Value the firing event supplies: repositoryId is the Bakery repository the event arrived on.",
+);
 
 const eventStartSchema = z.object({
   kind: z.literal("event").describe(
@@ -57,6 +78,24 @@ const eventStartSchema = z.object({
     )
     .describe(
       "Equality filters on fields of the neutral event projection; an empty object matches every event of the kind.",
+    ),
+  inputsFromEvent: z.record(
+    z.string().min(1).max(120).describe(
+      "Name of one workflow input the event supplies.",
+    ),
+    WorkflowStartEventValueSchema,
+  )
+    .refine(
+      (inputs) =>
+        Object.keys(inputs).length <= WORKFLOW_START_FILTER_MAX_FIELDS,
+      {
+        message:
+          `At most ${WORKFLOW_START_FILTER_MAX_FIELDS} inputs from the event.`,
+      },
+    )
+    .optional()
+    .describe(
+      "Inputs of each run this start fires that take their value from the event that fired it, by input name. They are set over the start's static inputs. Omitted means none.",
     ),
 }).strict().describe(
   "An event matcher: fire this version when an event of the named kind matches every filter.",
@@ -111,6 +150,20 @@ export const WorkflowStartSchema = z.object({
   "One start of a workflow version: an identifier and either an event matcher or a schedule.",
 );
 export type WorkflowStart = z.output<typeof WorkflowStartSchema>;
+
+export const WorkflowStartRefusalReasonSchema = z.enum([
+  "start_event_kind_unknown",
+  "start_filter_key_unsupported",
+  "start_filter_value_type",
+  "start_schedule_cron_invalid",
+  "start_schedule_timezone_invalid",
+  "start_schedule_repository_missing",
+]).describe(
+  "Why a start was refused on save or publish: an event kind no source emits, a filter field the kind does not declare or of the wrong type, a schedule the scheduler cannot read, or a schedule start whose static inputs name no repository UUID, since every scheduled run runs on one repository.",
+);
+export type WorkflowStartRefusalReason = z.output<
+  typeof WorkflowStartRefusalReasonSchema
+>;
 
 export const WorkflowStartsSchema = z.array(WorkflowStartSchema).max(
   WORKFLOW_START_MAX,

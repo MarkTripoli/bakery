@@ -10,13 +10,13 @@ import {
   attemptEnded,
   type AttemptFacts,
   type BindingFacts,
+  type ComponentFacts,
   dialogView,
   minutesLeft,
   pageBadge,
   parseChallenge,
   paymentKind,
   safeCommand,
-  softwareEntries,
 } from "../../apps/web/src/pages/machine-agents.ts";
 
 // #70 C2b: the Coding agents rows and the sign-in dialog, as functions of what the
@@ -32,6 +32,20 @@ const binding = (over: Partial<BindingFacts> = {}): BindingFacts => ({
   lastCheckedAt: null,
   safeProblem: null,
   ...over,
+});
+
+const PAYMENT_METHODS: Readonly<
+  Record<string, ComponentFacts["paymentMethods"]>
+> = {
+  "harness.claude": ["subscription", "api_metered"],
+  "harness.codex": ["subscription", "api_metered"],
+  "harness.pi": ["api_metered", "local"],
+  "other.claude": ["subscription"],
+};
+
+const component = (componentKey: string): ComponentFacts => ({
+  componentKey,
+  paymentMethods: PAYMENT_METHODS[componentKey] ?? [],
 });
 
 Deno.test("an agent is named by the words of its component key or provider, and pi only as a whole word", () => {
@@ -130,15 +144,26 @@ Deno.test("one row per agent the machine reported, in its order, then any agent 
     ],
   );
   // A reported component gives a not-signed-in agent what a sign-in is attached to.
-  const withComponent = agentRows(["claude"], [], [{
-    componentKey: "harness.claude",
-  }, { componentKey: "worker-supervisor" }]);
+  const withComponent = agentRows(["claude"], [], [
+    component("harness.claude"),
+    component("worker-supervisor"),
+  ]);
   assertEquals(withComponent[0]!.componentKey, "harness.claude");
+  assertEquals(withComponent[0]!.billingRoute, "subscription");
   assertEquals(withComponent[0]!.state, "notSignedIn");
+  const pi = agentRows(["pi"], [], [component("harness.pi")]);
+  assertEquals(pi[0]!.billingRoute, "api_metered");
+  const noRoute = agentRows(["pi"], [], [
+    { componentKey: "harness.pi", paymentMethods: [] },
+  ]);
+  assertEquals([noRoute[0]!.componentKey, noRoute[0]!.billingRoute], [
+    null,
+    undefined,
+  ]);
   // A binding sets the state and its own component key.
   const signed = agentRows(["claude"], [
     binding({ lastCheckedAt: "2026-11-14T00:00:00Z" }),
-  ], [{ componentKey: "other.claude" }]);
+  ], [component("other.claude")]);
   assertEquals(signed.map((row) => [row.agent, row.state, row.componentKey]), [[
     "claude",
     "ready",
@@ -147,8 +172,8 @@ Deno.test("one row per agent the machine reported, in its order, then any agent 
   // One only a reported component names gets a row too.
   assertEquals(
     agentRows([], [], [
-      { componentKey: "harness.codex" },
-      { componentKey: "worker-supervisor" },
+      component("harness.codex"),
+      component("worker-supervisor"),
     ]).map((row) => [row.agent, row.state, row.componentKey]),
     [["codex", "notSignedIn", "harness.codex"]],
   );
@@ -741,45 +766,6 @@ Deno.test("the header badge: Needs attention only for an otherwise Ready or Chec
   // Until the agents' own data is known nothing is claimed about them.
   assertEquals(pageBadge("ready", none, false), "ready");
   assertEquals(pageBadge("ready", [], true), "ready");
-});
-
-Deno.test("the software list: an agent by its own name, anything else by the machine's name, once per name and version", () => {
-  assertEquals(
-    softwareEntries([
-      { componentKey: "harness.claude", actualVersion: "1.2.0" },
-      { componentKey: "harness.codex", actualVersion: "0.9.1" },
-      { componentKey: "harness.claude", actualVersion: "1.2.0" },
-      { componentKey: "worker-supervisor", actualVersion: "3.0.0" },
-      { componentKey: "harness.claude", actualVersion: "1.3.0" },
-    ]),
-    [
-      {
-        key: "claude@1.2.0",
-        agent: "claude",
-        name: "harness.claude",
-        version: "1.2.0",
-      },
-      {
-        key: "codex@0.9.1",
-        agent: "codex",
-        name: "harness.codex",
-        version: "0.9.1",
-      },
-      {
-        key: "worker-supervisor@3.0.0",
-        agent: null,
-        name: "worker-supervisor",
-        version: "3.0.0",
-      },
-      {
-        key: "claude@1.3.0",
-        agent: "claude",
-        name: "harness.claude",
-        version: "1.3.0",
-      },
-    ],
-  );
-  assertEquals(softwareEntries([]), []);
 });
 
 Deno.test("failed checks that are only an agent's sign-in give that agent's banner; anything else leaves the generic one", () => {

@@ -16,6 +16,7 @@ import { useLiveEvents } from "../../api/use-live-events.ts";
 import { useConnectivity } from "../../app/connectivity.ts";
 import { useProtectedScope } from "../../app/query-scope-context.tsx";
 import { RouterLink } from "../../app/router-link.tsx";
+import { NotificationBellControl } from "../../notifications/NotificationBellControl.tsx";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
 import { commandFailure } from "../task-conversation/model.ts";
 import { LaneCards, useLaneColumns } from "./LaneRow.tsx";
@@ -90,7 +91,9 @@ export function TaskCoordinationPage(
     task.data
       ? [
         { type: "task", id: taskId },
-        { type: "application", id: task.data.applicationId },
+        ...(task.data.applicationId === null
+          ? []
+          : [{ type: "application" as const, id: task.data.applicationId }]),
       ]
       : [],
     () => refreshRef.current(),
@@ -498,17 +501,22 @@ export function TaskCoordinationPage(
                 {t("tasks.coordination.back")}
               </RouterLink>
             }
-            actions={plan && cancelable(plan) && phase === "idle"
-              ? (
-                <UI.Button
-                  variant="destructive-quiet"
-                  disabled={!online}
-                  onClick={() => setPhase("confirming")}
-                >
-                  {t("tasks.coordination.cancel.action")}
-                </UI.Button>
-              )
-              : undefined}
+            actions={
+              <>
+                {plan && cancelable(plan) && phase === "idle"
+                  ? (
+                    <UI.Button
+                      variant="destructive-quiet"
+                      disabled={!online}
+                      onClick={() => setPhase("confirming")}
+                    >
+                      {t("tasks.coordination.cancel.action")}
+                    </UI.Button>
+                  )
+                  : null}
+                <NotificationBellControl />
+              </>
+            }
           />
         )}
         {plan

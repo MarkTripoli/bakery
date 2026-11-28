@@ -26,7 +26,9 @@ export const RUN_GRANT_ACTIONS: Readonly<
 > = Object.freeze({
   // `:id` is the run.
   "runs.get": "run",
+  "runAccess.list": "run",
   "runSteps.list": "run",
+  "runSteps.given": "run",
   // The run's delivery evidence (#456 slice 2a): what its checks, reviews and
   // decisions say. Each is keyed by the run and reads nothing outside it.
   "checks.list": "run",

@@ -7,15 +7,16 @@ import { useBakeryApi } from "../../api/context.tsx";
 import {
   effectiveAccessQueryOptions,
   organizationsListQueryOptions,
+  skillDraftQueryOptions,
 } from "../../api/query.ts";
 import { asyncKindForError, failureStatus } from "../../app/async-state.ts";
 import { useConnectivity } from "../../app/connectivity.ts";
 import { focusAfterPaint } from "../../app/focus.ts";
 import { useProtectedScope } from "../../app/query-scope-context.tsx";
 import { useShellViewport } from "../../app/responsive.ts";
-import { useSession } from "../../app/session-context.tsx";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
 import { clip, copyName, NAME_LIMIT } from "./copy-workflow.ts";
+import { useCanChangeSkill } from "./useCanChangeSkill.ts";
 
 const toastStore = (() => {
   let message: string | null = null;
@@ -86,7 +87,6 @@ export function useSkillActions(
   const { translate } = useI18n();
   const offline = useConnectivity() === "offline";
   const phone = useShellViewport() === "phone";
-  const identity = useSession().identity;
   const access = useQuery(effectiveAccessQueryOptions(api, scope));
   const organizations = useQuery(organizationsListQueryOptions(api, scope));
   const organizationId = scope.organizationId as string;
@@ -94,10 +94,7 @@ export function useSkillActions(
     organizations.data?.items.find((item) => item.id === organizationId)
       ?.name ?? null;
   const admin = access.data?.role === "admin";
-  const canChange = skill.scope === "organization"
-    ? admin
-    : skill.scope === "personal" &&
-      identity?.principalId === skill.ownerPrincipalId;
+  const canChange = useCanChangeSkill(skill) === true;
 
   const [dialog, setDialog] = useState<Dialog>(null);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -297,9 +294,46 @@ export function useSkillActions(
       />
     </UI.Popover>
   );
+  const draftOptions = skillDraftQueryOptions(api, scope, skill.id);
+  const draftRead = useQuery({
+    ...draftOptions,
+    enabled: canChange && scope.organizationId !== null,
+    retry: false,
+  });
+  const [opening, setOpening] = useState(false);
+  const startEditing = async () => {
+    if (draftRead.data === undefined) {
+      setOpening(true);
+      const result = await api.openSkillDraft({ organizationId, id: skill.id });
+      setOpening(false);
+      if (!result.ok) {
+        setFailure(failureOf(result.error));
+        return;
+      }
+      queryClient.setQueryData(draftOptions.queryKey, result.data);
+    }
+    void navigate({
+      to: "/library/skills/$skillId/edit",
+      params: { skillId: skill.id },
+    });
+  };
+  const editButton = (
+    <UI.Button
+      variant="primary"
+      disabled={offline || pending || opening || draftRead.isPending}
+      loading={opening}
+      onClick={() => void startEditing()}
+    >
+      {translate(
+        draftRead.data === undefined
+          ? "library.skills.edit"
+          : "library.skills.continueEditing",
+      )}
+    </UI.Button>
+  );
   const bar = (
     <UI.Inline gap="compact" data-testid="skill-actions">
-      {canChange ? more : copyButton}
+      {canChange ? <>{editButton}{more}</> : copyButton}
     </UI.Inline>
   );
 

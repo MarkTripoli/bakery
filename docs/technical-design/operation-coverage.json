@@ -89,19 +89,26 @@
       "reason": "Slack command intake arrives with the shared coordinator."
     },
     "intake.slack.events": {
-      "state": "unbuilt",
-      "owner": "#27",
-      "reason": "Slack event intake arrives with the shared coordinator."
+      "state": "served-outside-registry",
+      "route": {
+        "file": "apps/server/src/modules/integrations/slack-intake-routes.ts",
+        "literal": "/v1/webhooks/slack/events"
+      },
+      "test": {
+        "file": "tests/integration/receive-slack-events-and-commit-their-receipts_test.ts",
+        "contains": "/v1/webhooks/slack/events"
+      }
     },
     "intake.slack.interactions": {
-      "state": "unbuilt",
-      "owner": "#27",
-      "reason": "Slack interaction intake arrives with the shared coordinator."
-    },
-    "integrationAuth.slackIdentityCallback": {
-      "state": "unbuilt",
-      "owner": "#12",
-      "reason": "Slack identity linking callback arrives with Slack installation."
+      "state": "served-outside-registry",
+      "route": {
+        "file": "apps/server/src/modules/integrations/slack-intake-routes.ts",
+        "literal": "/v1/webhooks/slack/interactions"
+      },
+      "test": {
+        "file": "tests/integration/decide-slack-approve-requests-from-buttons_test.ts",
+        "contains": "SLACK_INTERACTIONS_PATH"
+      }
     },
     "integrationCapabilities.list": {
       "state": "unbuilt",
@@ -198,6 +205,17 @@
       "test": {
         "file": "tests/integration/assignment-guards-transactional-claim_test.ts",
         "contains": "worker/claims"
+      }
+    },
+    "worker.modelKey": {
+      "state": "served-outside-registry",
+      "route": {
+        "file": "apps/server/src/modules/execution/routes.ts",
+        "literal": "/v1/worker/attempts/:id/model-key"
+      },
+      "test": {
+        "file": "tests/integration/deliver-a-model-key-to-the-attempt_test.ts",
+        "contains": "/model-key"
       }
     },
     "worker.context": {
@@ -583,6 +601,10 @@
         "module": "mcp",
         "migration": "apps/server/src/modules/mcp/migrations/bakery/0344_capability_binding_seats.sql"
       },
+      "conversation_feed_sequences": {
+        "module": "mcp",
+        "migration": "apps/server/src/modules/mcp/migrations/bakery/0369_session_tool_feed.sql"
+      },
       "coordination_lanes": {
         "module": "work",
         "migration": "apps/server/src/modules/work/migrations/bakery/0120_coordination_plans.sql"
@@ -602,6 +624,10 @@
       "definition_publish_grants": {
         "module": "work",
         "migration": "apps/server/src/modules/work/migrations/bakery/0186_definition_publish_grants_and_proposal_supersession.sql"
+      },
+      "delivery_principals": {
+        "module": "integrations",
+        "migration": "apps/server/src/modules/integrations/migrations/bakery/0378_delivery_principals.sql"
       },
       "desktop_handoffs": {
         "module": "auth",
@@ -762,6 +788,14 @@
       "password_reset_links": {
         "module": "auth",
         "migration": "apps/server/src/modules/auth/migrations/bakery/0240_password_reset_links.sql"
+      },
+      "person_request_deliveries": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0377_person_request_deliveries.sql"
+      },
+      "person_request_next_asks": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0375_person_request_next_asks.sql"
       },
       "person_requests": {
         "module": "work",
@@ -971,6 +1005,10 @@
         "module": "work",
         "migration": "apps/server/src/modules/work/migrations/bakery/0049_execution_output.sql"
       },
+      "session_tool_feed_events": {
+        "module": "mcp",
+        "migration": "apps/server/src/modules/mcp/migrations/bakery/0369_session_tool_feed.sql"
+      },
       "skill_draft_files": {
         "module": "work",
         "migration": "apps/server/src/modules/work/migrations/bakery/0276_skill_drafts.sql"
@@ -987,9 +1025,21 @@
         "module": "work",
         "migration": "apps/server/src/modules/work/migrations/bakery/0255_private_skills.sql"
       },
+      "slack_event_receipts": {
+        "module": "integrations",
+        "migration": "apps/server/src/modules/integrations/migrations/bakery/0368_slack_installations_and_receipts.sql"
+      },
       "slack_identity_attempts": {
         "module": "integrations",
         "migration": "apps/server/src/modules/integrations/migrations/bakery/0153_slack_identity_attempts.sql"
+      },
+      "slack_installations": {
+        "module": "integrations",
+        "migration": "apps/server/src/modules/integrations/migrations/bakery/0368_slack_installations_and_receipts.sql"
+      },
+      "slack_thread_bindings": {
+        "module": "integrations",
+        "migration": "apps/server/src/modules/integrations/migrations/bakery/0368_slack_installations_and_receipts.sql"
       },
       "ssoProvider": {
         "module": "auth",

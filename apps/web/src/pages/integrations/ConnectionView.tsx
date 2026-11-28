@@ -13,14 +13,25 @@ import {
   SEARCH_AFTER,
   type SetupStep,
 } from "./model.ts";
-import { type ConnectionOutcome, OUTCOME_COPY } from "./outcomes.ts";
+import type { ConnectionOutcome } from "./outcomes.ts";
 import type {
   CheckStatus,
   SelectionStatus,
   SwitchStatus,
 } from "./use-connection.ts";
 import type { ConnectStatus } from "./connect.ts";
-import { PROVIDER_IDENTITY } from "./providers/index.ts";
+import { SlackAbilities } from "./providers/slack/SlackAbilities.tsx";
+import {
+  canRemove,
+  hasHealthCheck,
+  hasSetupPages,
+  healthBadge,
+  permissionSentences,
+  providerBanner,
+  providerFix,
+  providerLook,
+  providerOutcomeCopy,
+} from "./providers/index.ts";
 
 export type ConnectionViewState =
   | "loading"
@@ -55,6 +66,9 @@ export type RepositoriesProps = {
 export type ConnectionViewProps = {
   readonly state: ConnectionViewState;
   readonly canManage: boolean;
+  readonly provider: string;
+  readonly granted: unknown;
+  readonly grantedScopeNames?: readonly string[] | null;
   readonly account: string;
   readonly status: ConnectionStatus;
   readonly health: Health;
@@ -64,6 +78,7 @@ export type ConnectionViewProps = {
   readonly lastCheckedAt: string | null;
   readonly formatTime: (iso: string) => string;
   readonly outcome: ConnectionOutcome | null;
+  readonly outcomeProvider: string;
   readonly continuing: boolean;
   readonly connectStatus: ConnectStatus;
   readonly checkStatus: CheckStatus;
@@ -78,6 +93,9 @@ export type ConnectionViewProps = {
   readonly onTurnOff: () => void;
   readonly onDismissOutcome: () => void;
   readonly onReload: () => void;
+  readonly onRemove?: () => void;
+  readonly removeStatus?: "idle" | "removing" | "failed";
+  readonly ownLinkNotice?: ReactNode;
 };
 
 /** The shared step mark for each setup status: the open step shows "in progress". */
@@ -133,15 +151,15 @@ export function ConnectionView(props: ConnectionViewProps) {
   const { translate } = useI18n();
   const phone = useShellViewport() === "phone";
   const { state } = props;
-  const title = translate("settings.connections.row.title", {
-    account: props.account,
-  });
+  const guided = hasSetupPages(props.provider);
+  const title = connectionTitle(props, translate);
   // The page's one secondary action: in the shell's action slot on desktop,
   // under the title on a phone.
   // The server checks only a connection that is on, so Check now is shown only
   // then: not while setup is unfinished, not turned off, not removed.
-  const checkNow = state === "ready" && props.canManage &&
-      props.status !== "pending" && props.status !== "disabled" &&
+  const checkNow = state === "ready" && hasHealthCheck(props.provider) &&
+      props.canManage && props.status !== "pending" &&
+      props.status !== "disabled" &&
       props.status !== "revoked"
     ? (
       <UI.Button
@@ -163,21 +181,23 @@ export function ConnectionView(props: ConnectionViewProps) {
       <UI.PageHeader
         actions={phone ? checkNow : undefined}
         flush
-        subtitle={state === "ready"
+        subtitle={state !== "ready"
+          ? undefined
+          : guided
           ? translate("settings.connections.page.purpose")
+          : hasHealthCheck(props.provider)
+          ? translate("integrations.slack.page.purpose")
           : undefined}
         summary={state === "ready"
           ? (
-            <UI.Badge tone={props.health.tone}>
-              {translate(
-                `settings.connections.badge.${props.health.kind}` as MessageKey,
-              )}
+            <UI.Badge tone={healthBadge(props.provider, props.health).tone}>
+              {translate(healthBadge(props.provider, props.health).key)}
             </UI.Badge>
           )
           : undefined}
         title={state === "ready"
           ? title
-          : translate(PROVIDER_IDENTITY.headingKey)}
+          : translate("settings.connections.title")}
         variant="list"
       />
       {state === "loading"
@@ -217,18 +237,188 @@ export function ConnectionView(props: ConnectionViewProps) {
               </UI.Button>
             }
             description={translate("settings.connections.loadError")}
-            title={translate(PROVIDER_IDENTITY.headingKey)}
+            title={translate("settings.connections.title")}
           />
         )
-        : <ReadyContent {...props} />}
+        : guided
+        ? <ReadyContent {...props} />
+        : <OtherProviderContent {...props} />}
     </UI.SettingsContent>
+  );
+}
+
+function connectionTitle(
+  props: Pick<ConnectionViewProps, "provider" | "account">,
+  translate: ReturnType<typeof useI18n>["translate"],
+): string {
+  return hasSetupPages(props.provider)
+    ? translate("settings.connections.row.title", { account: props.account })
+    : translate("settings.connections.other.title", {
+      provider: providerLook(props.provider, translate).name,
+      account: props.account,
+    });
+}
+
+const OTHER_BANNER: Readonly<Partial<Record<HealthKind, MessageKey>>> = {
+  needsAttention: "settings.connections.other.needsAttentionNext",
+  authRequired: "settings.connections.other.needsAttentionNext",
+  limited: "settings.connections.other.needsAttentionNext",
+  turnedOff: "settings.connections.banner.turnedOff",
+  removed: "settings.connections.other.removedNext",
+};
+
+function OtherProviderContent(props: ConnectionViewProps) {
+  const { translate } = useI18n();
+  const provider = providerLook(props.provider, translate).name;
+  const banner = OTHER_BANNER[props.health.kind];
+  const tone = BANNER_TONE[props.health.kind];
+  const switchNotice = SWITCH_NOTICE[props.switchStatus];
+  const sentences = permissionSentences(props.provider, props.granted);
+  const fix = providerFix(props.provider, props.health.kind);
+  const connecting = props.connectStatus === "starting" ||
+    props.connectStatus === "redirecting";
+  const checkable = hasHealthCheck(props.provider);
+  const unanswered = checkable &&
+    (props.checkFaulted && props.checkStatus === "idle" ||
+      CHECK_NOTICE[props.checkStatus] !== undefined);
+  const bannerKey = fix?.body ??
+    providerBanner(props.provider, props.health.kind) ?? banner;
+  return (
+    <>
+      <OutcomeBanner {...props} />
+      {props.connectStatus === "redirecting" ||
+          props.connectStatus === "failed" ||
+          props.connectStatus === "unregistered"
+        ? (
+          <UI.InlineNotice
+            tone={props.connectStatus === "redirecting"
+              ? "information"
+              : "error"}
+          >
+            {translate(
+              `integrations.${props.provider}.${props.connectStatus}` as MessageKey,
+            )}
+          </UI.InlineNotice>
+        )
+        : null}
+      {banner !== undefined && tone !== null
+        ? (
+          <UI.AlertBanner
+            action={fix !== null && props.canManage
+              ? (
+                <UI.Button
+                  disabled={connecting}
+                  loading={connecting}
+                  onClick={props.onFix}
+                  type="button"
+                  variant="primary"
+                >
+                  {translate(`settings.connections.action.${fix.action}`)}
+                </UI.Button>
+              )
+              : props.health.action === "turnOn" && props.canManage
+              ? (
+                <UI.Button
+                  disabled={props.switchStatus === "saving"}
+                  loading={props.switchStatus === "saving"}
+                  onClick={props.onTurnOn}
+                  type="button"
+                  variant="primary"
+                >
+                  {translate("settings.connections.action.turnOn")}
+                </UI.Button>
+              )
+              : undefined}
+            data-testid="connection-problem"
+            tone={tone}
+          >
+            {translate(bannerKey ?? banner, { provider })}
+          </UI.AlertBanner>
+        )
+        : null}
+      {unanswered
+        ? (
+          <UI.InlineNotice
+            action={
+              <UI.Button
+                onClick={props.onCheck}
+                type="button"
+                variant="secondary"
+              >
+                {translate("settings.connections.action.checkAgain")}
+              </UI.Button>
+            }
+            tone="warning"
+          >
+            {translate("integrations.slack.check.noAnswer")}
+          </UI.InlineNotice>
+        )
+        : null}
+      {props.ownLinkNotice}
+      {switchNotice
+        ? (
+          <UI.InlineNotice tone="error">
+            {props.switchStatus === "noSelection"
+              ? translate("settings.connections.other.noResource", { provider })
+              : translate(switchNotice)}
+          </UI.InlineNotice>
+        )
+        : null}
+      <UI.Stack data-testid="permissions" gap="compact">
+        <UI.Heading level="section">
+          {translate("settings.connections.other.can", { provider })}
+          <UI.HelpTip label={translate("settings.connections.can.helpLabel")}>
+            {translate("settings.connections.can.help")}
+          </UI.HelpTip>
+        </UI.Heading>
+        {checkable
+          ? <SlackAbilities scopeNames={props.grantedScopeNames ?? null} />
+          : sentences.length === 0
+          ? (
+            <UI.Text variant="muted">
+              {translate("settings.connections.other.noPermissions", {
+                provider,
+              })}
+            </UI.Text>
+          )
+          : (
+            <UI.Stack gap="tight">
+              {sentences.map((sentence) => (
+                <UI.Text key={JSON.stringify(sentence)}>
+                  {translate(
+                    sentence.key as MessageKey,
+                    sentence.arguments,
+                  )}
+                </UI.Text>
+              ))}
+            </UI.Stack>
+          )}
+      </UI.Stack>
+      <DetailsSection {...props} />
+    </>
+  );
+}
+
+function OutcomeBanner(props: ConnectionViewProps) {
+  const { translate } = useI18n();
+  const copy = providerOutcomeCopy(props.outcomeProvider, props.outcome);
+  if (copy === null) return null;
+  const values = { account: props.account };
+  return (
+    <UI.AlertBanner
+      data-outcome={props.outcome ?? undefined}
+      data-testid="github-connection-outcome"
+      onDismiss={props.onDismissOutcome}
+      tone={copy.tone}
+    >
+      {translate(copy.body, values)}
+    </UI.AlertBanner>
   );
 }
 
 function ReadyContent(props: ConnectionViewProps) {
   const { translate } = useI18n();
   const { health, canManage } = props;
-  const outcome = props.outcome ? OUTCOME_COPY[props.outcome] : null;
   const connecting = props.connectStatus === "starting" ||
     props.connectStatus === "redirecting" || props.continuing;
   const bannerTone = BANNER_TONE[health.kind];
@@ -249,18 +439,7 @@ function ReadyContent(props: ConnectionViewProps) {
   const switchNotice = SWITCH_NOTICE[props.switchStatus];
   return (
     <>
-      {outcome
-        ? (
-          <UI.AlertBanner
-            data-outcome={props.outcome ?? undefined}
-            data-testid="github-connection-outcome"
-            onDismiss={props.onDismissOutcome}
-            tone={outcome.tone}
-          >
-            {translate(outcome.body)}
-          </UI.AlertBanner>
-        )
-        : null}
+      <OutcomeBanner {...props} />
       {props.continuing
         ? (
           <UI.AlertBanner tone="information">
@@ -623,31 +802,56 @@ function PermissionsSection(
 
 function DetailsSection(props: ConnectionViewProps) {
   const { translate } = useI18n();
+  const guided = hasSetupPages(props.provider);
+  const provider = providerLook(props.provider, translate).name;
   const [confirming, setConfirming] = useState(false);
   const canTurnOff = props.canManage &&
     (props.status === "enabled" || props.status === "degraded");
+  const removable = props.canManage && canRemove(props.provider) &&
+    props.status !== "revoked" && props.onRemove !== undefined;
+  const own = !guided && hasHealthCheck(props.provider);
+  const name = connectionTitle(props, translate);
+  const [removing, setRemoving] = useState(false);
   return (
     <UI.Stack data-testid="connection-details" gap="compact">
       <UI.Heading level="section">
         {translate("settings.connections.details.heading")}
       </UI.Heading>
       <UI.DescriptionList>
+        {own
+          ? (
+            <UI.DescriptionItem
+              description={props.account}
+              title={translate("integrations.slack.details.workspace")}
+            />
+          )
+          : null}
         <UI.DescriptionItem
           description={props.formatTime(props.createdAt)}
           title={translate("settings.connections.details.connected")}
         />
-        <UI.DescriptionItem
-          description={props.lastCheckedAt === null
-            ? translate("settings.connections.row.notChecked")
-            : props.formatTime(props.lastCheckedAt)}
-          title={translate("settings.connections.lastChecked")}
-        />
+        {hasHealthCheck(props.provider)
+          ? (
+            <UI.DescriptionItem
+              description={props.lastCheckedAt === null
+                ? translate("settings.connections.row.notChecked")
+                : props.formatTime(props.lastCheckedAt)}
+              title={translate("settings.connections.lastChecked")}
+            />
+          )
+          : null}
       </UI.DescriptionList>
       {canTurnOff
         ? (
           <>
             <UI.Text variant="muted">
-              {translate("settings.connections.turnOff.explain")}
+              {guided
+                ? translate("settings.connections.turnOff.explain")
+                : own
+                ? translate("integrations.slack.turnOffExplain")
+                : translate("settings.connections.other.turnOffExplain", {
+                  provider,
+                })}
             </UI.Text>
             <UI.Inline gap="compact">
               <UI.Button
@@ -686,13 +890,71 @@ function DetailsSection(props: ConnectionViewProps) {
               onOpenChange={setConfirming}
               open={confirming}
               title={translate("settings.connections.turnOff.title", {
-                name: translate("settings.connections.row.title", {
-                  account: props.account,
-                }),
+                name: connectionTitle(props, translate),
               })}
             >
               <UI.Text>
-                {translate("settings.connections.turnOff.body")}
+                {translate(
+                  own
+                    ? "integrations.slack.turnOffBody"
+                    : "settings.connections.turnOff.body",
+                )}
+              </UI.Text>
+            </UI.AlertDialog>
+          </>
+        )
+        : null}
+      {removable
+        ? (
+          <>
+            {props.removeStatus === "failed"
+              ? (
+                <UI.InlineNotice role="alert" tone="error">
+                  {translate("integrations.slack.remove.failed")}
+                </UI.InlineNotice>
+              )
+              : null}
+            <UI.Inline gap="compact">
+              <UI.Button
+                disabled={props.removeStatus === "removing"}
+                loading={props.removeStatus === "removing"}
+                onClick={() => setRemoving(true)}
+                type="button"
+                variant="destructive-outline"
+              >
+                {translate("integrations.slack.remove.action")}
+              </UI.Button>
+            </UI.Inline>
+            <UI.AlertDialog
+              cancelAction={
+                <UI.Button
+                  onClick={() => setRemoving(false)}
+                  type="button"
+                  variant="secondary"
+                >
+                  {translate("core.actions.cancel")}
+                </UI.Button>
+              }
+              confirmAction={
+                <UI.Button
+                  onClick={() => {
+                    setRemoving(false);
+                    props.onRemove?.();
+                  }}
+                  type="button"
+                  variant="destructive"
+                >
+                  {translate("integrations.slack.remove.action")}
+                </UI.Button>
+              }
+              onOpenChange={setRemoving}
+              open={removing}
+              title={translate("integrations.slack.remove.title", { name })}
+            >
+              <UI.Text>
+                {translate("integrations.slack.remove.body", {
+                  account: props.account,
+                })}
               </UI.Text>
             </UI.AlertDialog>
           </>

@@ -104,6 +104,7 @@ type World = {
   listCalls: number;
   /** While true, the read of this machine's sign-ins fails. */
   failBindings: boolean;
+  pi?: boolean;
 };
 
 let nextRoute = 1;
@@ -162,14 +163,14 @@ function world(over: Partial<World> = {}): World {
   };
 }
 
-function machine() {
+function machine(agent = "claude") {
   return {
     id: MACHINE_ID,
     principalId: "00000000-0000-4000-8000-0000000000a2",
     name: "fixture-host",
     os: "linux",
     architecture: "x86_64",
-    capabilities: ["git", "shell", "web", "model", "claude"],
+    capabilities: ["git", "shell", "web", "model", agent],
     toolchainVersions: {},
     slots: 2,
     status: "online",
@@ -179,6 +180,7 @@ function machine() {
     readinessReason: null,
     failedCheckIds: [],
     lastHeartbeatAt: new Date().toISOString(),
+    activeAttemptCount: 0,
     credentialGeneration: 1,
     archivedAt: null,
     cleanup: { state: "not_requested", requestedAt: null, confirmedAt: null },
@@ -254,8 +256,8 @@ async function open(
         items: w.bound
           ? [{
             id: "00000000-0000-4000-8000-0000000000c0",
-            componentKey: "harness.claude",
-            paymentMethods: ["subscription"],
+            componentKey: w.pi ? "harness.pi" : "harness.claude",
+            paymentMethods: w.pi ? ["api_metered", "local"] : ["subscription"],
             kind: "harness",
             actualVersion: "1.0.0",
             actualDigest: null,
@@ -274,15 +276,40 @@ async function open(
       if (w.role !== "admin") return r.fulfill(problem(403, "AUTH_FORBIDDEN"));
       if (w.gate !== null) await w.gate;
       if (w.failBindings) return r.fulfill(problem(500, "INTERNAL"));
+      const signedIn = w.pi
+        ? {
+          ...bindingWire,
+          componentKey: "harness.pi",
+          provider: "pi",
+          billingRoute: "api_metered",
+        }
+        : bindingWire;
       return r.fulfill(
-        json({ items: w.bound ? [bindingWire] : [], nextCursor: null }),
+        json({ items: w.bound ? [signedIn] : [], nextCursor: null }),
       );
+    }
+    if (url.pathname.endsWith("/models")) {
+      return r.fulfill(json({
+        items: w.routes.filter((one) => one.workerBindingId === BINDING_ID)
+          .map((one) => ({
+            id: one.id,
+            provider: "acme",
+            model: one.model,
+            harness: one.harness,
+            billingRoute: "subscription",
+            status: one.status,
+            health: one.health,
+            inferenceVerifiedAt: one.inferenceVerifiedAt,
+            createdAt: "2026-01-01T00:00:00.000Z",
+          })),
+        nextCursor: null,
+      }));
     }
     return r.fulfill(json({ items: [], nextCursor: null }));
   });
   await page.route(
     (url) => url.pathname === `/v1/workers/${MACHINE_ID}`,
-    (r) => r.fulfill(json(machine())),
+    (r) => r.fulfill(json(machine(w.pi ? "pi" : "claude"))),
   );
   await page.route(
     (url) => url.pathname === "/v1/provider-routes",
@@ -500,30 +527,47 @@ test.describe("machine page: Models tab", () => {
     await still(page, "models-revoked");
   });
 
-  test("a member sees one line and no table, and never the models of other machines", async ({ page }) => {
+  test("a member reads this machine's own models, with nothing to change", async ({ page }) => {
     const w = world({
       role: "developer",
       routes: [
         route({ model: "mine" }),
+        route({ model: "mine-off", status: "disabled" }),
+        route({ model: "mine-gone", status: "revoked" }),
         route({ model: "someone-elses", workerBindingId: OTHER_BINDING_ID }),
-        // The same coding agent on another machine: the old fallback listed this one.
-        route({ model: "same-agent-elsewhere", workerBindingId: null }),
       ],
     });
     await open(page, w);
-    await expect(models(page)).toHaveText(
-      "Only administrators can see this machine's models.",
+    await expect(models(page)).toContainText(
+      "Only administrators can change models.",
     );
-    await expect(page.locator("[data-model-id]")).toHaveCount(0);
+    await expect(models(page)).toContainText(
+      "It cannot be turned on again. An administrator can add it as a new model.",
+    );
+    await expect(models(page)).not.toContainText("Add it as a new model");
+    await expect(models(page)).toContainText(
+      "Work on this machine is sent only to",
+    );
+    await expect(page.locator("[data-model-id]")).toHaveCount(3);
+    await expect(models(page)).toContainText("mine-off");
+    await expect(models(page)).toContainText("Turned off");
+    await expect(models(page)).not.toContainText("someone-elses");
     await expect(page.getByRole("switch")).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Add a model" })).toHaveCount(
       0,
     );
-    // The sentence cannot stand over no list, and the list of everything is never asked for.
-    await expect(page.getByText("Work on this machine is sent only to"))
-      .toHaveCount(0);
     expect(w.listCalls).toBe(0);
     await still(page, "models-not-admin");
+  });
+
+  test("a member of a machine with no models is told so, without a button", async ({ page }) => {
+    await open(page, world({ role: "developer", routes: [] }));
+    await expect(models(page)).toContainText("No models yet");
+    await expect(models(page)).toContainText(
+      "Only administrators can change models.",
+    );
+    await expect(models(page).getByRole("button")).toHaveCount(0);
+    await still(page, "models-not-admin-empty");
   });
 
   test("while this machine's sign-ins are read, no list is drawn, never a guess", async ({ page }) => {
@@ -559,6 +603,25 @@ test.describe("machine page: Models tab", () => {
       expect(button!.y).toBeLessThan(sentence!.y + sentence!.height);
       expect(button!.x).toBeGreaterThan(sentence!.x + sentence!.width);
     }
+  });
+
+  test("offline, no model can be added or turned off", async ({ page, context }) => {
+    await open(page, world({ routes: [route()] }));
+    const add = models(page).getByRole("button", { name: "Add a model" });
+    await expect(add).toBeEnabled();
+    await context.setOffline(true);
+    await expect(add).toBeDisabled();
+    await expect(models(page).getByRole("switch")).toBeDisabled();
+  });
+
+  test("offline, a half-written model cannot be sent", async ({ page, context }) => {
+    await open(page, world(), `/machines/${MACHINE_ID}/models/new`);
+    const submit = page.getByRole("button", { name: "Add model" });
+    await expect(submit).toBeEnabled();
+    await context.setOffline(true);
+    await expect(submit).toBeDisabled();
+    await expect(page.getByText(/You are offline\. Last updated /))
+      .toBeVisible();
   });
 
   test("with no models and a coding agent signed in, the tab offers to add one", async ({ page }) => {
@@ -713,6 +776,31 @@ test.describe("machine page: Add a model", () => {
     const listed = await row(page, "acme-small").boundingBox();
     expect(added!.y).toBeGreaterThan(listed!.y);
     await still(page, "add-model-saved");
+  });
+
+  test("a Pi model is paid per use, never by a subscription", async ({ page }) => {
+    await open(page, world({ pi: true }), `/machines/${MACHINE_ID}/models/new`);
+    const form = page.getByTestId("machine-model-new");
+    const pi = page.getByRole("radio", { name: "Pi" });
+    await expect(pi).toBeVisible();
+    await expect(pi).not.toBeChecked();
+    await expect(pi).toBeEnabled();
+    await expect(form).toContainText(
+      "Choose a coding agent to see how it is paid.",
+    );
+    await expect(form).not.toContainText(
+      "Paying with an API key is not available yet.",
+    );
+    await still(page, "add-model-pi-unchosen");
+    await pi.check({ force: true });
+    await expect(form).toContainText(
+      "Pi is paid per use by its model provider.",
+    );
+    await expect(form).not.toContainText("subscription signed in");
+    await expect(form).not.toContainText(
+      "Paying with an API key is not available yet.",
+    );
+    await still(page, "add-model-pi");
   });
 
   test("another provider is typed in, and an empty form says what is missing", async ({ page }) => {

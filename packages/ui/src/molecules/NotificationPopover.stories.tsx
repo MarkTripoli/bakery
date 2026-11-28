@@ -44,61 +44,59 @@ export const Contract: StoryObj = {
   render: () => (
     <Stack gap="spacious">
       <Text>Rows ready:</Text>
-      <NotificationPopover
-        {...base}
-        markAllReadDisabled={false}
-        markAllReadDisabledReason="Nothing is unread."
-      >
+      <NotificationPopover {...base}>
         <NotificationGroup heading="Today">
           <Row id="a" />
           <Row id="b" unread={false} />
         </NotificationGroup>
       </NotificationPopover>
 
-      <Text>Nothing unread, so Mark all read is disabled with its reason:</Text>
+      <Text>Nothing unread, so there is no action and the note says so:</Text>
       <NotificationPopover
         {...base}
+        markAllReadLabel={undefined}
+        state="nothing-unread"
+        footerNote="You're all caught up."
+      />
+
+      <Text>Marking, so the action reads its running label:</Text>
+      <NotificationPopover
+        {...base}
+        markAllReadLabel="Marking…"
         markAllReadDisabled
-        markAllReadDisabledReason="Nothing is unread."
       >
         <NotificationGroup heading="Today">
-          <Row id="c" unread={false} />
+          <Row id="c" />
+        </NotificationGroup>
+      </NotificationPopover>
+
+      <Text>Mark all read failed, so the notice sits above the rows:</Text>
+      <NotificationPopover
+        {...base}
+        actionFailedLabel="Could not mark all as read."
+        onActionRetry={() => {}}
+      >
+        <NotificationGroup heading="Today">
+          <Row id="d" />
+          <Row id="e" unread={false} />
         </NotificationGroup>
       </NotificationPopover>
 
       <Text>Empty:</Text>
       <NotificationPopover
         {...base}
-        markAllReadDisabled
-        markAllReadDisabledReason="Nothing is unread."
         state="empty"
         footerNote="No notifications yet"
       />
 
       <Text>Loading:</Text>
-      <NotificationPopover
-        {...base}
-        markAllReadDisabled
-        markAllReadDisabledReason="Nothing is unread."
-        state="loading"
-      />
+      <NotificationPopover {...base} state="loading" />
 
       <Text>Failed, with a retry:</Text>
-      <NotificationPopover
-        {...base}
-        markAllReadDisabled={false}
-        markAllReadDisabledReason="Nothing is unread."
-        state="failed"
-        onRetry={() => {}}
-      />
+      <NotificationPopover {...base} state="failed" onRetry={() => {}} />
 
       <Text>Long enough to scroll under the block cap:</Text>
-      <NotificationPopover
-        {...base}
-        markAllReadDisabled={false}
-        markAllReadDisabledReason="Nothing is unread."
-        state="scrolling"
-      >
+      <NotificationPopover {...base} state="scrolling">
         <NotificationGroup heading="Today">
           {Array.from(
             { length: 12 },

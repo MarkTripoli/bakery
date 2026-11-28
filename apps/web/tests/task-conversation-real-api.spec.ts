@@ -196,7 +196,7 @@ test(
     const conversationId = task.conversationId;
     await expect(conversationRegion(page)).toBeVisible();
     await expect(page.locator('[data-stage="plan"]')).toContainText(
-      "Waits for your approval",
+      "Human approval",
     );
     expect(
       (await api<{ items: unknown[] }>(page, `/v1/tasks/${taskId}/runs`)).items,
@@ -476,6 +476,10 @@ test(
     await say(page, "Ask agent", "Plan this one.");
     await expect(approve(page, 1)).toBeEnabled({ timeout: 60_000 });
     await page.getByRole("button", { name: "Reject", exact: true }).click();
+    await page
+      .getByRole("alertdialog")
+      .getByRole("button", { name: "Reject", exact: true })
+      .click();
     await expect(page.getByText("You rejected plan, version 1")).toBeVisible();
     await page.getByRole("combobox", { name: /^Workflow/ }).selectOption({
       label: "Fixed coding",

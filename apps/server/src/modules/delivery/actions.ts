@@ -20,6 +20,11 @@ import {
 import { PostgresAuthorityRunner } from "../auth/adapters/authority-postgres.ts";
 import { createPostgresCommandRunner } from "../../platform/command-replay.ts";
 import type { PgDatabase } from "../../platform/database.ts";
+import type { ReconcileDependencies } from "../integrations/reconcile.ts";
+import {
+  createPullRequestRegistrationAuthorityRunner,
+  createPullRequestRegistrationHandler,
+} from "./pull-request-registration.ts";
 
 type CursorQuery = z.output<typeof contractSchemas.CursorQuery>;
 type PullRequestQuery = z.output<typeof contractSchemas.PullRequestQuery>;
@@ -118,9 +123,13 @@ export type DeliveryActionHandlers = {
 export function createDeliveryActionRegistry(
   database: PgDatabase,
   handlers: DeliveryActionHandlers,
+  registration: ReconcileDependencies,
 ): ActionRegistry {
   const registry = new ActionRegistry(
-    new PostgresAuthorityRunner(database),
+    createPullRequestRegistrationAuthorityRunner(
+      new PostgresAuthorityRunner(database),
+      registration,
+    ),
     createPostgresCommandRunner(),
   );
   const queryPolicy = {
@@ -235,6 +244,32 @@ export function createDeliveryActionRegistry(
     policy: queryPolicy,
     transactionIsolation: TransactionIsolation.RepeatableRead,
     handler: handlers.pullRequestsList,
+  });
+  registry.register({
+    name: DeliveryImplementedAction.PullRequestsRegister,
+    method: HttpMethod.Post,
+    path: "/v1/tasks/:id/pull-requests",
+    input: contractSchemas.PullRequestRegistrationCreate,
+    output: contractSchemas.PullRequest,
+    policy: commandPolicy,
+    transactionIsolation: TransactionIsolation.ReadCommitted,
+    explicitIdempotency: "key",
+    handler: createPullRequestRegistrationHandler(
+      DeliveryImplementedAction.PullRequestsRegister,
+    ),
+  });
+  registry.register({
+    name: DeliveryImplementedAction.PullRequestsOpen,
+    method: HttpMethod.Post,
+    path: "/v1/tasks/:id/pull-requests/open",
+    input: contractSchemas.PullRequestOpen,
+    output: contractSchemas.PullRequest,
+    policy: commandPolicy,
+    transactionIsolation: TransactionIsolation.ReadCommitted,
+    explicitIdempotency: "key",
+    handler: createPullRequestRegistrationHandler(
+      DeliveryImplementedAction.PullRequestsOpen,
+    ),
   });
 
   registry.register({

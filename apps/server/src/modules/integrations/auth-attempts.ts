@@ -23,6 +23,12 @@ import {
   isAllowlistedGitHubInstallationUrl,
 } from "./github-app.ts";
 import {
+  isAllowlistedOAuth2AuthorizationUrl,
+  oauth2AuthorizationUrl,
+  oauth2ProviderFor,
+} from "./oauth2-connect.ts";
+import { providerCallbackUrl } from "./client-credentials.ts";
+import {
   base64Url,
   GITHUB_PROVIDER,
   type IntegrationsDependencies,
@@ -100,6 +106,7 @@ export async function pkceChallenge(verifier: string): Promise<string> {
 async function requireReconnectTarget(
   transaction: AuthorizedActionContext["transaction"],
   organizationId: string,
+  provider: string,
   connectionId: string | undefined,
 ): Promise<string | null> {
   if (connectionId === undefined) return null;
@@ -107,7 +114,7 @@ async function requireReconnectTarget(
     `select 1 from bakery.integration_connections
       where organization_id = $1 and id = $2 and provider = $3
         and archived_at is null`,
-    [organizationId, connectionId, GITHUB_PROVIDER],
+    [organizationId, connectionId, provider],
   );
   if (result.rows.length !== 1) {
     throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
@@ -143,21 +150,29 @@ export async function createAuthAttempt(
   );
   const returnPath = requireReturnPath(input.returnPath);
   const transaction = value.transaction;
+  const provider = input.provider;
+  const oauth2 = provider === GITHUB_PROVIDER
+    ? undefined
+    : oauth2ProviderFor(provider);
+  if (provider !== GITHUB_PROVIDER && oauth2 === undefined) {
+    throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+  }
   const reconnectConnectionId = await requireReconnectTarget(
     transaction,
     actor.organizationId,
+    provider,
     input.reconnectConnectionId,
   );
   const registration = await transaction.query<
-    { clientId: string; slug: string }
+    { clientId: string; slug: string | null }
   >(
     `select client_id as "clientId", slug from bakery.integration_app_registrations
       where provider = $1`,
-    [GITHUB_PROVIDER],
+    [provider],
   );
   const clientId = registration.rows[0]?.clientId;
-  const slug = registration.rows[0]?.slug;
-  if (clientId === undefined || slug === undefined) {
+  const slug = registration.rows[0]?.slug ?? undefined;
+  if (clientId === undefined || (oauth2 === undefined && slug === undefined)) {
     throw new StandardError({
       code: "STATE_CONFLICT",
       params: { reason: "provider_unregistered" },
@@ -203,7 +218,7 @@ export async function createAuthAttempt(
       organizationId,
       principalId,
       sessionId,
-      GITHUB_PROVIDER,
+      provider,
       returnPath,
       stateHash,
       cipher.ciphertext,
@@ -225,7 +240,7 @@ export async function createAuthAttempt(
     resourceType: "integration_auth_attempt",
     resourceId: attempt.id,
     details: {
-      provider: GITHUB_PROVIDER,
+      provider,
       returnPath,
       reconnectConnectionId,
       expiresAt: attempt.expiresAt,
@@ -242,6 +257,20 @@ export async function createAuthAttempt(
     traceId: value.traceId,
   });
 
+  if (oauth2 !== undefined) {
+    const authorizationUrl = oauth2AuthorizationUrl(oauth2.profile, {
+      clientId,
+      redirectUri: providerCallbackUrl(provider, dependencies.publicBaseUrl),
+      state,
+      codeChallenge: await pkceChallenge(verifier),
+    });
+    if (
+      !isAllowlistedOAuth2AuthorizationUrl(authorizationUrl, oauth2.profile)
+    ) {
+      throw new StandardError({ code: "INTERNAL" });
+    }
+    return { id: attempt.id, authorizationUrl, expiresAt: attempt.expiresAt };
+  }
   const redirectUri = gitHubOAuthCallbackUrl(dependencies.publicBaseUrl);
   const authorizationUrl = gitHubAuthorizationUrl({
     clientId,
@@ -258,6 +287,7 @@ export async function createAuthAttempt(
     throw new StandardError({ code: "INTERNAL" });
   }
   // Same state: GitHub hands it to the Setup URL, binding the install.
+  if (slug === undefined) throw new StandardError({ code: "INTERNAL" });
   const installationUrl = gitHubInstallationUrl(slug, state);
   if (!isAllowlistedGitHubInstallationUrl(installationUrl, slug)) {
     throw new StandardError({ code: "INTERNAL" });

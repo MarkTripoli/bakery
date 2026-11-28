@@ -4,6 +4,10 @@ import type {
   MetricSource,
 } from "../../apps/web/src/api/client.ts";
 import {
+  chartGaps,
+  chartMaximum,
+  chartMissingDays,
+  chartSegments,
   countFigure,
   durationWords,
   freshnessOf,
@@ -13,7 +17,9 @@ import {
   missingKey,
   openFigure,
   recordRow,
+  ruleKey,
   SHOW_METRIC,
+  sizeAndQualityOf,
   withSomethingMissing,
 } from "../../apps/web/src/screens/delivery/delivery-display.ts";
 
@@ -86,15 +92,9 @@ Deno.test("freshness: disconnected outranks stale outranks missing", () => {
     state: "disconnected" as const,
     since: "2026-11-10T00:00:00.000Z",
   };
-  const lines = series({
-    sampleCount: 31,
-    missingReasons: [{ reason: "no_diff_totals", count: 11 }],
-    missingCount: 11,
-  });
   assertEquals(
     freshnessOf({
       merged: series({ repositories: [connected, stale, gone] }),
-      lines,
       tasks: undefined,
     }),
     {
@@ -106,7 +106,6 @@ Deno.test("freshness: disconnected outranks stale outranks missing", () => {
   assertEquals(
     freshnessOf({
       merged: series({ repositories: [connected, stale] }),
-      lines,
       tasks: undefined,
     }).kind,
     "stale",
@@ -114,19 +113,16 @@ Deno.test("freshness: disconnected outranks stale outranks missing", () => {
   assertEquals(
     freshnessOf({
       merged: series({ repositories: [connected] }),
-      lines,
       tasks: series({ missingCount: 2 }),
     }),
     {
       kind: "missing",
       asOf: "2026-11-20T09:00:00.000Z",
-      unmeasured: 11,
-      merged: 42,
       tasksMissing: 2,
     },
   );
   assertEquals(
-    freshnessOf({ merged: series(), lines: series(), tasks: series() }),
+    freshnessOf({ merged: series(), tasks: series() }),
     { kind: "complete", asOf: "2026-11-20T09:00:00.000Z" },
   );
 });
@@ -135,6 +131,15 @@ Deno.test("a missing reason always has words, even one the page does not know", 
   assertEquals(missingKey(null), null);
   assertEquals(missingKey("no_diff_totals"), "delivery.missing.noDiffTotals");
   assertEquals(missingKey("something_new"), "delivery.missing.other");
+  assertEquals(missingKey("no_line_count"), "delivery.missing.noLineCount");
+  assertEquals(
+    missingKey("line_count_binary"),
+    "delivery.missing.lineCountBinary",
+  );
+  assertEquals(
+    missingKey("line_count_truncated"),
+    "delivery.missing.lineCountTruncated",
+  );
 });
 
 Deno.test("hours between two times are known only when both are", () => {
@@ -189,7 +194,8 @@ Deno.test("a pull request row opens the task it delivers; a task row opens itsel
 
 Deno.test("each figure opens the metric that lists exactly what it counts", () => {
   assertEquals(isDeliveryShow("merged"), true);
-  assertEquals(isDeliveryShow("lines"), false);
+  assertEquals(isDeliveryShow("opened"), true);
+  assertEquals(isDeliveryShow("lines"), true);
   assertEquals(SHOW_METRIC.tasks, "tasks.leadTimeHours");
   assertEquals(SHOW_METRIC.merged, "prs.changedLines");
 });
@@ -279,4 +285,76 @@ Deno.test("no tasks delivered means no lead-time summary, never a bar of zeros",
     null,
   );
   assertEquals(leadTimeOf(taskSeries([], [0, 2]))!.point, "run");
+});
+
+Deno.test("the rule line names the definitions version only when one is served", () => {
+  assertEquals(ruleKey("merged", "3"), "delivery.records.rule.merged");
+  assertEquals(ruleKey("tasks", "3"), "delivery.records.rule.tasks");
+  assertEquals(
+    ruleKey("merged", null),
+    "delivery.records.rule.merged.noVersion",
+  );
+  assertEquals(
+    ruleKey("closed", null),
+    "delivery.records.rule.closed.noVersion",
+  );
+});
+
+Deno.test("a chart breaks its line where nothing was measured and names the gaps", () => {
+  const points = [
+    { at: "2026-11-01T00:00:00.000Z", value: 3 },
+    { at: "2026-11-02T00:00:00.000Z", value: 5 },
+    { at: "2026-11-03T00:00:00.000Z", value: null },
+    { at: "2026-11-04T00:00:00.000Z", value: null },
+    { at: "2026-11-05T00:00:00.000Z", value: 2 },
+  ];
+  assertEquals(chartSegments(points).length, 2);
+  assertEquals(chartSegments(points)[0]?.map((point) => point.value), [3, 5]);
+  assertEquals(chartSegments(points)[1]?.map((point) => point.value), [2]);
+  assertEquals(chartGaps(points), [{
+    from: "2026-11-03T00:00:00.000Z",
+    to: "2026-11-04T00:00:00.000Z",
+    points: 2,
+  }]);
+  assertEquals(chartMaximum(points), 5);
+  assertEquals(chartSegments([]).length, 0);
+  assertEquals(chartGaps([]).length, 0);
+});
+
+Deno.test("chart gaps count the actual days in partial weekly buckets", () => {
+  const points = [
+    { at: "2026-01-01T00:00:00.000Z", value: null },
+    { at: "2026-01-08T00:00:00.000Z", value: null },
+    { at: "2026-01-15T00:00:00.000Z", value: 2 },
+    { at: "2026-01-22T00:00:00.000Z", value: null },
+  ];
+  assertEquals(
+    chartMissingDays(points, "2026-01-25T00:00:00.000Z"),
+    17,
+  );
+});
+
+Deno.test("size and quality sums the counted lines and carries what could not be counted", () => {
+  const lines = series({
+    name: "prs.changedLines",
+    points: [
+      { at: "2026-11-01T00:00:00.000Z", value: 40, unknownReason: null },
+      { at: "2026-11-02T00:00:00.000Z", value: null, unknownReason: null },
+      { at: "2026-11-03T00:00:00.000Z", value: 11, unknownReason: null },
+    ],
+    sampleCount: 2,
+    missingCount: 3,
+  });
+  assertEquals(sizeAndQualityOf(lines), {
+    lines: { total: 51, pullRequests: 2 },
+    uncounted: 3,
+  });
+});
+
+Deno.test("size and quality is unknown, not zero, for a series that was never read", () => {
+  assertEquals(sizeAndQualityOf(undefined), { lines: null, uncounted: 0 });
+  assertEquals(
+    sizeAndQualityOf(series({ completeness: "unknown", sampleCount: 0 })),
+    { lines: null, uncounted: 0 },
+  );
 });

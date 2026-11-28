@@ -5,7 +5,7 @@ import {
   createDeliveryActionRegistry,
   createDeliveryHandlers,
 } from "../../../apps/server/src/modules/delivery/index.ts";
-import { mergeDispatchStub } from "../merge-dispatch-stub.ts";
+import { mergeDispatchStub, registrationStub } from "../merge-dispatch-stub.ts";
 import {
   closePgDatabase,
   openPgDatabase,
@@ -95,6 +95,7 @@ export async function openChecksFixture(): Promise<ChecksFixture> {
   const registry = createDeliveryActionRegistry(
     fixture.appPg,
     createDeliveryHandlers(cursorSecret, mergeDispatchStub("checks-fixture")),
+    registrationStub("checks-fixture", fixture.appPg),
   );
   return {
     fixture,

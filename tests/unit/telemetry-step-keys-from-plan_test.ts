@@ -61,20 +61,25 @@ const nested = workflow([
         maxConcurrency: 3,
         join: "all-required",
         failurePolicy: "stop-dependent",
-        branches: ["lane_a", "lane_b", "lane_c"].map((id) => ({
-          id,
-          repository: "main",
-          steps: [
-            repeat("inner", {
-              max: 3,
-              seed: {
-                steps: [noop("prep")],
-                outputs: { currentCandidate: { done: false } },
-              },
-              steps: [noop("work")],
-            }),
-          ],
-        })),
+        branches: ["lane_a", "lane_b", "lane_c"].map((id, index) => {
+          const files = index === 0
+            ? {}
+            : { files: { read: ["inputs"], write: ["outputs"] } };
+          return {
+            id,
+            repository: "main",
+            steps: [
+              repeat("inner", {
+                max: 3,
+                seed: {
+                  steps: [{ ...noop("prep"), ...files }],
+                  outputs: { currentCandidate: { done: false } },
+                },
+                steps: [{ ...noop("work"), ...files }],
+              }),
+            ],
+          };
+        }),
       },
     }],
   }),

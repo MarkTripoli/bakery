@@ -286,7 +286,7 @@ test("task filters reset cursors, preserve focus, and navigate real routes", asy
   ).toBeVisible();
   await expect(page.getByRole("button", { name: "Start run", exact: true }))
     .toBeVisible();
-  await expect(page.getByText("No artifacts to show.")).toBeVisible();
+  await expect(page.getByText("No artifacts to show.")).toHaveCount(0);
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 });
 
@@ -431,25 +431,38 @@ test("queue inspector answers the selected task's open question and the page has
     .toBeVisible();
 });
 
-test("queue inspector Details shows the short task id and copies the whole one", async ({ page, context }) => {
+test("the panel opens on the first row shown, not the first task returned", async ({ page }) => {
   test.skip(
     page.viewportSize()!.width <= 900,
     "inspector rail is desktop only",
   );
-  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await stillQueue(page, [...stillTasks].reverse());
+  const first = page.locator('[data-ui-component="taskQueue"] a').first();
+  await expect(first).toHaveAttribute("aria-current", "true");
+  await expect(
+    page.locator('[data-ui-component="inspectorPanel"]').getByRole("heading", {
+      level: 2,
+    }),
+  ).toHaveText((await first.locator(".ui-task-queue__title").textContent())!);
+});
+
+test("the Work list says each thing once and has no empty tabs", async ({ page }) => {
   await stillQueue(page, stillTasks);
-  const inspector = page.getByRole("complementary");
-  await inspector.getByRole("tab", { name: "Details" }).click();
-  const row = inspector.getByTestId("task-id-row");
-  await expect(row).toContainText("Task ID");
-  // Eight characters on screen, the whole id on the clipboard.
-  await expect(row).toContainText(stillTasks[0].id.slice(0, 8));
-  await expect(row).not.toContainText(stillTasks[0].id.slice(0, 9));
-  await row.getByRole("button", { name: "Copy" }).click();
-  await expect(row.getByRole("button", { name: "Copied" })).toBeVisible();
-  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
-    stillTasks[0].id,
-  );
+  await expect(page.getByRole("link", { name: stillTasks[0].title }))
+    .toBeVisible();
+  const queue = page.locator('[data-ui-component="taskQueue"]');
+  await expect(queue).not.toContainText(stillTasks[0].id.slice(0, 8));
+  await expect(queue.locator(".ui-status-dot").filter({ visible: true }))
+    .toHaveCount(0);
+  await expect(queue.getByRole("columnheader", { name: "Stage" }))
+    .toHaveCount(0);
+  if (page.viewportSize()!.width <= 900) return;
+  const inspector = page.locator('[data-ui-component="inspectorPanel"]');
+  await expect(inspector.getByRole("link", { name: "Open task" }))
+    .toBeVisible();
+  await expect(inspector.getByRole("tab")).toHaveCount(0);
+  await expect(inspector).not.toContainText("No recorded activity yet.");
+  await expect(inspector).not.toContainText("No artifacts to show.");
 });
 
 test("on a phone an applied search shows the icon and the term on one row, with Clear beside it", async ({ page }) => {
@@ -540,8 +553,6 @@ test("on a phone an applied search shows the icon and the term on one row, with 
 
 // Evidence stills of the Work list (BAKERY_STILLS_DIR): the list with tasks,
 // a search with a term, and the empty list; skipped in a normal run.
-// The reference under a title is the first eight characters of the id, and the
-// age is read from `createdAt`, so the fixtures carry readable ids and recent times.
 const stillTasks = [
   ["Add repository onboarding", "waiting_input", "a104b3c1", 2],
   ["Confirm error tracking provider", "waiting_input", "e041d7f2", 15],
@@ -595,19 +606,6 @@ test("still: the Work list with a search term", async ({ page }) => {
   await search.fill("repository");
   await dismissFilters(page);
   await still(page, "work-list-search");
-});
-
-test("still: the Details tab with the task id and Copy", async ({ page }) => {
-  test.skip(!process.env.BAKERY_STILLS_DIR, "BAKERY_STILLS_DIR is not set");
-  test.skip(
-    page.viewportSize()!.width <= 900,
-    "inspector rail is desktop only",
-  );
-  await stillQueue(page, stillTasks);
-  const inspector = page.getByRole("complementary");
-  await inspector.getByRole("tab", { name: "Details" }).click();
-  await expect(inspector.getByTestId("task-id-row")).toBeVisible();
-  await still(page, "work-list-details");
 });
 
 test("still: the phone with a search term applied", async ({ page }) => {
@@ -1196,6 +1194,11 @@ test("review: actual route targets and reload", async ({ page }, testInfo) => {
   }
 });
 
+const runStep = (page: Page, name: string) =>
+  page.getByRole("list", { name: "Run steps" }).getByText(name, {
+    exact: true,
+  });
+
 test("intercepted run view renders server current run and survives reload", async ({ page }) => {
   await page.route(
     "**/v1/tasks?*",
@@ -1231,11 +1234,11 @@ test("intercepted run view renders server current run and survives reload", asyn
   // The run id is not on the page until Details is opened, and then it is short.
   await page.getByText("Run details", { exact: true }).first().click();
   await expect(page.getByTestId("run-id-row")).toContainText(runId.slice(0, 8));
-  await expect(page.getByText("publish", { exact: true })).toBeVisible();
+  await expect(runStep(page, "Publish")).toBeVisible();
   await page.reload();
   await page.getByText("Run details", { exact: true }).first().click();
   await expect(page.getByTestId("run-id-row")).toContainText(runId.slice(0, 8));
-  await expect(page.getByText("publish", { exact: true })).toBeVisible();
+  await expect(runStep(page, "Publish")).toBeVisible();
 });
 
 test("intercepted duplicate sync event invalidates without duplicate step rows", async ({ page }) => {
@@ -1270,10 +1273,10 @@ test("intercepted duplicate sync event invalidates without duplicate step rows",
   });
   await page.goto("/tasks");
   await page.getByRole("link", { name: task.title }).click();
-  await expect(page.getByText("publish", { exact: true })).toHaveCount(1);
+  await expect(runStep(page, "Publish")).toHaveCount(1);
   await page.evaluate(() => globalThis.dispatchEvent(new Event("online")));
   await expect.poll(() => syncCalls).toBeGreaterThan(1);
-  await expect(page.getByText("publish", { exact: true })).toHaveCount(1);
+  await expect(runStep(page, "Publish")).toHaveCount(1);
 });
 
 test("background run and step transitions announce politely without moving focus", async ({ page }) => {
@@ -1333,7 +1336,7 @@ test("background run and step transitions announce politely without moving focus
   );
   await expect(summary).toHaveAttribute("aria-atomic", "true");
   await expect(summary).toHaveText("Current run: Running");
-  await expect(page.getByText("publish", { exact: true })).toBeVisible();
+  await expect(runStep(page, "Publish")).toBeVisible();
   await summary.evaluate((element) =>
     element.setAttribute("data-persistent-probe", "original")
   );
@@ -1678,6 +1681,10 @@ test("a waiting run offers cancel only and cancels from the run view", async ({ 
   // Only what the server allows is listed: no faded Pause, Resume or Interrupt.
   await openRunActions(page);
   await expect(runAction(page, "Cancel run")).toBeEnabled();
+  await expect(runAction(page, "Cancel run")).toHaveAttribute(
+    "data-tone",
+    "danger",
+  );
   for (const name of ["Pause run", "Resume run", "Interrupt the agent"]) {
     await expect(page.getByRole("button", { name, exact: true })).toHaveCount(
       0,

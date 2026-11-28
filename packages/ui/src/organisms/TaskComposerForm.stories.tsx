@@ -58,10 +58,17 @@ export const Contract: StoryObj = {
         setupReasons?: readonly TaskComposerSetupReason[];
         values?: TaskComposerValues;
         planFirst?: boolean;
+        approval?: boolean;
       } = {},
     ): ReactNode => (
       <div data-case={key} key={key}>
         <TaskComposerForm
+          approval={options.approval === undefined ? undefined : {
+            label: t("tasks.composer.approval"),
+            hint: t("tasks.composer.approvalHint"),
+            checked: options.approval,
+            onChange: () => {},
+          }}
           labels={{ ...labels, heading: `${labels.heading} (${key})` }}
           onChange={() => {}}
           onDiscard={() => {}}
@@ -112,6 +119,12 @@ export const Contract: StoryObj = {
         {form("empty", { view: "empty" })}
         {form("offline", { view: "offline" })}
         {form("reconnecting", { view: "reconnecting" })}
+        {form("approval ticked", { approval: true })}
+        {form("approval cleared", { approval: false })}
+        {form("approval while submitting", {
+          approval: true,
+          submitState: "submitting",
+        })}
         {form("plan first", { planFirst: true })}
         {form("plan first with unmet setup", {
           planFirst: true,

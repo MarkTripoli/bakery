@@ -33,6 +33,7 @@ function worker(id: string, name: string, readiness: string) {
     readinessReason: readiness === "ready" ? null : "check_failed",
     failedCheckIds: [],
     lastHeartbeatAt: "2026-01-01T00:00:00.000Z",
+    activeAttemptCount: 0,
     credentialGeneration: 1,
     archivedAt: null,
     cleanup: { state: "not_requested", requestedAt: null, confirmedAt: null },
@@ -156,7 +157,9 @@ test.describe("machines list layout", () => {
       expect([...widths], "one width for Fix and Open").toHaveLength(1);
       // One badge, one line and one button per machine, and no second status.
       const first = rows.first();
-      await expect(first).toContainText("macOS · Claude Code, Codex · 1 slot");
+      await expect(first).toContainText(
+        "macOS · Claude Code, Codex · 0 of 1 tasks",
+      );
       await expect(first).toContainText("Ready");
       await expect(first.getByRole("button", { name: `Open ${LONG_NAME}` }))
         .toBeVisible();
@@ -195,9 +198,12 @@ test.describe("machines list layout", () => {
     await expect(
       table.getByRole("link", { name: "Fix linux-builder-x86-02" }),
     ).toBeVisible();
-    // Three columns: the machine and its line, one badge, one button.
     await expect(table.getByRole("columnheader")).toHaveText([
       "Machine",
+      "System",
+      "Coding agents",
+      "Tasks",
+      "Last seen",
       "Status",
       "Action",
     ]);
@@ -225,12 +231,12 @@ test.describe("machines list layout", () => {
       );
       await expect(expired).toContainText(EXPIRED_NAME);
       await expect(expired).toContainText("Expired");
-      await expect(expired).toContainText("The settings expired.");
+      await expect(expired).toContainText("The setup expired.");
       // Either can be given new settings or canceled.
       await expect(expired.getByRole("button")).toHaveCount(2);
       await expect(pending.getByRole("button")).toHaveCount(2);
 
-      for (const label of ["Get new settings", "Cancel setup"]) {
+      for (const label of ["Continue setup", "Cancel setup"]) {
         const button = pending.getByRole("button", { name: label });
         await expect(button).toBeVisible();
         const box = await button.boundingBox();

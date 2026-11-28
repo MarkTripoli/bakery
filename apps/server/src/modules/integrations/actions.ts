@@ -63,7 +63,21 @@ import {
   createGitHubCallbackRunner,
 } from "./callbacks.ts";
 import { checkConnection, createConnectionCheckRunner } from "./checks.ts";
+import {
+  bindOAuth2Connection,
+  createOAuth2CallbackRunner,
+  type OAuth2Fetch,
+} from "./oauth2-connect.ts";
 import { createDiscovery } from "./discoveries.ts";
+import {
+  authorizeLinkingSelf,
+  bindSlackIdentity,
+  createSlackIdentityCallbackRunner,
+  getMySlackLink,
+  SLACK_IDENTITY_CALLBACK_PATH,
+  startMySlackLink,
+  unlinkMySlackLink,
+} from "./slack-identity-flow.ts";
 import {
   DeliveryIdentitySchema,
   type PreparedDelivery,
@@ -130,6 +144,7 @@ export type IntegrationsRegistryDependencies = IntegrationsDependencies & {
   integrationRegistry: ActiveIntegrationRegistry;
   /** The provider request port the invoke door sends through. */
   providerRequests?: ProviderRequestPort;
+  oauth2Fetch?: OAuth2Fetch;
 };
 
 const preparationSlot = Symbol("private GitHub App registration preparation");
@@ -423,6 +438,11 @@ export function createIntegrationsAuthorityRunner(
     }
   };
   const callbacks = createGitHubCallbackRunner(database, dependencies);
+  const oauth2Callback = createOAuth2CallbackRunner(database, dependencies);
+  const slackIdentityCallback = createSlackIdentityCallbackRunner(
+    database,
+    dependencies,
+  );
   const resourceUpdate = createResourceUpdateRunner(authority, dependencies);
   const check = createConnectionCheckRunner(authority, dependencies, broker);
   /**
@@ -489,6 +509,18 @@ export function createIntegrationsAuthorityRunner(
           IntegrationsImplementedAction.IntegrationAuthorizationCallback
       ) {
         return await callbacks.callback(action, context, input, next);
+      }
+      if (
+        action.name ===
+          IntegrationsImplementedAction.IntegrationProviderAuthorizationCallback
+      ) {
+        return await oauth2Callback(action, context, input, next);
+      }
+      if (
+        action.name ===
+          IntegrationsImplementedAction.IntegrationSlackIdentityCallback
+      ) {
+        return await slackIdentityCallback(action, context, input, next);
       }
       if (
         action.name ===
@@ -733,6 +765,63 @@ export function createIntegrationsActionRegistry(
         bindingPreparation(context),
       ),
   }).register({
+    name:
+      IntegrationsImplementedAction.IntegrationProviderAuthorizationCallback,
+    method: HttpMethod.Get,
+    path: "/v1/integration-auth/:provider/callback",
+    input: contractSchemas.OAuthCallback,
+    output: contractSchemas.AuthRedirect,
+    policy: boundAttempt,
+    handler: (context) =>
+      bindOAuth2Connection(
+        context,
+        IntegrationsImplementedAction.IntegrationProviderAuthorizationCallback,
+        dependencies,
+      ),
+  }).register({
+    name: IntegrationsImplementedAction.IntegrationSlackIdentityCallback,
+    method: HttpMethod.Get,
+    path: SLACK_IDENTITY_CALLBACK_PATH,
+    input: contractSchemas.OAuthCallback,
+    output: contractSchemas.AuthRedirect,
+    policy: {
+      ...boundAttempt,
+      access: ActionAccess.BoundBakeryAuthenticatedIdentityLinkAttempt,
+    },
+    handler: bindSlackIdentity,
+  });
+  const linkingSelf = {
+    access: ActionAccess.AnyMemberLinkingSelf,
+    authorize: authorizeLinkingSelf,
+    organizationContext: OrganizationContextPolicy.RequiredAuthenticatedContext,
+    sessionOnly: true,
+  } as const;
+  registry.register({
+    name: IntegrationsImplementedAction.MySlackLinkGet,
+    method: HttpMethod.Get,
+    path: "/v1/me/slack-link",
+    input: contractSchemas.Empty,
+    output: contractSchemas.MySlackLink,
+    policy: { ...linkingSelf, type: ActionKind.Query },
+    handler: getMySlackLink,
+  }).register({
+    name: IntegrationsImplementedAction.MySlackLinkDelete,
+    method: HttpMethod.Delete,
+    path: "/v1/me/slack-link",
+    input: contractSchemas.Empty,
+    output: contractSchemas.MySlackLink,
+    policy: { ...linkingSelf, type: ActionKind.Command },
+    handler: unlinkMySlackLink,
+  }).register({
+    name: IntegrationsImplementedAction.MySlackLinkAttemptsCreate,
+    method: HttpMethod.Post,
+    path: "/v1/me/slack-link/attempts",
+    input: contractSchemas.Empty,
+    output: contractSchemas.MySlackLinkAttemptCreated,
+    policy: { ...linkingSelf, type: ActionKind.Command },
+    handler: (context) => startMySlackLink(context, dependencies),
+  });
+  registry.register({
     name: IntegrationsImplementedAction.IntegrationConnectionsGet,
     method: HttpMethod.Get,
     path: "/v1/integration-connections/:id",

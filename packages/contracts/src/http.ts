@@ -280,6 +280,8 @@ export const DRAFT_EDIT_REFUSAL_REASONS = Object.freeze(
       "agent_power_grant_expired",
       "agent_ask_audience_not_granted",
       "agent_ask_own_run_only",
+      "agent_ask_not_involved",
+      "agent_ask_power_not_held",
       // An agent starting a run or creating a task without the run_start power
       // along its spawn chain (#413).
       "spawn_requires_grant",
@@ -936,7 +938,7 @@ export function createApiRouter(
           ? inputShape()
           : inputShape;
         const inputPathNames = pathNames.filter((name) => name in fields);
-        const pathOnly = pathNames.length > 0 &&
+        const pathOnly = (pathNames.length > 0 || action.method === "DELETE") &&
           action.input instanceof z.ZodObject &&
           Object.keys(fields).every((name) => pathNames.includes(name));
         const contentType = context.req.header("content-type") ?? "";

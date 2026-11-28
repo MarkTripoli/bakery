@@ -120,6 +120,7 @@ export const RESOURCE_AREAS = {
   integrationSubscription: "integrations",
   channelLink: "integrations",
   externalIdentityLink: "integrations",
+  ownIdentityLink: "integrations",
   secret: "integrations",
   organization: "access",
   organizationInvitation: "access",
@@ -167,6 +168,7 @@ export const PERMISSION_VERBS = [
   "preview",
   "share",
   "author",
+  "register",
 ] as const;
 export type PermissionVerb = (typeof PERMISSION_VERBS)[number];
 

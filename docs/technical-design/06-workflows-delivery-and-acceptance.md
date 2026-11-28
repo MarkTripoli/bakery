@@ -336,6 +336,8 @@ they cannot invoke an action or read a secret.
   that run even when `until` already holds; `until` is not asked before round
   `min`. `repeat.allow` (min..max) is a soft cap: a loop that uses it below `max`
   with `until` still false pauses the run, and no allowance goes past `max`.
+  `runs.get` serves that stop as `limitStop` (the repeat, rounds run, rounds
+  allowed and most) while the failed run waits for a decision.
   Interpreter revision 4 honors both; earlier revisions ignore them. A repeat
   terminates with exactly one outcome: `completed`, `exhausted`, `canceled`,
   `failed`, or `timed_out`; `exhausted` cannot satisfy a delivery gate.
@@ -1489,7 +1491,9 @@ pack implements for the actions it owns.
 - **Configuration.** `BAKERY_DELIVERY_RELEASE_ROOT`, `..._ARTIFACTS_DIR`,
   `..._HEALTH_URL` and `..._ENVIRONMENT` come through `RuntimeConfig` together or
   not at all. The target reads `<artifacts>/<sha>.artifact`, never builds, and
-  never runs a command.
+  never runs a command. `BAKERY_DELIVERY_ADDRESS` is separate and optional: the
+  page a person opens to see the environment's release, served as the
+  `Deployment` projection's `address` and null when the install configures none.
 
 ## Schedules and event-triggered agents
 

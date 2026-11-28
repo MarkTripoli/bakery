@@ -60,6 +60,7 @@ export const CONNECTION_SETUP_PATH = "/settings/organization/integrations";
 export const ConnectionOutcome = Object.freeze(
   {
     Pending: "pending",
+    Connected: "connected",
     AwaitingAuthorization: "awaiting_authorization",
     AwaitingInstallation: "awaiting_installation",
     InstallationRequested: "installation_requested",
@@ -77,6 +78,9 @@ export const ConnectionOutcome = Object.freeze(
     AlreadyConnected: "already_connected",
     Refreshed: "refreshed",
     ReconnectUnavailable: "reconnect_unavailable",
+    HeldElsewhere: "held_elsewhere",
+    EnterpriseInstall: "enterprise_install",
+    WrongApp: "wrong_app",
     StorageFailed: "storage_failed",
   } as const,
 );
@@ -92,12 +96,13 @@ export function connectionRedirect(
   outcome: ConnectionOutcome,
   returnPath: string | null = null,
   connectionId?: string,
+  provider: string = GITHUB_PROVIDER,
 ): AuthRedirect {
   const url = new URL(
     returnPath ?? CONNECTION_SETUP_PATH,
     "https://bakery.invalid",
   );
-  url.searchParams.set("githubConnection", outcome);
+  url.searchParams.set(`${provider}Connection`, outcome);
   if (connectionId !== undefined) {
     url.searchParams.set("connectionId", connectionId);
   }
@@ -158,12 +163,15 @@ const attemptColumns = `id, organization_id as "organizationId",
     as "hintDiscovered",
   version`;
 
-/** Live, unexpired attempt presented by its own principal and session. */
 const boundAttempt = `state_hash = $1 and provider = '${GITHUB_PROVIDER}'
   and initiating_principal_id = $2 and session_id = $3
   and expires_at > now()`;
 
-async function attemptChanged(
+const boundProviderAttempt = `state_hash = $1 and provider = $4
+  and initiating_principal_id = $2 and session_id = $3
+  and expires_at > now()`;
+
+export async function attemptChanged(
   transaction: PgTransactionClient,
   context: ActionContext,
   attempt: { id: string; organizationId: string; version: number },
@@ -178,7 +186,7 @@ async function attemptChanged(
   });
 }
 
-async function audit(
+export async function audit(
   transaction: PgTransactionClient,
   context: ActionContext,
   operation: string,
@@ -356,17 +364,19 @@ export async function claimCallback(
   transaction: PgTransactionClient,
   context: ActionContext,
   binding: CallbackBinding,
+  provider: string = GITHUB_PROVIDER,
 ): Promise<CallbackClaim | null> {
   const result = await transaction.query<CallbackClaim>(
     `update bakery.integration_auth_attempts
         set status = 'exchanging', consumed_at = now(),
             version = version + 1, updated_at = now()
-      where ${boundAttempt} and status = 'pending' and consumed_at is null
+      where ${boundProviderAttempt} and status = 'pending'
+        and consumed_at is null
       returning ${attemptColumns}, state_hash as "stateHash",
         pkce_verifier_ciphertext as "verifierCiphertext",
         pkce_verifier_nonce as "verifierNonce",
         pkce_key_id as "verifierKeyId"`,
-    [binding.stateHash, binding.principalId, binding.sessionId],
+    [binding.stateHash, binding.principalId, binding.sessionId, provider],
   );
   const claim = result.rows[0];
   if (claim === undefined) return null;
@@ -508,7 +518,7 @@ export type BindingPreparation = {
  * read at statement time but not locked: the application role holds no
  * UPDATE privilege on them, which row locks require.
  */
-async function isCurrentAdmin(
+export async function isCurrentAdmin(
   transaction: PgTransactionClient,
   principal: string,
   organization: string,

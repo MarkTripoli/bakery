@@ -72,7 +72,7 @@ function isReadableTaskType(value: string): boolean {
 
 export type TaskRow = {
   id: string;
-  application_id: string;
+  application_id: string | null;
   repository_id: string | null;
   conversation_id: string;
   parent_task_id: string | null;
@@ -108,7 +108,7 @@ export type TaskScopeRow = Pick<
 >;
 
 type TaskCreateInput = {
-  applicationId: string;
+  applicationId?: string | null;
   repositoryId?: string | null;
   repositoryProfileId?: string;
   taskType: string;
@@ -170,6 +170,18 @@ export function toTask(row: TaskRow) {
     planningOnly: row.planning_only,
   };
 }
+export function requireTaskApplication(
+  task: Readonly<{ application_id: string | null }>,
+): string {
+  if (task.application_id === null) {
+    throw new StandardError({
+      code: "STATE_CONFLICT",
+      params: { reason: "task_application_required" },
+    });
+  }
+  return task.application_id;
+}
+
 export async function lockApplication(
   transaction: PgTransactionClient,
   organizationId: string,
@@ -224,12 +236,13 @@ async function assertApplication(
 async function assertParentTask(
   transaction: PgTransactionClient,
   organizationId: string,
-  applicationId: string,
+  applicationId: string | null,
   parentId: string,
 ): Promise<void> {
   const result = await transaction.query(
     `select 1 from bakery.tasks
-     where organization_id = $1 and application_id = $2 and id = $3`,
+     where organization_id = $1 and application_id is not distinct from $2
+       and id = $3`,
     [organizationId, applicationId, parentId],
   );
   if (result.rows.length !== 1) {
@@ -244,7 +257,7 @@ export async function appendTaskProjectionEvent(
     eventType: "tasks.created" | "tasks.updated";
     taskId: string;
     version: number;
-    applicationId: string;
+    applicationId: string | null;
     repositoryId: string | null;
     conversationId: string;
     traceId: string;
@@ -301,7 +314,7 @@ async function appendSuccessFacts(
     agentSessionId: string | null;
     taskId: string;
     version: number;
-    applicationId: string;
+    applicationId: string | null;
     repositoryId: string | null;
     conversationId: string;
     requestId: string;
@@ -345,28 +358,36 @@ export const createTaskCommand = async (
     context,
   );
   const value = input as TaskCreateInput;
-  await assertApplication(transaction, organizationId, value.applicationId);
+  const applicationId = value.applicationId ?? null;
+  if (applicationId !== null) {
+    await assertApplication(transaction, organizationId, applicationId);
+  }
   if (value.parentId !== undefined && value.parentId !== null) {
     await assertParentTask(
       transaction,
       organizationId,
-      value.applicationId,
+      applicationId,
       value.parentId,
     );
   }
   const repositoryId = value.repositoryId ?? null;
+  if (repositoryId !== null && applicationId === null) {
+    throw unprocessable(["repositoryId"], "repository_requires_application");
+  }
   if (repositoryId === null && value.repositoryProfileId !== undefined) {
     throw unprocessable(
       ["repositoryProfileId"],
       "repository_profile_requires_repository",
     );
   }
-  const binding = repositoryId === null ? null : await resolveExecutableBinding(
-    transaction,
-    organizationId,
-    value.applicationId,
-    repositoryId,
-  );
+  const binding = repositoryId === null || applicationId === null
+    ? null
+    : await resolveExecutableBinding(
+      transaction,
+      organizationId,
+      applicationId,
+      repositoryId,
+    );
   if (
     binding !== null && value.repositoryProfileId !== undefined &&
     binding.repositoryProfileId !== value.repositoryProfileId
@@ -392,7 +413,7 @@ export const createTaskCommand = async (
     [
       conversationId,
       organizationId,
-      value.applicationId,
+      applicationId,
       repositoryId,
       value.title.slice(0, 500),
       principalId,
@@ -413,7 +434,7 @@ export const createTaskCommand = async (
     [
       taskId,
       organizationId,
-      value.applicationId,
+      applicationId,
       repositoryId,
       conversationId,
       value.parentId ?? null,

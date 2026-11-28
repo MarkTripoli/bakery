@@ -109,13 +109,15 @@ async function executionScope(
     conversation_id: string | null;
     inspection_id: string | null;
   }>(
-    `select job.application_id, job.action, job.agent_version_id, job.input, job.run_step_id,
+    `select app.id as application_id, job.action, job.agent_version_id, job.input, job.run_step_id,
       run.task_id, task.conversation_id, onboarding.id as inspection_id
     from bakery.jobs job
-    join bakery.applications app on app.organization_id=job.organization_id and app.id=job.application_id
     left join bakery.run_steps step on step.organization_id=job.organization_id and step.id=job.run_step_id
     left join bakery.workflow_runs run on run.organization_id=step.organization_id and run.id=step.run_id
-    left join bakery.tasks task on task.organization_id=run.organization_id and task.id=run.task_id and task.application_id=job.application_id
+    left join bakery.tasks task on task.organization_id=run.organization_id and task.id=run.task_id
+      and (job.application_id is null or task.application_id=job.application_id)
+    join bakery.applications app on app.organization_id=job.organization_id
+      and app.id=coalesce(job.application_id, task.application_id)
     left join bakery.repository_onboardings onboarding on job.action='repository.inspect' and job.run_step_id is null
       and onboarding.organization_id=job.organization_id and onboarding.application_id=job.application_id
       and onboarding.repository_id=job.repository_id and onboarding.job_id=job.id and onboarding.input=job.input

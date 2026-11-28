@@ -1,12 +1,14 @@
+import { escapeIlikePattern } from "../../platform/like-pattern.ts";
 import { type Context } from "hono";
 import { paymentMethodsOf } from "./coding-agent-payment.ts";
-import { StandardError } from "@bakery/contracts/http";
+import { parseStrongIfMatch, StandardError } from "@bakery/contracts/http";
 import {
   connectivityState,
   createMachineReadinessWorkflows,
   derivedEnrollmentState,
   dispatchGate,
   evaluateReadiness,
+  isFreshCheck,
 } from "@bakery/persistence/machine-readiness";
 import { IDEMPOTENCY_REPLAY_TTL_SECONDS } from "@bakery/persistence";
 import { appendDomainEvent } from "@bakery/persistence/event-audit";
@@ -40,6 +42,7 @@ import {
   workerTransaction,
 } from "./shared.ts";
 import { linkCodeHash, mintShortCode, withLinkCommand } from "./link-codes.ts";
+import { hasAsciiControlCharacter } from "../../platform/control-characters.ts";
 
 const WORKER_UPDATE_STATUS_DESIRED_MODE: Record<string, string> = {
   online: "accepting",
@@ -49,7 +52,7 @@ const WORKER_UPDATE_STATUS_DESIRED_MODE: Record<string, string> = {
 };
 type CursorQueryInput = { cursor?: string; limit?: number };
 
-function parseCursorQuery(
+export function parseCursorQuery(
   context: Context<{ Variables: AuthVariables }>,
 ): CursorQueryInput {
   const search = new URL(context.req.url).searchParams;
@@ -179,14 +182,21 @@ async function safeWorkerProjection(
     updated_at: Date;
     version: number;
     now: Date;
+    active_attempt_count: number;
   }>(
     `select id, organization_id, principal_id, name, os, architecture,
             capabilities, toolchain_versions, slots, status, desired_mode,
             last_heartbeat_at, credential_generation, inventory_revision,
             archived_at, cleanup_state, cleanup_requested_at,
             cleanup_confirmed_at,
-            created_at, updated_at, version, clock_timestamp() as now
-     from bakery.worker_hosts
+            created_at, updated_at, version, clock_timestamp() as now,
+            (select count(*)::int from bakery.job_attempts attempt
+              where attempt.organization_id = host.organization_id
+                and attempt.worker_host_id = host.id
+                and attempt.status in ('leased', 'running', 'canceling')
+                and attempt.lease_expires_at > clock_timestamp())
+              as active_attempt_count
+     from bakery.worker_hosts host
      where id = $1`,
     [hostId],
   );
@@ -194,16 +204,39 @@ async function safeWorkerProjection(
   if (!host) return null;
   const checks = await transaction.query<{
     check_id: string;
+    component_key: string | null;
     status: string;
+    reason: string | null;
     host_generation: number;
     inventory_revision: number;
     expires_at: Date;
+    observed_at: Date;
   }>(
-    `select check_id, status, host_generation, inventory_revision, expires_at
+    `select check_id, component_key, status, reason, host_generation,
+            inventory_revision, expires_at, observed_at
      from bakery.worker_checks
-     where worker_host_id = $1`,
+     where worker_host_id = $1
+     order by check_id asc, component_key asc nulls first, id asc`,
     [host.id],
   );
+  const retirement = host.status === "revoked"
+    ? (await transaction.query<{
+      principal_id: string | null;
+      name: string | null;
+      created_at: Date;
+    }>(
+      `select audit.principal_id, principal.display_name as name,
+              audit.created_at
+         from bakery.audit_events audit
+         left join bakery.principals principal on principal.id = audit.principal_id
+        where audit.organization_id = $1 and audit.resource_type = 'worker_host'
+          and audit.resource_id = $2::text and audit.outcome = 'succeeded'
+          and audit.operation = 'workers.revoke'
+        order by audit.created_at desc, audit.id desc
+        limit 1`,
+      [host.organization_id, host.id],
+    )).rows[0] ?? null
+    : null;
   // Work this machine has not finished with: running, being stopped, or of
   // unknown outcome. A machine finishing its work is done when this is zero.
   const unsettled = await transaction.query<{ count: number }>(
@@ -247,11 +280,37 @@ async function safeWorkerProjection(
     readinessReason: readiness.reason,
     failedCheckIds: readiness.failedCheckIds,
     unsettledAttemptCount: unsettled.rows[0]?.count ?? 0,
+    activeAttemptCount: host.active_attempt_count,
     lastHeartbeatAt: host.last_heartbeat_at
       ? iso(host.last_heartbeat_at)
       : null,
     credentialGeneration: host.credential_generation,
     archivedAt: host.archived_at ? iso(host.archived_at) : null,
+    checks: checks.rows.map((row) => ({
+      checkId: row.check_id,
+      componentKey: row.component_key,
+      result: isFreshCheck({
+          checkId: row.check_id,
+          componentKey: row.component_key,
+          status: row.status,
+          hostGeneration: row.host_generation,
+          inventoryRevision: row.inventory_revision,
+          expiresAt: row.expires_at,
+        }, {
+          now,
+          credentialGeneration: host.credential_generation,
+          inventoryRevision: host.inventory_revision,
+        })
+        ? row.status
+        : "unknown",
+      reason: row.reason,
+      observedAt: iso(row.observed_at),
+    })),
+    retirement: retirement === null ? null : {
+      principalId: retirement.principal_id,
+      name: retirement.name,
+      at: iso(retirement.created_at),
+    },
     cleanup: {
       state: host.cleanup_state,
       requestedAt: host.cleanup_requested_at
@@ -688,10 +747,16 @@ export async function archiveWorker(
   );
 }
 
-/** cursor, limit and includeArchived only; includeArchived is true|false. */
+const WORKER_NAME_QUERY_MAX_BYTES = 200;
+
 function parseWorkerListQuery(
   context: Context<{ Variables: AuthVariables }>,
-): { cursor?: string; limit: number; includeArchived: boolean } {
+): {
+  cursor?: string;
+  limit: number;
+  includeArchived: boolean;
+  query: string | null;
+} {
   const search = new URL(context.req.url).searchParams;
   const flags = search.getAll("includeArchived");
   const flag = flags[0];
@@ -701,12 +766,22 @@ function parseWorkerListQuery(
   ) {
     throw new StandardError({ code: "MALFORMED_REQUEST" });
   }
+  const queries = search.getAll("query");
+  const query = queries[0]?.trim() ?? "";
+  if (
+    queries.length > 1 ||
+    new TextEncoder().encode(query).byteLength > WORKER_NAME_QUERY_MAX_BYTES ||
+    hasAsciiControlCharacter(query)
+  ) {
+    throw new StandardError({ code: "MALFORMED_REQUEST" });
+  }
   const cursor = search.get("cursor") ?? undefined;
   const limit = Math.min(Number(search.get("limit") ?? 25), 100);
   return {
     ...(cursor === undefined ? {} : { cursor }),
     limit,
     includeArchived: flag === "true",
+    query: query === "" ? null : query,
   };
 }
 
@@ -726,7 +801,10 @@ export async function listWorkers(
         organizationId: organization,
         principalId: principal.principalId,
         ordering: "createdAt:asc,id:asc",
-        filters: JSON.stringify({ includeArchived: query.includeArchived }),
+        filters: JSON.stringify({
+          includeArchived: query.includeArchived,
+          query: query.query,
+        }),
         schemaVersion: 1,
       };
       const limit = query.limit;
@@ -741,8 +819,10 @@ export async function listWorkers(
         `select id, created_at from bakery.worker_hosts
          where organization_id = $1
            and ($5::boolean or archived_at is null)
-           and ($2::timestamptz is null or (created_at, id) > ($2, $3::uuid))
-         order by created_at asc, id asc
+           and ($6::text is null or name ilike $6 escape '\\')
+           and ($2::timestamptz is null
+             or (date_trunc('milliseconds', created_at), id) > ($2, $3::uuid))
+         order by date_trunc('milliseconds', created_at) asc, id asc
          limit $4`,
         [
           organization,
@@ -750,6 +830,7 @@ export async function listWorkers(
           position?.id ?? null,
           limit + 1,
           query.includeArchived,
+          query.query === null ? null : `%${escapeIlikePattern(query.query)}%`,
         ],
       );
       const visible = rows.rows.slice(0, limit);
@@ -898,8 +979,10 @@ export async function updateWorker(
       );
       const host = hosts.rows[0];
       if (!host) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
-      const ifMatch = context.req.header("If-Match");
-      if (ifMatch !== undefined && ifMatch !== `"${host.version}"`) {
+      const expectedVersion = parseStrongIfMatch(
+        context.req.header("If-Match"),
+      );
+      if (expectedVersion !== undefined && expectedVersion !== host.version) {
         throw new StandardError({ code: "PRECONDITION_FAILED" });
       }
       if (input.status !== undefined) {

@@ -193,9 +193,11 @@ function readyInput(overrides: Partial<ReadinessInput> = {}): ReadinessInput {
       installationEnabled: true,
       resourceSelected: true,
       repositoryFullName: "owner/repo",
+      repositoryBound: true,
       repositoryArchived: false,
       repositoryHasActiveProfile: true,
       presetReady: true,
+      blockerRule: "merged_change",
     },
     policy: defaultTicketSourcePolicy(),
     policyRevision: 3,
@@ -1507,6 +1509,23 @@ Deno.test("issue 82 unit readiness: repository and preset readiness", async () =
   assertEquals(preset.verdict, "waiting");
 });
 
+Deno.test("issue 409 S5 unit readiness: a source with no repository passes repository readiness", async () => {
+  const source = readyInput().source;
+  const unbound = await evaluate(readyInput({
+    source: {
+      ...source,
+      repositoryBound: false,
+      repositoryHasActiveProfile: false,
+      presetReady: false,
+    },
+  }));
+  assertEquals(outcome(unbound, "repository_ready")?.[0], "pass");
+  assertEquals(outcome(unbound, "preset_ready"), [
+    "wait",
+    "preset_setup_required",
+  ]);
+});
+
 Deno.test("issue 407 unit readiness: a source with no workflow is judged ready, reports no pin and leaves the workflow check out", async () => {
   const none = await evaluate(readyInput({ preset: null }));
   assertEquals(none.verdict, "ready");
@@ -2260,9 +2279,11 @@ function randomInput(random: () => number): ReadinessInput {
       installationEnabled: !flip(0.03),
       resourceSelected: !flip(0.03),
       repositoryFullName: "owner/repo",
+      repositoryBound: true,
       repositoryArchived: flip(0.03),
       repositoryHasActiveProfile: !flip(0.03),
       presetReady: !flip(0.03),
+      blockerRule: flip(0.5) ? "done_status" : "merged_change",
     },
     policy: automatic || chance(0.4)
       ? delegatedPolicy({ enabled: !flip(0.15) })
@@ -2526,4 +2547,38 @@ Deno.test("issue 82 unit readiness: a source that names no status keeps deciding
   );
   assertEquals(report.verdict, "ready");
   assertEquals(outcome(report, "status_ready"), undefined);
+});
+
+Deno.test("issue 407 unit readiness: a done blocker satisfies a tracker without code", async () => {
+  const report = await evaluate(readyInput({
+    source: { ...readyInput().source, blockerRule: "done_status" },
+    links: presentLinks({ blockedBy: [ref(1), ref(2)] }),
+    proofs: [satisfiedProof(1), entry(2, { kind: "done", statusId: "done" })],
+  }));
+  assertEquals(report.verdict, "ready");
+  assertEquals(outcome(report, "dependencies_satisfied"), ["pass", "ok"]);
+});
+
+Deno.test("issue 407 unit readiness: a done blocker without a merged change still waits on a code provider", async () => {
+  const report = await evaluate(readyInput({
+    links: presentLinks({ blockedBy: [ref(1)] }),
+    proofs: [entry(1, { kind: "done", statusId: "done" })],
+  }));
+  assertEquals(report.verdict, "waiting");
+  assertEquals(outcome(report, "dependencies_satisfied"), [
+    "wait",
+    "closed_unmerged",
+  ]);
+});
+
+Deno.test("issue 407 unit readiness: a done-status tracker still waits on an open blocker", async () => {
+  const report = await evaluate(readyInput({
+    source: { ...readyInput().source, blockerRule: "done_status" },
+    links: presentLinks({ blockedBy: [ref(1)] }),
+    proofs: [entry(1, { kind: "open" })],
+  }));
+  assertEquals(outcome(report, "dependencies_satisfied"), [
+    "wait",
+    "predecessor_open",
+  ]);
 });

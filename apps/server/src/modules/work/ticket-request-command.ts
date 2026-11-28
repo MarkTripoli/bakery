@@ -28,7 +28,7 @@ import {
   type TicketOperationDependencies,
   ticketReads,
 } from "./ticket-operation-runner.ts";
-import { requestedIntentFromLabels } from "./ticket-policy.ts";
+import { labelSetOf, requestedIntentFromLabels } from "./ticket-policy.ts";
 import { getTicketRequest } from "./ticket-request-query.ts";
 import type { TicketPrefetch } from "./ticket-prefetch.ts";
 import type { TicketReadFailure } from "./ticket-source-reader.ts";
@@ -436,7 +436,7 @@ export function createTicketRequestHandler(
       input.expectedSourcePolicyRevision,
     );
     const labels = prefetch.issue.kind === "present"
-      ? prefetch.issue.snapshot.labels
+      ? labelSetOf(prefetch.issue.snapshot)
       : [];
     const result = await admitTicket({
       reader: dependencies.reader,
@@ -456,6 +456,7 @@ export function createTicketRequestHandler(
       signal: context.signal,
       requirementsDigest: input.requirementsDigest,
       preset: input.preset ?? null,
+      requirePlanApproval: input.requirePlanApproval ?? false,
       trace: { requestId: context.requestId, traceId: context.traceId },
     });
     if (result.kind === "unadmitted" || result.request === null) {

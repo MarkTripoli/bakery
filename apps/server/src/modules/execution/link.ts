@@ -57,7 +57,12 @@ export const REGISTER_LINK_PER_CODE = { max: 10, windowMs: TEN_MINUTES_MS };
 
 const RATE_LIMIT_PREFIX = "bakery:worker-link";
 
-export type LinkRefusalReason = "not_found" | "expired" | "used" | "declined";
+export type LinkRefusalReason =
+  | "not_found"
+  | "expired"
+  | "used"
+  | "declined"
+  | "unsupported_system";
 
 /** Unknown is a 404, the rest a 409; each names its reason and nothing about the organization. */
 export function linkRefusal(reason: LinkRefusalReason): StandardError {
@@ -162,12 +167,14 @@ export async function inspectLinkCode(
       expires_at: Date;
       consumed_at: Date | null;
       canceled_at: Date | null;
+      target_worker_host_id: string | null;
       organization_name: string;
       now: Date;
     }>(
       `select e.id, e.organization_id, e.principal_id, e.name, e.os,
               e.architecture, e.allowed_capabilities, e.slots, e.expires_at,
-              e.consumed_at, e.canceled_at, o.name as organization_name,
+              e.consumed_at, e.canceled_at, e.target_worker_host_id,
+              o.name as organization_name,
               clock_timestamp() as now
        from bakery.worker_enrollments e
        join bakery.organizations o on o.id = e.organization_id
@@ -210,6 +217,7 @@ export async function inspectLinkCode(
         architecture: entry.architecture,
       })),
       expiresAt: iso(row.expires_at),
+      repairsWorkerHostId: row.target_worker_host_id,
     });
     return noStoreJsonResponse(projection, 200);
   }, context.req.raw.signal);
@@ -311,13 +319,18 @@ async function loadLinkRequest(
   where: string,
   value: string,
 ): Promise<LinkRequestRow | undefined> {
+  await transaction.query(
+    `select 1 from bakery.worker_link_requests r
+     where ${where} = $1
+     for update`,
+    [value],
+  );
   const rows = await transaction.query<LinkRequestRow>(
     `select ${LINK_REQUEST_COLUMNS}
      from bakery.worker_link_requests r
      left join bakery.worker_enrollments e
        on e.organization_id = r.organization_id and e.id = r.enrollment_id
-     where ${where} = $1
-     for update of r`,
+     where ${where} = $1`,
     [value],
   );
   return rows.rows[0];
@@ -524,6 +537,9 @@ async function decideLinkRequest(
         });
       }
       if (row.expires_at <= row.now) throw linkRefusal("expired");
+      if (decision === "approved" && !row.supported) {
+        throw linkRefusal("unsupported_system");
+      }
       let enrollmentId: string | null = null;
       if (decision === "approved" && input !== null) {
         if (

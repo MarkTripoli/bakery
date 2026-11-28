@@ -45,3 +45,18 @@ Deno.test("a Notify step with an intent people.tag does not offer is refused at 
     false,
   );
 });
+
+Deno.test("a waiting Notify step may say whether the run stops or continues when nobody answers in time", async () => {
+  const waiting = {
+    intent: "review",
+    recipientRunRole: "starter",
+    artifactVersionId: crypto.randomUUID(),
+    wait: true,
+  };
+  assertEquals(await compiles({ ...waiting, onExpiry: "stop" }), "ok");
+  assertEquals(await compiles({ ...waiting, onExpiry: "continue" }), "ok");
+  assertEquals(
+    (await compiles({ ...waiting, onExpiry: "approve" })) === "ok",
+    false,
+  );
+});

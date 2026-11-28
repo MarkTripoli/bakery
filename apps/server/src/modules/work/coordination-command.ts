@@ -51,6 +51,7 @@ import {
   createTaskCommand,
   loadTaskScope,
   lockApplication,
+  requireTaskApplication,
 } from "./postgres.ts";
 import { requireWorkTransaction } from "./work-transaction.ts";
 
@@ -238,16 +239,17 @@ export async function setTaskRepositoryCommand(
     undefined,
     false,
   );
+  const ownerApplicationId = requireTaskApplication(owner);
   await lockApplication(
     transaction,
     facts.organizationId,
-    owner.application_id,
+    ownerApplicationId,
   );
   const repository = await transaction.query(
     `select 1 from bakery.repositories
       where organization_id = $1 and application_id = $2 and id = $3
         and archived_at is null`,
-    [facts.organizationId, owner.application_id, input.repositoryId],
+    [facts.organizationId, ownerApplicationId, input.repositoryId],
   );
   if (repository.rows.length !== 1) {
     throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
@@ -271,7 +273,7 @@ export async function setTaskRepositoryCommand(
       input.required,
       input.provenance,
       facts.principalId,
-      owner.application_id,
+      ownerApplicationId,
     ],
   );
   const row = upserted.rows[0] as Record<string, unknown>;
@@ -281,7 +283,7 @@ export async function setTaskRepositoryCommand(
     resourceId: row.id as string,
     eventType: "taskRepository.updated",
     version: row.version as number,
-    applicationId: owner.application_id,
+    applicationId: ownerApplicationId,
     repositoryId: input.repositoryId,
     taskId,
     details: { role: input.role, required: input.required },
@@ -489,16 +491,17 @@ async function createPlan(
     undefined,
     false,
   );
+  const parentApplicationId = requireTaskApplication(parent);
   await lockApplication(
     transaction,
     facts.organizationId,
-    parent.application_id,
+    parentApplicationId,
   );
   const lockedParent = await loadTaskScope(
     transaction,
     facts.organizationId,
     input.parentTaskId,
-    parent.application_id,
+    parentApplicationId,
   );
   if (lockedParent.archived_at !== null) {
     throw new StandardError({
@@ -510,7 +513,7 @@ async function createPlan(
   const scope = await loadScope(
     transaction,
     facts.organizationId,
-    parent.application_id,
+    parentApplicationId,
     input.parentTaskId,
   );
   let lanes;
@@ -612,7 +615,7 @@ async function createPlan(
      returning id, version`,
     [
       facts.organizationId,
-      parent.application_id,
+      parentApplicationId,
       input.parentTaskId,
       revision,
       JSON.stringify(spec),
@@ -639,7 +642,7 @@ async function createPlan(
         lane.spec.prerequisites,
         JSON.stringify(lane.spec.outputs),
         lane.laneDigest,
-        parent.application_id,
+        parentApplicationId,
       ],
     );
   }
@@ -649,7 +652,7 @@ async function createPlan(
     resourceId: plan.id,
     eventType: "coordinationPlan.created",
     version: plan.version,
-    applicationId: parent.application_id,
+    applicationId: parentApplicationId,
     taskId: input.parentTaskId,
     details: {
       revision,
@@ -1033,7 +1036,12 @@ async function supersedeEarlierRevisions(
 
 // A blocked run (never started) is canceled with its task, so a canceled lane
 // child never keeps a blocked current run that no release can reach.
-const TERMINAL_RUN = ["completed", "failed", "canceled"] as const;
+const TERMINAL_RUN = [
+  "completed",
+  "failed",
+  "canceled",
+  "needs_human",
+] as const;
 
 async function cancelChildTask(
   transaction: PgTransactionClient,
@@ -1109,7 +1117,7 @@ async function cancelChildTask(
               updated_at = current_timestamp, version = version + 1
         where organization_id = $1 and run_id = $2
           and status not in ('completed', 'failed', 'canceled', 'skipped',
-                             'blocked')`,
+                             'blocked', 'needs_human')`,
       [facts.organizationId, runId],
     );
     const runUpdate = await transaction.query<{ version: number }>(

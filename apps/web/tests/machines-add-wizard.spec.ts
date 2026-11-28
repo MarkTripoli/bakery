@@ -130,7 +130,7 @@ async function open(
     (url) => url.pathname === "/v1/workers",
     (route) => route.fulfill(json({ items: [], nextCursor: null })),
   );
-  await page.goto(options.path ?? "/machines/new");
+  await page.goto(options.path ?? "/machines/new/by-hand");
 }
 
 const settingsOf = (page: Page) =>
@@ -445,7 +445,7 @@ test.describe("add a machine wizard", () => {
     expect(setup.creates[0]!.postDataJSON()).toMatchObject({
       os: "linux",
       architecture: "x64",
-      capabilities: ["git", "shell", "web", "model", "claude"],
+      capabilities: ["git", "shell", "web", "model", "claude", "tool-gateway"],
     });
     // The machine is supported, so its steps carry no warning.
     await expect(page.getByText("is not a supported system yet")).toHaveCount(
@@ -472,7 +472,9 @@ test.describe("add a machine wizard", () => {
         version: 1,
       }],
     });
-    await open(page, setup, { path: `/machines/new?finish=${ENROLLMENT_ID}` });
+    await open(page, setup, {
+      path: `/machines/new/by-hand?finish=${ENROLLMENT_ID}`,
+    });
     await expect(
       page.getByRole("status").filter({
         hasText: "Bakery has no installer for this system yet.",
@@ -500,7 +502,7 @@ test.describe("add a machine wizard", () => {
       os: "linux",
       architecture: "arm64",
       slots: 1,
-      capabilities: ["git", "shell", "web", "model", "claude"],
+      capabilities: ["git", "shell", "web", "model", "claude", "tool-gateway"],
     });
     await expect(
       page.locator("[data-ui-component=codeBlock]").filter({
@@ -594,7 +596,7 @@ test.describe("add a machine wizard", () => {
       }],
     });
     await open(page, setup, {
-      path: `/machines/new?finish=${ENROLLMENT_ID}`,
+      path: `/machines/new/by-hand?finish=${ENROLLMENT_ID}`,
     });
     await expect(page.getByText("Step 3 of 3 · Install")).toBeVisible();
     // What the button does: it ends the old code and makes a new one.
@@ -635,7 +637,7 @@ test.describe("add a machine wizard", () => {
       }],
     });
     await open(page, setup, {
-      path: `/machines/new?finish=${ENROLLMENT_ID}`,
+      path: `/machines/new/by-hand?finish=${ENROLLMENT_ID}`,
     });
     await page.getByRole("button", { name: "Get new settings" }).click();
     await expect(page.getByText(NEW_SETUP_CODE)).toBeVisible();

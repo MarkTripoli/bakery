@@ -69,8 +69,8 @@ const asRevision2 = { interpreter: nextStepWithGroups };
 
 Deno.test("revision 1 still refuses a group by name; revision 2 stays deployed", async () => {
   // still resume on it.
-  assertEquals(CURRENT_INTERPRETER_REVISION, "4");
-  assertEquals(Object.keys(INTERPRETER_REVISIONS), ["1", "2", "3", "4"]);
+  assertEquals(CURRENT_INTERPRETER_REVISION, "5");
+  assertEquals(Object.keys(INTERPRETER_REVISIONS), ["1", "2", "3", "4", "5"]);
   assert(INTERPRETER_REVISIONS["1"] === nextStep);
   assert(INTERPRETER_REVISIONS["2"] === nextStepWithGroups);
   const document = await compiled([

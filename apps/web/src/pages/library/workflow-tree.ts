@@ -1,3 +1,6 @@
+import { APPROVAL_ACTION, approvalOfNode } from "./approval-step.ts";
+import { NOTIFY_ACTION, notifyOfNode } from "./notify-step.ts";
+import { TASK_ACTION, taskOfNode } from "./task-step.ts";
 import { ACTION_TITLES, PICKER_STEPS } from "./workflow-state.ts";
 
 /**
@@ -30,6 +33,14 @@ export type TreeStep = {
   readonly end?: true;
 };
 
+export type TreeLoop = {
+  readonly min: number | null;
+  readonly max: number;
+  readonly allow: number | null;
+  readonly fix: boolean;
+  readonly path: readonly (string | number)[];
+};
+
 /** A group the editor draws but does not let anyone change in slice 1. */
 export type TreeGroup = {
   readonly kind: "group";
@@ -37,8 +48,10 @@ export type TreeGroup = {
   readonly id: string;
   readonly label: GroupLabel;
   readonly max?: number;
+  readonly loop?: TreeLoop;
   /** The nodes inside it, drawn under the label. */
   readonly children: readonly TreeNode[];
+  readonly lanes?: readonly (readonly TreeNode[])[];
   /** How the definition states it, so the page can say it is code-only. */
   readonly editedInCode: true;
 };
@@ -50,6 +63,7 @@ export type GroupLabel =
   | "repeat"
   | "fix"
   | "each"
+  | "call"
   | "wait";
 
 export type TreeNode = TreeStep | TreeGroup;
@@ -92,14 +106,26 @@ function withKind(node: Record<string, unknown>): Record<string, unknown> {
     return {
       ...node,
       kind: "repeat",
+      min: repeat.min,
       max: repeat.max,
+      allow: repeat.allow,
       seed: repeat.seed,
       steps: repeat.steps,
     };
   }
   if (node.parallel !== undefined) {
-    return { ...node, kind: "parallel", lanes: record(node.parallel).lanes };
+    const parallel = record(node.parallel);
+    return {
+      ...node,
+      kind: "parallel",
+      lanes: parallel.branches ?? parallel.lanes,
+    };
   }
+  if (node.forEach !== undefined) {
+    const each = record(node.forEach);
+    return { ...node, kind: "forEach", max: each.max, steps: each.steps };
+  }
+  if (node.call !== undefined) return { ...node, kind: "call" };
   if (node.wait !== undefined) return { ...node, kind: "wait" };
   if (Array.isArray(node.steps)) return { ...node, kind: "sequence" };
   return node;
@@ -149,6 +175,9 @@ const DEFAULT_RETRY = { maxAttempts: 1, backoffMs: 0, on: [] as unknown[] };
 function isCodeOnly(node: Record<string, unknown>, uses: string): boolean {
   if (!KNOWN_ACTIONS.has(uses)) return false;
   if (!ADDABLE_ACTIONS.has(uses)) return true;
+  if (uses === APPROVAL_ACTION && approvalOfNode(node) === null) return true;
+  if (uses === NOTIFY_ACTION && notifyOfNode(node) === null) return true;
+  if (uses === TASK_ACTION && taskOfNode(node) === null) return true;
   if (node.if !== undefined) return true;
   if (node.retry !== undefined) {
     const retry = record(node.retry);
@@ -174,6 +203,39 @@ function isCodeOnly(node: Record<string, unknown>, uses: string): boolean {
 const FIX_ACTION = "harness.repair";
 const REVIEW_ACTION = "review.independent";
 
+export type BlockKind =
+  | "approval"
+  | "if"
+  | "fix"
+  | "repeat"
+  | "together"
+  | "each"
+  | "call"
+  | "wait"
+  | "sequence";
+
+export function planGateOf(
+  raw: unknown,
+): Record<string, unknown> | undefined {
+  const node = withKind(record(raw));
+  return text(node.kind) === "branch" ? planGateApproval(node) : undefined;
+}
+
+export function blockKindOf(raw: unknown): BlockKind | null {
+  const node = withKind(record(raw));
+  const kind = text(node.kind);
+  if (kind === "branch") {
+    return planGateApproval(node) === undefined ? "if" : "approval";
+  }
+  if (kind === "repeat") {
+    return fixLimitOf(node) === undefined ? "repeat" : "fix";
+  }
+  if (kind === "parallel") return "together";
+  if (kind === "forEach") return "each";
+  if (kind === "call" || kind === "wait" || kind === "sequence") return kind;
+  return null;
+}
+
 /**
  * The most tries of a repeat that fixes and then reviews, or undefined for any
  * other repeat (#62). Its own steps must include a repair and end with an
@@ -195,6 +257,24 @@ function maxOf(node: Record<string, unknown>): number | undefined {
     : undefined;
 }
 
+function wholeOrNull(value: unknown): number | null {
+  return typeof value === "number" && Number.isInteger(value) && value >= 1
+    ? value
+    : null;
+}
+
+function loopOf(
+  node: Record<string, unknown>,
+  path: readonly (string | number)[],
+  fix: boolean,
+): TreeLoop | undefined {
+  const max = maxOf(node);
+  if (max === undefined) return undefined;
+  const min = wholeOrNull(node.min);
+  const allow = wholeOrNull(node.allow);
+  return { min, max, allow, fix, path };
+}
+
 /**
  * The nodes of a definition's `steps`, turned into what the drawing shows. A
  * `steps` that is missing or is not a list is the one case with nothing to
@@ -211,7 +291,7 @@ export function treeOf(definition: unknown): Tree {
     });
   }
   const counter = { next: 0 };
-  const flat = spec.steps.flatMap((node) => drawNode(node, counter));
+  const flat = drawNodes(spec.steps, counter, ["steps"]);
   const last = flat[flat.length - 1];
   const drawn = last !== undefined && last.kind === "step" &&
       last.uses === "workflow.stop" && last.problem === undefined
@@ -229,8 +309,11 @@ export function treeOf(definition: unknown): Tree {
 function drawNodes(
   nodes: readonly unknown[],
   counter: { next: number },
+  path: readonly (string | number)[],
 ): readonly TreeNode[] {
-  return nodes.flatMap((node) => drawNode(node, counter));
+  return nodes.flatMap((node, index) =>
+    drawNode(node, counter, [...path, index])
+  );
 }
 
 /** The id a node the editor cannot name still needs, so it can be drawn. */
@@ -247,6 +330,7 @@ function anonymousId(counter: { next: number }, held: string): string {
 function drawNode(
   raw: unknown,
   counter: { next: number },
+  path: readonly (string | number)[],
 ): readonly TreeNode[] {
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
     return [{
@@ -286,7 +370,11 @@ function drawNode(
     }];
   }
   if (kind === "sequence") {
-    return drawNodes(Array.isArray(node.steps) ? node.steps : [], counter);
+    return drawNodes(
+      Array.isArray(node.steps) ? node.steps : [],
+      counter,
+      [...path, "steps"],
+    );
   }
   if (kind === "branch") {
     const approval = planGateApproval(node);
@@ -306,45 +394,63 @@ function drawNode(
       kind: "group",
       id: anonymousId(counter, "group"),
       label: "yes",
-      children: drawNodes(Array.isArray(node.then) ? node.then : [], counter),
+      children: drawNodes(Array.isArray(node.then) ? node.then : [], counter, [
+        ...path,
+        "then",
+      ]),
       editedInCode: true,
     }, {
       kind: "group",
       id: anonymousId(counter, "group"),
       label: "otherwise",
-      children: drawNodes(Array.isArray(node.else) ? node.else : [], counter),
+      children: drawNodes(Array.isArray(node.else) ? node.else : [], counter, [
+        ...path,
+        "else",
+      ]),
       editedInCode: true,
     }];
   }
   if (kind === "parallel") {
     const lanes = Array.isArray(node.lanes) ? node.lanes : [];
-    const children = lanes.flatMap((lane) => {
+    const drawn = lanes.map((lane, index) => {
       const held = record(lane).steps;
-      return drawNodes(Array.isArray(held) ? held : [], counter);
+      return drawNodes(
+        Array.isArray(held) ? held : [],
+        counter,
+        [...path, "lanes", index, "steps"],
+      );
     });
     return [{
       kind: "group",
       id: anonymousId(counter, "group"),
       label: "together",
-      children,
+      children: drawn.flat(),
+      ...(drawn.length > 1 ? { lanes: drawn } : {}),
       editedInCode: true,
     }];
   }
   if (kind === "repeat") {
     const seed = record(node.seed);
     const seedNodes = seed.form === "sequence"
-      ? drawNodes(Array.isArray(seed.steps) ? seed.steps : [], counter)
+      ? drawNodes(
+        Array.isArray(seed.steps) ? seed.steps : [],
+        counter,
+        [...path, "seed", "steps"],
+      )
       : [];
     const body = drawNodes(
       Array.isArray(node.steps) ? node.steps : [],
       counter,
+      [...path, "steps"],
     );
-    const max = fixLimitOf(node);
+    const fix = fixLimitOf(node);
+    const loop = loopOf(node, path, fix !== undefined);
     return [{
       kind: "group",
       id: anonymousId(counter, "group"),
-      label: max === undefined ? "repeat" : "fix",
-      ...(max === undefined ? {} : { max }),
+      label: fix === undefined ? "repeat" : "fix",
+      ...(fix === undefined ? {} : { max: fix }),
+      ...(loop === undefined ? {} : { loop }),
       children: [...seedNodes, ...body],
       editedInCode: true,
     }];
@@ -356,15 +462,19 @@ function drawNode(
       id: anonymousId(counter, "group"),
       label: "each",
       ...(max === undefined ? {} : { max }),
-      children: drawNodes(Array.isArray(node.steps) ? node.steps : [], counter),
+      children: drawNodes(
+        Array.isArray(node.steps) ? node.steps : [],
+        counter,
+        [...path, "steps"],
+      ),
       editedInCode: true,
     }];
   }
-  if (kind === "wait") {
+  if (kind === "call" || kind === "wait") {
     return [{
       kind: "group",
       id: anonymousId(counter, "group"),
-      label: "wait",
+      label: kind,
       children: [],
       editedInCode: true,
     }];

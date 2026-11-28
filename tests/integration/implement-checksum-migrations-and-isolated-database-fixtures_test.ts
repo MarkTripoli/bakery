@@ -117,6 +117,17 @@ Deno.test("checksum migrations and tenant context use real Postgres", async () =
         "0150_principal_creator",
         "0240_password_reset_links",
         "0260_desktop_sign_in_requests",
+        "0277_backups",
+        "0293_backup_settings",
+        "0294_installation_maintenance",
+        "0295_backup_cutoffs",
+        "0301_backup_drills",
+        "0302_installation_restores",
+        "0305_installation_restore_steps",
+        "0306_desktop_handoffs",
+        "0308_backup_point_in_time",
+        "0319_installation_update_policy",
+        "0334_audit_events_resource_index",
       ],
     );
     await migrateProvider(authDb, providerMigrations);

@@ -37,11 +37,13 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 export type SlackLinkRevokeReason =
   | "revoked_by_admin"
   | "unlinked_by_member"
+  | "replaced_by_new_link"
   | "membership_inactive";
 
 const REVOKE_REASONS: ReadonlySet<string> = new Set<SlackLinkRevokeReason>([
   "revoked_by_admin",
   "unlinked_by_member",
+  "replaced_by_new_link",
   "membership_inactive",
 ]);
 
@@ -287,6 +289,86 @@ export async function findSlackIdentityLink(
     principalId: row.principalId,
     state: row.state,
     memberCurrent: row.memberCurrent,
+  };
+}
+
+export async function findActiveSlackLinkForPrincipal(
+  transaction: PgTransactionClient,
+  input: {
+    readonly organizationId: string;
+    readonly principalId: string;
+    readonly teamId?: string;
+  },
+): Promise<SlackLinkIdentity | undefined> {
+  if (!isUuid(input.organizationId) || !isUuid(input.principalId)) {
+    return undefined;
+  }
+  if (input.teamId !== undefined && !isSlackTeamId(input.teamId)) {
+    return undefined;
+  }
+  const result = await transaction.query<
+    { appId: string; teamId: string; userId: string }
+  >(
+    `select link.external_app_id as "appId", link.identity_scope as "teamId",
+            link.external_user_id as "userId"
+       from bakery.external_identity_links as link
+       join bakery.organization_memberships as membership
+         on membership.organization_id = link.organization_id
+        and membership.principal_id = link.principal_id
+        and membership.status = 'active'
+      where link.organization_id = $1 and link.principal_id = $2
+        and link.provider = $3 and link.state = 'active'
+        and ($4::text is null or link.identity_scope = $4)
+      order by link.verified_at desc, link.id
+      limit 1`,
+    [
+      input.organizationId,
+      input.principalId,
+      SLACK_LINK_PROVIDER,
+      input.teamId ?? null,
+    ],
+  );
+  const row = result.rows[0];
+  return row === undefined
+    ? undefined
+    : { appId: row.appId, teamId: row.teamId, userId: row.userId };
+}
+
+export async function lockSlackIdentityLink(
+  transaction: PgTransactionClient,
+  input: { readonly organizationId: string } & SlackLinkIdentity,
+): Promise<SlackIdentityLink | undefined> {
+  if (!isUuid(input.organizationId) || !validIdentity(input)) return undefined;
+  const linked = await transaction.query<{
+    principalId: string;
+    state: "active" | "revoked";
+  }>(
+    `select principal_id as "principalId", state
+       from bakery.external_identity_links
+      where organization_id = $1 and provider = $2
+        and external_app_id = $3 and identity_scope = $4
+        and external_user_id = $5
+      for share`,
+    [
+      input.organizationId,
+      SLACK_LINK_PROVIDER,
+      input.appId,
+      input.teamId,
+      input.userId,
+    ],
+  );
+  const link = linked.rows[0];
+  if (link === undefined) return undefined;
+  const membership = await transaction.query<{ status: string }>(
+    `select status from bakery.organization_memberships
+      where organization_id = $1 and principal_id = $2
+      for share`,
+    [input.organizationId, link.principalId],
+  );
+  return {
+    principalId: link.principalId,
+    state: link.state,
+    memberCurrent: membership.rows[0]?.status === "active",
   };
 }
 

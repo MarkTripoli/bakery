@@ -37,6 +37,7 @@ export type FakeReadRoute =
   | "blocked-by"
   | "issue-events"
   | "commit-pulls"
+  | "pulls"
   | "pull-files"
   | "collaborator-permission";
 
@@ -77,12 +78,17 @@ export type FakeIssueSeed = Partial<
 /** One pull request of a fake repository. */
 export type FakePullRequest = {
   number: number;
+  headRef?: string;
+  baseRef?: string;
   state: "open" | "closed";
   merged: boolean;
   headSha: string;
   baseSha: string;
   mergedSha: string | null;
   updatedAt: string;
+  additions: number;
+  deletions: number;
+  changedFiles: number;
 };
 
 /** What a test sets on a pull request it seeds; the rest is defaulted. */
@@ -452,6 +458,13 @@ export function createFakeGitHubApp(
   options: { requestTimeoutMs?: number; sinceMode?: FakeSinceMode } = {},
 ) {
   const calls: FakeGitHubCall[] = [];
+  const openedPullRequests: {
+    repositoryId: number;
+    number: number;
+    head: string;
+    base: string;
+    title: string;
+  }[] = [];
   const codes = new Map<string, FakeGitHubApp>();
   let nextId = 900_000 + Math.floor(Math.random() * 90_000);
   const existingApps = new Map<number, FakeExistingApp>();
@@ -1309,6 +1322,9 @@ export function createFakeGitHubApp(
       baseSha: seed.baseSha ?? fakeCommitSha(),
       mergedSha: seed.mergedSha ?? (merged ? fakeCommitSha() : null),
       updatedAt,
+      additions: seed.additions ?? 0,
+      deletions: seed.deletions ?? 0,
+      changedFiles: seed.changedFiles ?? 0,
     };
     reads.pullRequests.set(item.number, pullRequest);
     return pullRequest;
@@ -1515,6 +1531,7 @@ export function createFakeGitHubApp(
     "blocked-by": ["issues"],
     "issue-events": ["issues"],
     "commit-pulls": ["pull_requests"],
+    pulls: ["pull_requests"],
     "pull-files": ["pull_requests"],
     "collaborator-permission": [],
   };
@@ -1559,6 +1576,9 @@ export function createFakeGitHubApp(
       rest[3] === "blocked_by"
     ) {
       return { route: "blocked-by", owner, name, key };
+    }
+    if (rest[0] === "pulls" && rest.length === 1) {
+      return { route: "pulls", owner, name, key };
     }
     if (rest[0] === "pulls" && rest.length === 2) {
       return { route: "pull", owner, name, key };
@@ -1754,8 +1774,19 @@ export function createFakeGitHubApp(
     updated_at: pull.updatedAt,
     closed_at: pull.state === "closed" ? pull.updatedAt : null,
     merged_at: pull.merged ? pull.updatedAt : null,
-    head: { label: "o:feature", ref: "feature", sha: pull.headSha },
-    base: { label: "o:main", ref: "main", sha: pull.baseSha },
+    additions: pull.additions,
+    deletions: pull.deletions,
+    changed_files: pull.changedFiles,
+    head: {
+      label: `o:${pull.headRef ?? "feature"}`,
+      ref: pull.headRef ?? "feature",
+      sha: pull.headSha,
+    },
+    base: {
+      label: `o:${pull.baseRef ?? "main"}`,
+      ref: pull.baseRef ?? "main",
+      sha: pull.baseSha,
+    },
   });
   /**
    * The answer for an issue path with nothing to list under it: 404 when the
@@ -2008,6 +2039,52 @@ export function createFakeGitHubApp(
           ? notFound()
           : Response.json(collaboratorWire(collaborator));
       }
+      case "pulls": {
+        if (request.method === "POST") {
+          if (grant.permissions["pull_requests"] !== "write") {
+            return Response.json({
+              message: "Resource not accessible by integration",
+            }, { status: 403 });
+          }
+          const wanted = await request.json() as {
+            head: string;
+            base: string;
+            title: string;
+          };
+          const taken = [...reads.pullRequests.values()].some((pull) =>
+            pull.state === "open" && pull.headRef === wanted.head &&
+            pull.baseRef === wanted.base
+          );
+          if (taken) {
+            return Response.json({
+              message: "Validation Failed",
+              errors: [{ message: "A pull request already exists" }],
+            }, { status: 422 });
+          }
+          const opened = seedPullRequest(repository.id, { state: "open" });
+          opened.headRef = wanted.head;
+          opened.baseRef = wanted.base;
+          openedPullRequests.push({
+            repositoryId: repository.id,
+            number: opened.number,
+            ...wanted,
+          });
+          return Response.json(
+            pullRequestWire(installation, repository, opened),
+            { status: 201 },
+          );
+        }
+        const head = url.searchParams.get("head")?.split(":")[1];
+        const base = url.searchParams.get("base");
+        return Response.json(
+          [...reads.pullRequests.values()].filter((pull) =>
+            pull.state === "open" && pull.headRef === head &&
+            pull.baseRef === base
+          ).slice(0, 1).map((pull) =>
+            pullRequestWire(installation, repository, pull)
+          ),
+        );
+      }
       case "pull": {
         const pull = number === null
           ? undefined
@@ -2172,7 +2249,8 @@ export function createFakeGitHubApp(
       return await tokenRepositories(request);
     }
     if (
-      request.method === "GET" &&
+      (request.method === "GET" ||
+        (request.method === "POST" && /\/pulls$/.test(request.url))) &&
       request.url.startsWith("https://api.github.com/repos/")
     ) {
       return await repositoryRead(request);
@@ -2267,6 +2345,7 @@ export function createFakeGitHubApp(
     deleteIssue,
     transferIssue,
     seedPullRequest,
+    openedPullRequests: () => [...openedPullRequests],
     seedCheckRuns,
     seedPullRequestFiles,
     seedIssueDetail,

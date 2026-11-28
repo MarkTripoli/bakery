@@ -11,6 +11,7 @@ import {
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useSession } from "../app/session-context.tsx";
 import { useI18n } from "../i18n/I18nProvider.tsx";
+import { presetDeclaresGates } from "./library/library-state.ts";
 import {
   browserIntentStore,
   classifyFailure,
@@ -128,6 +129,9 @@ export function NewTaskComposer(
   const [planFirst, setPlanFirst] = useState(
     () => initial?.submission?.run === null,
   );
+  const [approval, setApproval] = useState(
+    () => initial?.submission?.run?.gates !== "none",
+  );
   const alive = useRef(true);
   useEffect(() => {
     alive.current = true;
@@ -154,6 +158,8 @@ export function NewTaskComposer(
   const preset = presets.data?.items.find((item) =>
     item.id === values.presetId
   );
+  const declaresGates = preset !== undefined &&
+    presetDeclaresGates(preset.definition);
   const [budgetTyped, setBudgetTyped] = useState(false);
   const change = (field: keyof Values, value: string) => {
     if (field === "budget") setBudgetTyped(true);
@@ -290,6 +296,7 @@ export function NewTaskComposer(
         repositoryProfileId: profileId,
         executionMode: "repository",
         budgetLimitUsd: values.budget.trim(),
+        ...(declaresGates ? { gates: approval ? "plan" : "none" } : {}),
       };
     const fresh = loadIntent<ComposerSubmission>(store, intentKey);
     const next = {
@@ -337,6 +344,14 @@ export function NewTaskComposer(
   }
   return (
     <UI.TaskComposerForm
+      approval={declaresGates
+        ? {
+          label: t("tasks.composer.approval"),
+          hint: t("tasks.composer.approvalHint"),
+          checked: approval,
+          onChange: setApproval,
+        }
+        : undefined}
       headingLevel={layout === "sheet" ? 1 : 2}
       labels={labels}
       onChange={change}

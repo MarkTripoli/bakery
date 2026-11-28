@@ -1,3 +1,9 @@
+import {
+  listingDigest,
+  recordStepRead,
+  stepReaderOf,
+  stepReadSetRow,
+} from "./step-read-set.ts";
 import type { z } from "zod";
 import type { ActionContext } from "@bakery/contracts/action-registry";
 import { contractSchemas } from "@bakery/contracts/contracts";
@@ -15,6 +21,9 @@ import {
 } from "./storage-tree.ts";
 import { deniedEntriesCte } from "./folder-access-store.ts";
 import { hiddenEntryIds, reviewerIsolationOf } from "./reviewer-isolation.ts";
+import { agentReadableFileIds } from "./agent-file-guard.ts";
+import { FILES_READ_SCOPE } from "./agent-file-scope.ts";
+import type { StoragePolicy } from "./storage-tree.ts";
 
 /**
  * File search and the read-only library mirror (chapter 25 section 17, #453).
@@ -36,7 +45,35 @@ import { hiddenEntryIds, reviewerIsolationOf } from "./reviewer-isolation.ts";
 
 type FileSearchInput = z.output<typeof contractSchemas.FileSearchQuery>;
 
+async function refusedByFileGrants(
+  transaction: PgTransactionClient,
+  context: ActionContext,
+  organizationId: string,
+  principalId: string,
+  entryIds: readonly string[],
+): Promise<Set<string>> {
+  if (entryIds.length === 0) return new Set();
+  const entries = await transaction.query<{
+    id: string;
+    policy: StoragePolicy;
+    owner_id: string | null;
+    system_key: string | null;
+  }>(
+    `select id, policy, owner_id, system_key from bakery.storage_entries
+      where organization_id = $1 and id = any($2::uuid[])`,
+    [organizationId, entryIds],
+  );
+  const readable = await agentReadableFileIds(transaction, context, {
+    organizationId,
+    principalId,
+    targets: entries.rows,
+  });
+  return new Set(entryIds.filter((id) => !readable.has(id)));
+}
+
 const PAGE_ORDERING = "createdAt:desc,id:desc";
+
+const SCAN_BATCH = 200;
 
 /** A friendly group for a media type, as SQL over a column. */
 const MEDIA_GROUP_SQL = `case
@@ -357,9 +394,7 @@ export function createFileSearchHandler(
 
     const scopes = context.sessionScopes;
     const includeFiles = scopes === undefined ||
-      scopes.includes("artifacts.read");
-    // The route proves the caller may read files; the library needs its own
-    // permission, and an agent session its own scope.
+      scopes.includes("artifacts.read") || scopes.includes(FILES_READ_SCOPE);
     const includeLibrary = (scopes === undefined ||
       scopes.includes("library.read")) && authorizeLibraryRead(context);
 
@@ -439,6 +474,14 @@ export function createFileSearchHandler(
     const needleParam = p(needle);
     const kindParam = p(input.kind ?? null);
 
+    const afterAt = p(position?.createdAt ?? null);
+    const afterAtIndex = params.length - 1;
+    const afterId = p(position?.id ?? null);
+    const afterIdIndex = params.length - 1;
+    const batchSize = context.agentSession === undefined
+      ? limit + 1
+      : Math.max(limit + 1, SCAN_BATCH);
+    const pageSize = p(batchSize);
     const branches: string[] = [];
     if (wantFiles) {
       const folder = p(folderId);
@@ -643,31 +686,77 @@ export function createFileSearchHandler(
        where (${prefixParam}::text is null
               or (library_path is not null and starts_with(library_path, ${prefixParam})))
          and (${groupParam}::text is null or media_group = ${groupParam})
-         and (${p(position?.createdAt ?? null)}::timestamptz is null
-              or (created_at, sort_id) < (${
-      p(position?.createdAt ?? null)
-    }::timestamptz,
-                                          ${p(position?.id ?? null)}::uuid))
+         and (${afterAt}::timestamptz is null
+              or (created_at, sort_id) < (${afterAt}::timestamptz, ${afterId}::uuid))
        order by created_at desc, sort_id desc
-       limit ${p(limit + 1)}`;
-    const result = await transaction.query<HitRow>(sql, params);
-    const page = result.rows.slice(0, limit);
-    // A reviewer's search leaves out the files it may not read (O47); the
-    // cursor follows the unfiltered page.
-    const hidden = await hiddenEntryIds(
+       limit ${pageSize}`;
+    const isolation = await reviewerIsolationOf(
       transaction,
-      await reviewerIsolationOf(transaction, context, organizationId),
+      context,
       organizationId,
-      page.filter((row) => row.source === "files").map((row) => row.sort_id),
     );
-    const visible = page.filter((row) =>
-      row.source !== "files" || !hidden.has(row.sort_id)
-    );
+    const kept: HitRow[] = [];
+    for (;;) {
+      const result = await transaction.query<HitRow>(sql, params);
+      const fetched = result.rows;
+      const hidden = await hiddenEntryIds(
+        transaction,
+        isolation,
+        organizationId,
+        fetched.filter((row) => row.source === "files").map((row) =>
+          row.sort_id
+        ),
+      );
+      const reviewed = fetched.filter((row) =>
+        row.source !== "files" || !hidden.has(row.sort_id)
+      );
+      const refused = context.agentSession === undefined
+        ? new Set<string>()
+        : await refusedByFileGrants(
+          transaction,
+          context,
+          organizationId,
+          principalId,
+          reviewed.filter((row) => row.source === "files").map((row) =>
+            row.sort_id
+          ),
+        );
+      kept.push(
+        ...reviewed.filter((row) =>
+          row.source !== "files" || !refused.has(row.sort_id)
+        ),
+      );
+      const last = fetched.at(-1);
+      if (kept.length > limit || fetched.length < batchSize || !last) break;
+      params[afterAtIndex] = last.cursor_created_at;
+      params[afterIdIndex] = last.sort_id;
+    }
+    const visible = kept.slice(0, limit);
+    const lastVisible = visible.at(-1);
+    const cursorPosition = kept.length > limit && lastVisible !== undefined
+      ? { createdAt: lastVisible.cursor_created_at, id: lastVisible.sort_id }
+      : null;
 
     // Paths of the tree hits, in one query: each entry's ancestors, joined.
     const treeIds = visible.filter((row) => row.source === "files").map((row) =>
       row.sort_id
     );
+    const stepReader = await stepReaderOf(transaction, context, organizationId);
+    for (const row of visible) {
+      if (row.source !== "files") continue;
+      const readRow = stepReadSetRow(stepReader, {
+        organizationId,
+        entryId: row.sort_id,
+        served: { kind: "listing" },
+        sha256: await listingDigest([{
+          id: row.sort_id,
+          kind: "file",
+          versionId: row.version_id,
+        }]),
+        pinned: false,
+      });
+      if (readRow !== null) await recordStepRead(transaction, readRow);
+    }
     const paths = new Map<string, string>();
     if (treeIds.length > 0) {
       const found = await transaction.query<{ leaf: string; path: string }>(
@@ -688,7 +777,6 @@ export function createFileSearchHandler(
       for (const row of found.rows) paths.set(row.leaf, row.path);
     }
 
-    const last = page.at(-1);
     return {
       items: visible.map((row) => {
         const match = nameMatch(row.name, input.query);
@@ -730,12 +818,9 @@ export function createFileSearchHandler(
           createdAt: toIso(row.created_at),
         };
       }),
-      nextCursor: result.rows.length > limit && last
-        ? await encodeCursor(secret, binding, {
-          createdAt: last.cursor_created_at,
-          id: last.sort_id,
-        })
-        : null,
+      nextCursor: cursorPosition === null
+        ? null
+        : await encodeCursor(secret, binding, cursorPosition),
     };
   };
 }

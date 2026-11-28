@@ -74,6 +74,8 @@ import {
   steerAgentSession,
 } from "./sessions.ts";
 import { createRunStepNote } from "./step-notes.ts";
+import { readStepGiven } from "../knowledge/step-given.ts";
+import { readerMayReadArtifactVersions } from "../knowledge/memory-source-state.ts";
 import { getHandoffManifest } from "./handoff-manifests.ts";
 import { admitHandoffContinuation } from "./handoff-continuations.ts";
 import { takeOverRunStep } from "./step-takeover.ts";
@@ -171,7 +173,13 @@ export function evaluateRunControlCapabilities(
     : "attemptStatus" in attempts
     ? [attempts]
     : attempts;
-  const terminalRun = ["completed", "failed", "canceled", "blocked"].includes(
+  const terminalRun = [
+    "completed",
+    "failed",
+    "canceled",
+    "blocked",
+    "needs_human",
+  ].includes(
     runStatus,
   );
   if (live.length === 0) {
@@ -375,7 +383,7 @@ export async function runControlAction(
   }
   if (
     run.task_id === null || run.workflow_version_id === null ||
-    run.application_id === null || run.conversation_id === null
+    run.conversation_id === null
   ) {
     throw new Error("WORKFLOW_RUN_OWNER_INVALID");
   }
@@ -410,7 +418,11 @@ export async function runControlAction(
   // control reaches every one of them, not only the first.
   const attempts = attemptResult.rows;
   if (attempts.length === 0) {
-    if (["completed", "failed", "canceled", "blocked"].includes(run.status)) {
+    if (
+      ["completed", "failed", "canceled", "blocked", "needs_human"].includes(
+        run.status,
+      )
+    ) {
       throw new StandardError({ code: "ALREADY_TERMINAL" });
     }
     // A run waiting for a retry or for admission has no worker to command.
@@ -707,6 +719,41 @@ export function createRunControlRegistry(
         OrganizationContextPolicy.RequiredAuthenticatedContext,
     },
     handler: (context, input) => createRunStepNote(context, input, limits),
+  });
+  registry.register({
+    name: ExecutionImplementedAction.RunStepsGiven,
+    method: HttpMethod.Get,
+    path: "/v1/runs/:id/steps/:stepKey/given",
+    input: contractSchemas.IdPath,
+    output: contractSchemas.StepGiven,
+    policy: {
+      type: ActionKind.Query,
+      access: ActionAccess.Developer,
+      organizationContext:
+        OrganizationContextPolicy.RequiredAuthenticatedContext,
+    },
+    handler: async (context) => {
+      const { transaction, organizationId } = requireWorkTransaction(context);
+      const runId = context.params.id;
+      const stepKey = context.params.stepKey;
+      if (!runId || !stepKey) {
+        throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+      }
+      const given = await readStepGiven(transaction, {
+        organizationId,
+        runId,
+        stepKey,
+        readerMayRead: readerMayReadArtifactVersions(context),
+      });
+      if (given === null) {
+        throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+      }
+      return {
+        ...given,
+        facts: [...given.facts],
+        documents: [...given.documents],
+      };
+    },
   });
   registry.register({
     name: ExecutionImplementedAction.RunStepsTakeOver,

@@ -30,6 +30,7 @@ const PULL_REQUEST_COLUMNS = `id, organization_id as "organizationId",
   task_id as "taskId", repository_id as "repositoryId",
   provider_number as "providerNumber", url, head_sha as "headSha",
   base_sha as "baseSha", status, merged_sha as "mergedSha",
+  additions, deletions, changed_files as "changedFiles",
   provider_updated_at as "providerUpdatedAt",
   observed_started_at as "observedStartedAt",
   last_observed_at as "lastObservedAt", run_id as "runId",
@@ -69,6 +70,15 @@ export const PullRequestRecordSchema = z.object({
   ]).describe("open, closed (not merged) or merged."),
   mergedSha: z.string().regex(FULL_SHA).nullable().describe(
     "Commit that merged the pull request; null unless it is merged.",
+  ),
+  additions: z.number().int().nonnegative().nullable().describe(
+    "Provider total of added diff lines; null until an observation supplies it.",
+  ),
+  deletions: z.number().int().nonnegative().nullable().describe(
+    "Provider total of deleted diff lines; null until an observation supplies it.",
+  ),
+  changedFiles: z.number().int().nonnegative().nullable().describe(
+    "Provider count of changed files; null until an observation supplies it.",
   ),
   providerUpdatedAt: z.date().nullable().describe(
     "Provider time of the last stored observation; null until the first read.",
@@ -234,6 +244,12 @@ export async function registerPullRequest(
       params: { reason: "pull_request_registered_for_another_task" },
     });
   }
+  if (pullRequest.runId !== (registration.runId ?? null)) {
+    throw new StandardError({
+      code: "STATE_CONFLICT",
+      params: { reason: "pull_request_registered_for_another_run" },
+    });
+  }
   return { created: false, pullRequest };
 }
 
@@ -396,20 +412,26 @@ export async function observePullRequest(
     throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
   }
   const stored = PullRequestRecordSchema.parse(locked.rows[0]);
+  const additions = observation.additions ?? stored.additions;
+  const deletions = observation.deletions ?? stored.deletions;
+  const changedFiles = observation.changedFiles ?? stored.changedFiles;
   const written = await transaction.query(
     `update bakery.pull_requests
         set url = $4, head_sha = $5, base_sha = $6, status = $7,
             merged_sha = $8, provider_updated_at = $9,
-            observed_started_at = $10, last_observed_at = now(),
+            observed_started_at = $10, additions = $11, deletions = $12,
+            changed_files = $13, last_observed_at = now(),
             updated_at = now(), version = version + 1
       where organization_id = $1 and repository_id = $2
         and provider_number = $3
         and (provider_updated_at is null
           or (provider_updated_at, observed_started_at)
             < ($9::timestamptz, $10::timestamptz))
-        and (provider_updated_at, url, head_sha, base_sha, status, merged_sha)
+        and (provider_updated_at, url, head_sha, base_sha, status, merged_sha,
+             additions, deletions, changed_files)
           is distinct from
-          ($9::timestamptz, $4::text, $5::text, $6::text, $7::text, $8::text)
+          ($9::timestamptz, $4::text, $5::text, $6::text, $7::text, $8::text,
+           $11::integer, $12::integer, $13::integer)
       returning version`,
     [
       observation.organizationId,
@@ -422,6 +444,9 @@ export async function observePullRequest(
       mergedSha,
       observation.providerUpdatedAt,
       observation.observedStartedAt,
+      additions,
+      deletions,
+      changedFiles,
     ],
   );
   if (written.rowCount === 1) {
@@ -440,9 +465,11 @@ export async function observePullRequest(
         set observed_started_at = $10, last_observed_at = now()
       where organization_id = $1 and repository_id = $2
         and provider_number = $3
-        and (provider_updated_at, url, head_sha, base_sha, status, merged_sha)
+        and (provider_updated_at, url, head_sha, base_sha, status, merged_sha,
+             additions, deletions, changed_files)
           is not distinct from
-          ($9::timestamptz, $4::text, $5::text, $6::text, $7::text, $8::text)
+          ($9::timestamptz, $4::text, $5::text, $6::text, $7::text, $8::text,
+           $11::integer, $12::integer, $13::integer)
         and observed_started_at < $10::timestamptz
       returning version`,
     [
@@ -456,6 +483,9 @@ export async function observePullRequest(
       mergedSha,
       observation.providerUpdatedAt,
       observation.observedStartedAt,
+      additions,
+      deletions,
+      changedFiles,
     ],
   );
   if (confirmed.rowCount === 1) {
@@ -473,6 +503,9 @@ export async function observePullRequest(
       observation.providerUpdatedAt.getTime() &&
     stored.url === observation.url && stored.headSha === observation.headSha &&
     stored.baseSha === observation.baseSha && stored.status === status &&
-    stored.mergedSha === mergedSha;
+    stored.mergedSha === mergedSha &&
+    stored.additions === additions &&
+    stored.deletions === deletions &&
+    stored.changedFiles === changedFiles;
   return same ? "unchanged" : "stale";
 }

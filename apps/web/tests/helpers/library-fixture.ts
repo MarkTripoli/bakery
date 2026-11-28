@@ -403,7 +403,8 @@ export async function libraryFixture(page: Page, options: Options = {}) {
         id: parts[5] ?? "",
         workflowId: parts[3] ?? "",
         revision: row?.revision ?? 1,
-        sourceYaml: "",
+        sourceYaml: (route.request().postDataJSON() as { sourceYaml?: string })
+          .sourceYaml ?? "",
         normalizedSpec: {
           kind: "fixed",
           steps: (route.request().postDataJSON() as {
@@ -679,7 +680,7 @@ export async function libraryFixture(page: Page, options: Options = {}) {
             defaultBudgetLimitUsd: "8.00",
             availability: null,
           },
-        ].map(presetRead),
+        ].map((preset) => presetRead(preset)),
       )(route);
     },
   );

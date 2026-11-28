@@ -1,3 +1,4 @@
+import { boundedPostgresMutation } from "../../platform/bounded-mutation.ts";
 import type { ActionContext } from "@bakery/contracts/action-registry";
 import { contractSchemas, type JsonValue } from "@bakery/contracts/contracts";
 import { z } from "zod";
@@ -10,10 +11,6 @@ import {
   decodeCursor,
   encodeCursor,
 } from "../../platform/cursor.ts";
-import {
-  POSTGRES_UNIQUE_VIOLATION,
-  postgresErrorCode,
-} from "../../platform/postgres-errors.ts";
 import { canonicalJson, sha256Hex } from "../../platform/canonical-json.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
 import { attributeAction } from "../auth/application/action-attribution.ts";
@@ -243,20 +240,8 @@ export function toSkill(row: SkillRow) {
   };
 }
 
-export async function boundedMutation<T>(work: () => Promise<T>): Promise<T> {
-  try {
-    return await work();
-  } catch (error) {
-    if (error instanceof StandardError) throw error;
-    const code = postgresErrorCode(error);
-    if (code === POSTGRES_UNIQUE_VIOLATION) {
-      throw new StandardError({ code: "STATE_CONFLICT", cause: error });
-    }
-    if (["22001", "22P02", "23502", "23503"].includes(code ?? "")) {
-      throw new StandardError({ code: "UNPROCESSABLE", cause: error });
-    }
-    throw error;
-  }
+export function boundedMutation<T>(work: () => Promise<T>): Promise<T> {
+  return boundedPostgresMutation(work);
 }
 
 export async function recordMutation(
@@ -532,7 +517,8 @@ export async function admitSkillImport(
           where import.organization_id = $1 and import.source_id = $2
             and import.requested_revision = $3 and import.source_path = $4
             and import.scope = $5
-            and import.owner_principal_id is not distinct from $6::uuid`,
+            and import.owner_principal_id is not distinct from $6::uuid
+            and import.state <> 'failed'`,
     [
       organizationId,
       source.id,

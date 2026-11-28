@@ -519,7 +519,8 @@ export function createHeartbeatRepository(
         `update bakery.worker_hosts
        set last_heartbeat_at = $2,
            status = case when status = 'offline' then 'online' else status end,
-           updated_at = $2, version = version + 1
+           updated_at = $2,
+           version = version + case when status = 'offline' then 1 else 0 end
        where id = $1
        returning inventory_revision`,
         [identity.host.id, heartbeatTime],

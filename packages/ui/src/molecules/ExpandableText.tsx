@@ -31,7 +31,7 @@ export type ExpandableTextProps =
     /** The `Text` variant of the summary. */
     variant?: TextProps["variant"];
     /** How many lines the text keeps while closed. Two by default. */
-    lines?: 2 | 3;
+    lines?: 2 | 3 | 6;
     /** Starts showing the whole text. Closed by default. */
     defaultExpanded?: boolean;
   };

@@ -50,6 +50,7 @@ import {
   appendTaskProjectionEvent,
   loadTaskScope,
   lockApplication,
+  requireTaskApplication,
   type TaskRow,
   toIso,
   toTask,
@@ -107,7 +108,7 @@ type RunOutput = z.output<typeof contractSchemas.Run>;
 
 type TaskAdmissionRow = {
   id: string;
-  application_id: string;
+  application_id: string | null;
   repository_id: string | null;
   conversation_id: string;
   parent_task_id: string | null;
@@ -259,6 +260,7 @@ const runStatuses: Record<RunOutput["status"], true> = {
   completed: true,
   failed: true,
   blocked: true,
+  needs_human: true,
 };
 
 function isRunStatus(value: string): value is RunOutput["status"] {
@@ -322,7 +324,7 @@ type RunSnapshot = {
    * The project's scope profile defaults the run inherits, pinned by revision
    * and digest at admission; revision 0 is the empty baseline.
    */
-  scopeProfile?: ScopeProfileDefaults & { applicationId: string };
+  scopeProfile?: ScopeProfileDefaults & { applicationId: string | null };
   /**
    * Present only for a compiled-plan run: the frozen document and its pin, the
    * `$task` the plan reads, the agents its steps run as and each action's
@@ -856,7 +858,7 @@ async function loadProfile(
     transaction,
     {
       organizationId,
-      applicationId: task.application_id,
+      applicationId: requireTaskApplication(task),
       repositoryId: task.repository_id,
     },
     profile,
@@ -973,7 +975,13 @@ export async function createRunCommand(
     undefined,
     false,
   );
-  await lockApplication(transaction, organizationId, taskScope.application_id);
+  if (taskScope.application_id !== null) {
+    await lockApplication(
+      transaction,
+      organizationId,
+      taskScope.application_id,
+    );
+  }
   const task = await loadTaskForAdmission(
     transaction,
     organizationId,
@@ -1141,11 +1149,13 @@ export async function createRunCommand(
   // Step defaults come from the project's scope profile, not the repository
   // profile (O23): every run of the project pins the published revision, and a
   // project that has published none runs on the empty baseline.
-  const storedScopeProfile = await readProjectScopeProfile(
-    transaction,
-    organizationId,
-    task.application_id,
-  );
+  const storedScopeProfile = task.application_id === null
+    ? null
+    : await readProjectScopeProfile(
+      transaction,
+      organizationId,
+      task.application_id,
+    );
   const scopeProfile = {
     applicationId: task.application_id,
     ...resolveScopeProfileDefaults({

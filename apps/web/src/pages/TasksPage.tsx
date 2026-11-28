@@ -1,11 +1,12 @@
 import { type MouseEvent, type ReactNode, useEffect, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { createLink, useNavigate } from "@tanstack/react-router";
 import { isUuid } from "@bakery/contracts/contracts";
 import * as UI from "@bakery/ui";
 import { useBakeryApi } from "../api/context.tsx";
 import {
   artifactsListQueryOptions,
+  conversationMessagesQueryOptions,
   questionsQueryOptions,
   taskQueryOptions,
   tasksListQueryOptions,
@@ -24,10 +25,10 @@ import { useConnectivity } from "../app/connectivity.ts";
 import { useShellViewport } from "../app/responsive.ts";
 import { ShellFlushMain, ShellSlot } from "../shell/shell-slots.tsx";
 import { focusAfterPaint } from "../app/focus.ts";
-import { FingerprintRow } from "./FingerprintRow.tsx";
 import { NewTaskComposer } from "./NewTaskComposer.tsx";
 import { TaskArtifactPane } from "./TaskArtifactPane.tsx";
 import { TaskRunSection } from "./TaskRunSection.tsx";
+import { StepApprovalPane } from "./task-step-approval/StepApprovalPane.tsx";
 import { TaskRunArtifactCard } from "./TaskRunArtifactCard.tsx";
 import { TaskStartRun } from "./TaskStartRun.tsx";
 import { RunPreviewCard } from "./RunPreviewCard.tsx";
@@ -280,7 +281,6 @@ function InboxResults(
   const rows = items.map((task) => ({
     id: task.id,
     status: task.status,
-    reference: task.id.slice(0, 8),
     title: task.title,
     stage: {
       label: t(`tasks.queue.stage.${task.status}`),
@@ -300,7 +300,8 @@ function InboxResults(
     complete
       ? t("tasks.queue.counted", { label, count: String(count) })
       : label;
-  const selected = rows.find((row) => row.id === selectedId) ?? rows[0];
+  const selected = rows.find((row) => row.id === selectedId) ??
+    groups[0]?.rows[0];
   const pageable = !!query.data?.nextCursor || cursors.length > 1;
   const questions = useQuery({
     ...questionsQueryOptions(api, scope, selected?.id ?? "", "open"),
@@ -536,6 +537,8 @@ function Detail(
   const scope = useProtectedScope();
   const api = useBakeryApi();
   const online = useOnline();
+  const [reviewingStep, setReviewingStep] = useState(false);
+  const [decisionNote, setDecisionNote] = useState("");
   const [syncConnectivity, setSyncConnectivity] = useState<
     DurableSyncConnectivity
   >("unknown");
@@ -553,9 +556,51 @@ function Detail(
   // mark the notification read once the part is on screen.
   const landingStep = parseLanding(landing.at);
   const landingStepId = landingStep?.kind === "step" ? landingStep.id : null;
+  const landingMessageId =
+    landing.gone === true || landingStep?.kind !== "message"
+      ? null
+      : landingStep.id;
+  const {
+    data: earlierMessages,
+    fetchNextPage,
+    hasNextPage,
+    isError: earlierFailed,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
+    ...conversationMessagesQueryOptions(
+      api,
+      scope,
+      query.data?.conversationId ?? "",
+    ),
+    enabled: landingMessageId !== null && query.data !== undefined &&
+      scope.organizationId !== null,
+  });
+  const messageLoaded =
+    earlierMessages?.pages.some((page) =>
+      page.items.some((message) => message.id === landingMessageId)
+    ) ?? false;
+  const everyPageRead = earlierMessages !== undefined && !hasNextPage &&
+    !earlierFailed;
+  const searchingEarlier = landingMessageId !== null && !messageLoaded &&
+    !everyPageRead;
+  useEffect(() => {
+    if (
+      landingMessageId === null || messageLoaded || !hasNextPage ||
+      isFetchingNextPage || earlierFailed
+    ) return;
+    void fetchNextPage();
+  }, [
+    earlierFailed,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    landingMessageId,
+    messageLoaded,
+  ]);
   const landed = useTaskLanding(
     landing,
     valid && !query.isPending && query.data !== undefined,
+    searchingEarlier,
   );
   const partGone = landing.gone === true || landed.missing;
   const arrival = useLandingArrival({
@@ -579,7 +624,31 @@ function Detail(
             </UI.InlineNotice>
           )
           : undefined}
+        onReviewStep={() => setReviewingStep(true)}
         state={syncConnectivity === "reconnecting" ? "reconnecting" : "ready"}
+        renderStepReview={(layout) =>
+          reviewingStep && task.currentRunId
+            ? (
+              <StepApprovalPane
+                key={task.currentRunId}
+                taskId={id}
+                runId={task.currentRunId}
+                layout={layout}
+                online={online}
+                onClose={() => setReviewingStep(false)}
+                onDecided={(decision) => {
+                  setReviewingStep(false);
+                  setDecisionNote(
+                    t(`tasks.stepApproval.announce.${decision}`),
+                  );
+                  globalThis.setTimeout(
+                    () => document.getElementById("task-run-heading")?.focus(),
+                    0,
+                  );
+                }}
+              />
+            )
+            : null}
         aside={task.currentRunId
           ? (
             <UI.Stack gap="standard">
@@ -602,6 +671,14 @@ function Detail(
           <>
             <UI.VisuallyHidden aria-live="polite" as="div" role="status">
               {arrival}
+            </UI.VisuallyHidden>
+            <UI.VisuallyHidden
+              aria-live="polite"
+              as="div"
+              role="status"
+              data-ui-region="step-approval-announcement"
+            >
+              {decisionNote}
             </UI.VisuallyHidden>
             {!online && (
               <UI.InlineNotice tone="warning">
@@ -627,17 +704,13 @@ function Detail(
               task={task}
               enabled={!query.isError && valid}
               landingStepId={landingStepId}
+              onReviewStep={() => setReviewingStep(true)}
               onConnectivity={setSyncConnectivity}
               artifacts={task.currentRunId
                 ? <TaskArtifacts hideEmpty taskId={id} presentation="run" />
                 : undefined}
             />
-            {task.currentRunId ? null : (
-              <TaskArtifacts
-                taskId={id}
-                hideEmpty={task.status !== "draft"}
-              />
-            )}
+            {task.currentRunId ? null : <TaskArtifacts hideEmpty taskId={id} />}
           </>
         }
       />
@@ -737,8 +810,9 @@ function Detail(
 }
 
 function TaskLiveReads(
-  { task, enabled, landingStepId, onConnectivity, artifacts }: {
+  { task, enabled, landingStepId, onConnectivity, onReviewStep, artifacts }: {
     task: TaskResponse;
+    onReviewStep: () => void;
     enabled: boolean;
     landingStepId?: string | null;
     onConnectivity: (connectivity: DurableSyncConnectivity) => void;
@@ -760,6 +834,7 @@ function TaskLiveReads(
         connectivity={observed}
         artifacts={artifacts}
         landingStepId={landingStepId}
+        onReviewStep={onReviewStep}
       />
     )
     : enabled && task.status === "draft"
@@ -945,7 +1020,7 @@ export type WorkQueueStage = {
 
 export type WorkQueueTask = {
   id: string;
-  reference: string;
+  reference?: string;
   title: string;
   application?: string;
   harness?: string;
@@ -1122,6 +1197,9 @@ export function WorkQueueView(
               harness: groups.some((group) =>
                 group.rows.some((row) => row.harness != null)
               ),
+              stage: groups.some((group) =>
+                group.rows.some((row) => row.stage.label !== group.label)
+              ),
             }}
             variant={layout === "sheet" ? "list" : "table"}
             labels={{
@@ -1175,7 +1253,6 @@ function WorkQueueInspector(
   },
 ) {
   const { translate: t } = useI18n();
-  const [view, setView] = useState("activity");
   const question = detail?.question;
   return (
     <UI.TaskInspector
@@ -1187,48 +1264,15 @@ function WorkQueueInspector(
       participants={detail?.participants?.length
         ? detail.participants.map((name) => <UI.Avatar alt={name} key={name} />)
         : undefined}
-      activity={
-        <UI.Tabs
-          aria-label={t("tasks.queue.inspector.activity")}
-          selectedId={view}
-          onSelect={setView}
-          tabs={[
-            {
-              id: "activity",
-              label: t("tasks.queue.inspector.activity"),
-              content: detail?.activity?.length
-                ? (
-                  <UI.RunTimeline
-                    events={[...detail.activity]}
-                    label={t("tasks.queue.inspector.activity")}
-                    variant="activity"
-                  />
-                )
-                : <UI.Text>{t("tasks.queue.inspector.noActivity")}</UI.Text>,
-            },
-            {
-              id: "evidence",
-              label: t("tasks.queue.inspector.evidence"),
-              content: <UI.Text>{t("tasks.live.noArtifacts")}</UI.Text>,
-            },
-            {
-              id: "details",
-              label: t("tasks.queue.inspector.details"),
-              // The short form on screen, the whole id on the clipboard.
-              content: (
-                <FingerprintRow
-                  copyFailedText={t("tasks.queue.inspector.taskIdCopyFailed")}
-                  display={task.reference}
-                  fingerprint={task.id}
-                  label={t("tasks.queue.inspector.taskId")}
-                  noHelp
-                  testId="task-id-row"
-                />
-              ),
-            },
-          ]}
-        />
-      }
+      activity={detail?.activity?.length
+        ? (
+          <UI.RunTimeline
+            events={[...detail.activity]}
+            label={t("tasks.queue.inspector.activity")}
+            variant="activity"
+          />
+        )
+        : undefined}
     >
       {question && (
         <QuestionAnswer

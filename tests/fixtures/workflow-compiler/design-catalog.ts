@@ -181,6 +181,19 @@ export const designSchemas: Readonly<Record<string, Schema>> = Object.freeze({
     completedLanes: int({ minimum: 0 }),
   }),
   CandidateEvidence: candidateEvidence(),
+  OpenPullRequestInput: obj({
+    repositoryId: uuid(),
+    headBranch: nonEmpty({ maxLength: 250 }),
+    baseBranch: nonEmpty({ maxLength: 250 }),
+    title: nonEmpty({ maxLength: 256 }),
+    body: str({ maxLength: 65536 }),
+  }, ["headBranch", "title"]),
+  PullRequest: obj({
+    id: uuid(),
+    providerNumber: int({ minimum: 1 }),
+    url: nonEmpty(),
+    status: enumOf("open", "merged", "closed"),
+  }),
   PrepareInput: obj({
     repositoryId: uuid(),
     headSha: nonEmpty(),

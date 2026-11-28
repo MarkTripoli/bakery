@@ -1,10 +1,12 @@
 import { contractSchemas } from "../../../packages/contracts/src/contracts.ts";
+import { fitFaultText } from "./fault-text.ts";
 import {
   type RepositoryInspectionSourceChunk,
   RepositoryInspectionSourceChunkSchema,
 } from "../../../packages/contracts/src/repository-inspection.ts";
 import { z } from "zod";
 import { GatewayToolSchema } from "./tool-gateway.ts";
+import { type ModelKey, ModelKeySchema } from "./model-key.ts";
 import { McpStdioLaunchSpecSchema } from "@bakery/contracts/mcp-capabilities";
 import {
   WORKER_SKILL_READ_HEADERS,
@@ -277,6 +279,24 @@ const WorkerContextInputList = z.array(
   "Every pinned input of one attempt, each carrying its own bytes and the server's digest of them.",
 );
 
+const PinnedContextFact = z.object({
+  wording: z.string().describe(
+    "The fact's wording, exactly as it was recorded when this step started.",
+  ),
+  recordedAt: z.string().describe(
+    "When that wording was recorded, so a person can tell how old it is.",
+  ),
+}).describe("One remembered fact the step's agent was given.");
+
+const PinnedContextFacts = z.object({
+  facts: z.array(PinnedContextFact).describe(
+    "The remembered facts the step's agent was given, bounded at admission.",
+  ),
+  omitted: z.number().int().nonnegative().describe(
+    "How many facts were left out to stay inside the step's bound.",
+  ),
+}).describe("What this repository had learned when the step started.");
+
 const PinnedContextRead = z.object({
   attemptId: z.string().uuid().describe(
     "The attempt the served inputs belong to.",
@@ -287,7 +307,17 @@ const PinnedContextRead = z.object({
   inputs: WorkerContextInputList.describe(
     "Every pinned input, with its bytes.",
   ),
+  facts: PinnedContextFacts.nullable().describe(
+    "The remembered facts recorded for this step, or null when none were.",
+  ),
 }).describe("The pinned input context the server served for this attempt.");
+
+export type PinnedContextFacts = z.infer<typeof PinnedContextFacts>;
+
+export type AttemptContextSlice = Readonly<{
+  inputs: readonly WorkerContextInput[];
+  facts: PinnedContextFacts | null;
+}>;
 
 export type WorkerResponse<T> = {
   readonly value: T;
@@ -1786,7 +1816,7 @@ export class WorkerApiClient {
     attemptId: string,
     proof: AttemptProof,
     signal?: AbortSignal,
-  ): Promise<WorkerResponse<readonly WorkerContextInput[]>> {
+  ): Promise<WorkerResponse<AttemptContextSlice>> {
     const response = await this.request<unknown>(
       "GET",
       `/v1/worker/attempts/${encodeURIComponent(attemptId)}/context`,
@@ -1802,7 +1832,29 @@ export class WorkerApiClient {
       response.value,
       "WORKER_RESPONSE_CONTEXT_INVALID",
     );
-    return { ...response, value: read.inputs };
+    return { ...response, value: { inputs: read.inputs, facts: read.facts } };
+  }
+
+  async attemptModelKey(
+    attemptId: string,
+    proof: AttemptProof,
+    signal?: AbortSignal,
+  ): Promise<ModelKey> {
+    const response = await this.request<unknown>(
+      "GET",
+      `/v1/worker/attempts/${encodeURIComponent(attemptId)}/model-key`,
+      {
+        authenticated: true,
+        headers: attemptProofHeaders(proof),
+        signal,
+        successStatuses: [200],
+      },
+    );
+    return parseResponse(
+      ModelKeySchema,
+      response.value,
+      "WORKER_RESPONSE_MODEL_KEY_INVALID",
+    );
   }
 
   async renewLease(
@@ -1998,7 +2050,10 @@ export class WorkerApiClient {
     idempotencyKey: string,
     signal?: AbortSignal,
   ): Promise<WorkerResponse<WorkerAck>> {
-    const wireBody = { ...body };
+    const wireBody = {
+      ...body,
+      ...("fault" in body ? { fault: fitFaultText(body.fault) } : {}),
+    } as WorkerResultRequest;
     validateLegacyCompatibleRequest(contractSchemas.WorkerResult, wireBody);
     const response = await this.request<unknown>(
       "POST",

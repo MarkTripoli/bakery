@@ -22,6 +22,7 @@ export type MachineBadgeTone = "neutral" | "success" | "warning" | "danger";
 
 type MachineFacts = Pick<
   WorkerResponse,
+  | "checks"
   | "connectivity"
   | "desiredMode"
   | "failedCheckIds"
@@ -87,8 +88,24 @@ export function machineBadgeTone(badge: MachineBadge): MachineBadgeTone {
  */
 export type MachineReason =
   | Readonly<{ kind: "retired" | "offline" | "stale" | "paused" | "finishing" }>
-  | Readonly<{ kind: "checkFailed"; count: number }>
+  | Readonly<{ kind: "checkFailed"; count: number; unchecked?: number }>
   | Readonly<{ kind: "needsAttention" }>;
+
+export function checkCounts(
+  machine: Pick<MachineFacts, "checks" | "failedCheckIds">,
+): { failed: number; unchecked: number } {
+  const ids = Array.isArray(machine.failedCheckIds)
+    ? machine.failedCheckIds
+    : [];
+  const unchecked = ids.filter((id) => {
+    const results = (machine.checks ?? []).filter((check) =>
+      check.checkId === id
+    );
+    return results.length > 0 &&
+      results.every((check) => check.result === "unknown");
+  }).length;
+  return { failed: ids.length - unchecked, unchecked };
+}
 
 export function machineReason(machine: MachineFacts): MachineReason | null {
   switch (machineBadge(machine)) {
@@ -99,12 +116,11 @@ export function machineReason(machine: MachineFacts): MachineReason | null {
     case "notResponding":
       return { kind: "stale" };
     case "needsAttention": {
-      const count = Array.isArray(machine.failedCheckIds)
-        ? machine.failedCheckIds.length
-        : 0;
-      return count > 0
-        ? { kind: "checkFailed", count }
-        : { kind: "needsAttention" };
+      const { failed, unchecked } = checkCounts(machine);
+      if (failed + unchecked === 0) return { kind: "needsAttention" };
+      return unchecked === 0
+        ? { kind: "checkFailed", count: failed }
+        : { kind: "checkFailed", count: failed, unchecked };
     }
     case "paused":
       return { kind: "paused" };
@@ -152,7 +168,7 @@ export function codingAgents(
 }
 
 /** Which rows a filter keeps; "needsAttention" also keeps a machine that has stopped answering. */
-export type MachineFilter = "all" | "needsAttention" | "offline";
+export type MachineFilter = "all" | "needsAttention" | "offline" | "retired";
 
 export function machineMatchesFilter(
   machine: MachineFacts,
@@ -160,7 +176,21 @@ export function machineMatchesFilter(
 ): boolean {
   if (filter === "all") return true;
   const badge = machineBadge(machine);
-  return filter === "offline"
-    ? badge === "offline"
-    : badge === "needsAttention" || badge === "notResponding";
+  if (filter === "offline") return badge === "offline";
+  if (filter === "retired") return badge === "retired";
+  return badge === "needsAttention" || badge === "notResponding";
+}
+
+export function formatMachineDate(
+  value: string | null | undefined,
+  locale: string,
+  timeZone: string,
+  fallback: string,
+): string {
+  if (!value) return fallback;
+  return new Intl.DateTimeFormat(locale, {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone,
+  }).format(new Date(value));
 }

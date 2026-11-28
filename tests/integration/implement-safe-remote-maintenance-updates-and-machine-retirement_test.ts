@@ -5,6 +5,7 @@
 // the fenced, sequenced worker report route.
 import { assert, assertEquals } from "@std/assert";
 import {
+  adminRequest,
   problemCode,
   registeredWorker,
   workerFixtureCapabilities,
@@ -952,4 +953,140 @@ Deno.test("the list cursor is bound to the includeArchived choice", () =>
     );
     assertEquals(switched.status, 400);
     assertEquals(await problemCode(switched), "INVALID_CURSOR");
+  }));
+
+Deno.test("the machine list finds machines by name, and a cursor keeps its search", () =>
+  withWorkerFixture(async (fixture) => {
+    for (
+      const name of ["Build-Box-01", "build-box-02", "render_50%", "other"]
+    ) {
+      await registeredWorker(fixture, { name });
+    }
+    const names = async (search: string) => {
+      const response = await readMaintenance(fixture, `/v1/workers${search}`);
+      assertEquals(response.status, 200, await response.clone().text());
+      const page = await response.json() as {
+        items: { name: string }[];
+        nextCursor: string | null;
+      };
+      return { names: page.items.map((item) => item.name), page };
+    };
+    assertEquals((await names("?query=BUILD-box")).names, [
+      "Build-Box-01",
+      "build-box-02",
+    ]);
+    assertEquals((await names("?query=_50%25")).names, ["render_50%"]);
+    assertEquals((await names("?query=%25")).names, ["render_50%"]);
+    assertEquals((await names("?query=nothing-like-it")).names, []);
+    assertEquals((await names("?query=%20%20")).names.length, 4);
+    const first = await names("?query=box&limit=1");
+    assertEquals(first.names, ["Build-Box-01"]);
+    const cursor = encodeURIComponent(first.page.nextCursor!);
+    assertEquals((await names(`?query=box&limit=1&cursor=${cursor}`)).names, [
+      "build-box-02",
+    ]);
+    const switched = await readMaintenance(
+      fixture,
+      `/v1/workers?query=other&limit=1&cursor=${cursor}`,
+    );
+    assertEquals(switched.status, 400);
+    assertEquals(await problemCode(switched), "INVALID_CURSOR");
+    const tooLong = await readMaintenance(
+      fixture,
+      `/v1/workers?query=${"x".repeat(201)}`,
+    );
+    assertEquals(tooLong.status, 400);
+    await tooLong.body?.cancel();
+    const wideButShort = await readMaintenance(
+      fixture,
+      `/v1/workers?query=${encodeURIComponent("é".repeat(101))}`,
+    );
+    assertEquals(
+      wideButShort.status,
+      400,
+      "the bound is 200 bytes, not characters",
+    );
+    await wideButShort.body?.cancel();
+    const wideWithin = await readMaintenance(
+      fixture,
+      `/v1/workers?query=${encodeURIComponent("é".repeat(100))}`,
+    );
+    assertEquals(wideWithin.status, 200);
+    await wideWithin.body?.cancel();
+    const nul = await readMaintenance(fixture, "/v1/workers?query=a%00b");
+    assertEquals(nul.status, 400, "a control character is refused, not a 500");
+    await nul.body?.cancel();
+  }));
+
+Deno.test("a heartbeat between reading a machine and saving it does not refuse the save", () =>
+  withWorkerFixture(async (fixture) => {
+    const worker = await registeredWorker(fixture, { name: "issue70-beat" });
+    const hostId = worker.registration.workerHostId;
+    const read = async () => {
+      const response = await readMaintenance(fixture, `/v1/workers/${hostId}`);
+      assertEquals(response.status, 200);
+      return (await response.json() as { version: number }).version;
+    };
+    const update = (version: number, status: string) =>
+      adminRequest(fixture, `/v1/workers/${hostId}`, { status }, {
+        method: "PATCH",
+        headers: { "If-Match": `"${version}"` },
+      });
+
+    const seen = await read();
+    await heartbeatAssignments(fixture, worker);
+    await heartbeatAssignments(fixture, worker);
+    assertEquals(await read(), seen);
+    const paused = await update(seen, "offline");
+    assertEquals(paused.status, 200, await paused.clone().text());
+    await paused.body?.cancel();
+
+    const stale = await update(seen, "online");
+    assertEquals(stale.status, 412);
+    await stale.body?.cancel();
+
+    await fixture.pgDatabase.query(
+      `update bakery.worker_hosts set status = 'offline' where id = $1`,
+      [hostId],
+    );
+    const offline = await read();
+    await heartbeatAssignments(fixture, worker);
+    assertEquals(await read(), offline + 1);
+  }));
+
+Deno.test("an unchanged inventory refresh between reading a machine and saving it does not refuse the save", () =>
+  withWorkerFixture(async (fixture) => {
+    const worker = await registeredWorker(fixture, { name: "issue70-refresh" });
+    const hostId = worker.registration.workerHostId;
+    const inventoryRevision = async () =>
+      Number(
+        (await fixture.pgDatabase.query<{ inventory_revision: string }>(
+          `select inventory_revision::text as inventory_revision
+             from bakery.worker_hosts where id = $1`,
+          [hostId],
+        )).rows[0]!.inventory_revision,
+      );
+    const read = async () => {
+      const response = await readMaintenance(fixture, `/v1/workers/${hostId}`);
+      assertEquals(response.status, 200);
+      return (await response.json() as { version: number }).version;
+    };
+    await reportMaintenanceInventory(
+      fixture,
+      worker,
+      await inventoryRevision(),
+    );
+    const reported = await inventoryRevision();
+
+    const seen = await read();
+    await reportMaintenanceInventory(fixture, worker, reported);
+    assertEquals(await read(), seen);
+    const paused = await adminRequest(
+      fixture,
+      `/v1/workers/${hostId}`,
+      { status: "offline" },
+      { method: "PATCH", headers: { "If-Match": `"${seen}"` } },
+    );
+    assertEquals(paused.status, 200, await paused.clone().text());
+    await paused.body?.cancel();
   }));

@@ -159,6 +159,17 @@ export async function shot(
     await page.evaluate(() =>
       new Promise((resolve) => requestAnimationFrame(resolve))
     );
+    await page.evaluate(() => {
+      for (const element of document.querySelectorAll("*")) {
+        if (
+          element.scrollTop > 0 &&
+          !element.closest("[role=alertdialog],[role=dialog]")
+        ) {
+          element.scrollTop = 0;
+        }
+      }
+      globalThis.scrollTo(0, 0);
+    });
     if (options.scrollToEnd) {
       // The end of the dialog, so the last button is in the picture.
       await options.scrollToEnd.evaluate((element) => {

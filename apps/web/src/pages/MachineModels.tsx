@@ -5,6 +5,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { type ReactNode, useState } from "react";
 import { useBakeryApi } from "../api/context.tsx";
 import {
+  machineModelsQueryOptions,
   providerRouteHealthQueryOptions,
   providerRoutesListQueryOptions,
 } from "../api/query.ts";
@@ -30,6 +31,7 @@ import {
   updateRefusal,
 } from "./machine-models.ts";
 import type { CodingAgent } from "./machine-state.ts";
+import { MachineLoading } from "./MachineLoading.tsx";
 
 type Say = (key: string, arguments_?: MessageArguments) => string;
 
@@ -47,6 +49,7 @@ export function MachineModels(
   {
     machineId,
     isAdmin,
+    offline,
     agents,
     bindings,
     retryBindings,
@@ -55,6 +58,7 @@ export function MachineModels(
   }: {
     readonly machineId: string;
     readonly isAdmin: boolean;
+    readonly offline: boolean;
     readonly agents: readonly AgentRow[];
     /**
      * This machine's own coding-agent sign-ins, which are what tie a model to it. Only an
@@ -77,10 +81,13 @@ export function MachineModels(
   const say: Say = (key, arguments_) =>
     translate(key as MessageKey, arguments_);
   const phone = useShellViewport() === "phone";
-  // Only an administrator reads the list: a member would be shown models that are not this machine's.
   const list = useQuery({
     ...providerRoutesListQueryOptions(api, scope),
     enabled: isAdmin,
+  });
+  const own = useQuery({
+    ...machineModelsQueryOptions(api, scope, machineId),
+    enabled: !isAdmin && Boolean(scope.organizationId),
   });
   const [search, setSearch] = useState("");
   const [agentFilter, setAgentFilter] = useState<CodingAgent | "all">("all");
@@ -88,7 +95,13 @@ export function MachineModels(
   const [problem, setProblem] = useState<"changed" | "failed" | null>(null);
 
   const served: readonly RouteFacts[] = list.data?.items ?? [];
-  const all: RouteFacts[] = bindings.state === "ready"
+  const all: RouteFacts[] = !isAdmin
+    ? (own.data?.items ?? []).map((model) => ({
+      ...model,
+      workerBindingId: null,
+      version: 0,
+    }))
+    : bindings.state === "ready"
     ? modelsForMachine(served, bindings.ids)
     : [];
   // A reason is read only for a model that is in trouble: the others have nothing to say.
@@ -110,7 +123,8 @@ export function MachineModels(
   const shown = filtering
     ? filterModels(all, { search, agent: agentFilter })
     : all;
-  const empty = modelsEmpty(agents, all.length);
+  const empty = isAdmin ? modelsEmpty(agents, all.length) : null;
+  const read = isAdmin ? list : own;
   const turnedOff = turnedOffNotice(all);
   const time = (value: string) =>
     formatMachineDate(value, locale, timeZone, say("machines.never"));
@@ -151,23 +165,10 @@ export function MachineModels(
       params: { machineId },
     });
 
-  // A member sees no table: the server cannot yet list one machine's models for them, and the list of
-  // every model of the organization would be wrong for this machine.
-  if (!isAdmin) {
-    return (
-      <UI.Text data-testid="machine-models">
-        {say("machines.models.adminSeeOnly")}
-      </UI.Text>
-    );
+  if (read.isPending || isAdmin && bindings.state === "loading") {
+    return <MachineLoading label={say("machines.loading")} />;
   }
-  if (list.isPending || bindings.state === "loading") {
-    return (
-      <UI.AlertBanner tone="information">
-        {say("machines.loading")}
-      </UI.AlertBanner>
-    );
-  }
-  if (list.isError || bindings.state === "failed") {
+  if (read.isError || isAdmin && bindings.state === "failed") {
     return (
       <UI.ErrorState
         title={say("machines.models.loadFailed")}
@@ -176,8 +177,8 @@ export function MachineModels(
           <UI.Button
             variant="secondary"
             onClick={() => {
-              void list.refetch();
-              retryBindings();
+              void read.refetch();
+              if (isAdmin) retryBindings();
             }}
           >
             {say("machines.models.retry")}
@@ -195,12 +196,11 @@ export function MachineModels(
       </UI.Badge>
     );
   };
-  // A model removed for good has no switch: one that cannot be pressed is not shown.
   const inUse = (row: RouteFacts) =>
     row.status === "revoked" ? null : (
       <UI.Switch
         checked={row.status === "active"}
-        disabled={busyId !== null}
+        disabled={offline || busyId !== null}
         pending={busyId === row.id}
         onChange={() => void toggle(row)}
       >
@@ -229,25 +229,37 @@ export function MachineModels(
 
   return (
     <UI.Stack gap="standard" data-testid="machine-models">
-      {/* The sentence, with the one action at its end (under it on a phone). */}
       <UI.Inline variant="between">
         <UI.Text>{say("machines.models.intro")}</UI.Text>
-        {empty === null
+        {isAdmin && empty === null
           ? (
-            <UI.Button variant="primary" onClick={add}>
+            <UI.Button variant="primary" disabled={offline} onClick={add}>
               {say("machines.models.add")}
             </UI.Button>
           )
           : null}
       </UI.Inline>
-      {empty === "none"
+      {isAdmin ? null : (
+        <UI.Text variant="muted">
+          {say("machines.models.adminChangeOnly")}
+        </UI.Text>
+      )}
+      {!isAdmin && all.length === 0
+        ? (
+          <UI.EmptyState
+            span="column"
+            title={say("machines.models.empty.title")}
+            description=""
+          />
+        )
+        : empty === "none"
         ? (
           <UI.EmptyState
             span="column"
             title={say("machines.models.empty.title")}
             description={say("machines.models.empty.body")}
             action={
-              <UI.Button variant="primary" onClick={add}>
+              <UI.Button variant="primary" disabled={offline} onClick={add}>
                 {say("machines.models.add")}
               </UI.Button>
             }
@@ -316,7 +328,13 @@ export function MachineModels(
                       </UI.Text>
                     )
                     : shown.map((row) => {
-                      const note = noteLine(row, healthOf(row.id), say, time);
+                      const note = noteLine(
+                        row,
+                        healthOf(row.id),
+                        say,
+                        time,
+                        isAdmin,
+                      );
                       return (
                         <div
                           key={row.id}
@@ -328,10 +346,13 @@ export function MachineModels(
                             status={
                               <UI.Stack gap="compact">
                                 {stateBadge(row)}
-                                {/* Under the badge, at its right edge, so every row's switch is in one place. */}
-                                <UI.Inline variant="end">
-                                  {inUse(row)}
-                                </UI.Inline>
+                                {isAdmin
+                                  ? (
+                                    <UI.Inline variant="end">
+                                      {inUse(row)}
+                                    </UI.Inline>
+                                  )
+                                  : null}
                               </UI.Stack>
                             }
                           >
@@ -371,7 +392,13 @@ export function MachineModels(
                       id: "model",
                       header: say("machines.models.col.model"),
                       cell: (row) => {
-                        const note = noteLine(row, healthOf(row.id), say, time);
+                        const note = noteLine(
+                          row,
+                          healthOf(row.id),
+                          say,
+                          time,
+                          isAdmin,
+                        );
                         // A quiet row greys its name too, which the cell's own title cannot do.
                         return modelMuted(row)
                           ? (
@@ -409,13 +436,15 @@ export function MachineModels(
                       header: say("machines.models.col.state"),
                       cell: (row) => stateBadge(row),
                     },
-                    {
-                      id: "inUse",
-                      width: "8%",
-                      align: "end" as const,
-                      header: say("machines.models.col.inUse"),
-                      cell: (row: RouteFacts) => inUse(row),
-                    },
+                    ...(isAdmin
+                      ? [{
+                        id: "inUse",
+                        width: "8%",
+                        align: "end" as const,
+                        header: say("machines.models.col.inUse"),
+                        cell: (row: RouteFacts) => inUse(row),
+                      }]
+                      : []),
                   ]}
                 />
               )}
@@ -477,6 +506,7 @@ function noteLine(
   health: { reason: string | null; reasonSince: string | null } | null,
   say: Say,
   time: (value: string) => string,
+  isAdmin: boolean,
 ): string | undefined {
   const note = modelNote(route, health);
   if (note.kind === "answered") {
@@ -484,7 +514,13 @@ function noteLine(
       time: time(note.at),
     });
   }
-  if (note.kind === "revoked") return say("machines.models.note.revoked");
+  if (note.kind === "revoked") {
+    return say(
+      isAdmin
+        ? "machines.models.note.revoked"
+        : "machines.models.note.revokedMember",
+    );
+  }
   if (note.kind === "trouble") {
     const reason = say(`machines.models.reason.${note.reason}`);
     return note.since === null

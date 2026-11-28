@@ -19,6 +19,8 @@ import { readRunBudgetSummary } from "./budget.ts";
 import { isTaskStatus, toIso } from "./postgres.ts";
 import { requireWorkTransaction } from "./work-transaction.ts";
 import { readRunsWaitingOnModel } from "../execution/route-continuations.ts";
+import { readRunReleaseStep } from "../workflow-adapter/release-step.ts";
+import { readLimitStop } from "../workflow-adapter/limit-stop.ts";
 
 const RUN_ORDERING = "createdAt:desc,id:desc";
 const RUN_STEP_ORDERING = "position:asc,iteration:asc,id:asc";
@@ -62,6 +64,7 @@ const runStepStatuses: Record<RunStepOutput["status"], true> = {
   completed: true,
   failed: true,
   skipped: true,
+  needs_human: true,
   canceled: true,
 };
 const terminalRunStatuses: Record<RunOutput["status"], boolean> = {
@@ -75,6 +78,7 @@ const terminalRunStatuses: Record<RunOutput["status"], boolean> = {
   completed: true,
   failed: true,
   blocked: false,
+  needs_human: true,
 };
 const terminalRunStepStatuses: Record<RunStepOutput["status"], boolean> = {
   pending: false,
@@ -84,6 +88,7 @@ const terminalRunStepStatuses: Record<RunStepOutput["status"], boolean> = {
   completed: true,
   failed: true,
   skipped: true,
+  needs_human: true,
 };
 
 function isRunStepStatus(value: string): value is RunStepOutput["status"] {
@@ -377,6 +382,13 @@ export function createRunQueryHandlers(secret: string) {
           organizationId,
           [run.id],
         )).has(run.id),
+        releaseStep: await readRunReleaseStep(transaction, {
+          organizationId,
+          runId: run.id,
+        }),
+        limitStop: run.status === "failed"
+          ? await readLimitStop(transaction, organizationId, run.id) ?? null
+          : null,
       };
     },
 

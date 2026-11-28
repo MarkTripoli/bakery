@@ -51,6 +51,30 @@ local_git() {
     "$@"
 }
 
+max_fetch_blobs=257
+remote_deadline_seconds=120
+
+check_url() {
+  case "$1" in *[[:space:][:cntrl:]]*) exit 64 ;; esac
+  case "$1" in
+    https://[A-Za-z0-9]*) protocols=https ;;
+    http://127.0.0.1:[0-9]*/*) protocols=https:http ;;
+    *) exit 64 ;;
+  esac
+}
+
+remote_git() {
+  set_environment "$protocols"
+  # shellcheck disable=SC2086 # ENVIRONMENT is a fixed list of NAME=value words.
+  exec /usr/bin/env -i $ENVIRONMENT \
+    /usr/bin/timeout --kill-after=5 "$remote_deadline_seconds" \
+    /usr/bin/git --git-dir="$dir" \
+    -c core.hooksPath=/dev/null -c core.fsmonitor=false \
+    -c credential.helper= -c core.askPass= -c http.followRedirects=false \
+    -c protocol.version=2 \
+    "$@"
+}
+
 case "$op" in
   cat-file-type)
     [ "$#" -eq 1 ] && is_oid "$1" || exit 64
@@ -98,23 +122,28 @@ case "$op" in
     [ "$#" -eq 2 ] || exit 64
     url=$1
     revision=$2
-    case "$url" in *[[:space:][:cntrl:]]*) exit 64 ;; esac
-    case "$url" in
-      https://[A-Za-z0-9]*) protocols=https ;;
-      # Loopback HTTP exists only for injected test sources; the server
-      # refuses such a locator itself unless that mode is on.
-      http://127.0.0.1:[0-9]*/*) protocols=https:http ;;
-      *) exit 64 ;;
-    esac
+    check_url "$url"
     case "$revision" in "" | -* | *[!A-Za-z0-9._/-]* | *..*) exit 64 ;; esac
-    set_environment "$protocols"
-    # shellcheck disable=SC2086 # ENVIRONMENT is a fixed list of NAME=value words.
-    exec /usr/bin/env -i $ENVIRONMENT \
-      /usr/bin/git --git-dir="$dir" \
-      -c core.hooksPath=/dev/null -c core.fsmonitor=false \
-      -c credential.helper= -c core.askPass= -c http.followRedirects=false \
-      -c protocol.version=2 \
-      fetch --no-tags --depth=1 --filter=blob:none -- "$url" "$revision"
+    remote_git fetch --no-tags --depth=1 --filter=blob:none -- "$url" "$revision"
+    ;;
+  ls-remote)
+    [ "$#" -eq 2 ] || exit 64
+    url=$1
+    revision=$2
+    check_url "$url"
+    case "$revision" in "" | -* | *[!A-Za-z0-9._/-]* | *..*) exit 64 ;; esac
+    remote_git ls-remote -- "$url" "$revision"
+    ;;
+  fetch-blobs)
+    [ "$#" -ge 2 ] && [ "$#" -le $((max_fetch_blobs + 1)) ] || exit 64
+    url=$1
+    shift
+    check_url "$url"
+    for object in "$@"; do
+      is_oid "$object" || exit 64
+    done
+    remote_git -c fetch.negotiationAlgorithm=noop \
+      fetch --no-tags --no-write-fetch-head --filter=blob:none -- "$url" "$@"
     ;;
   *)
     exit 64

@@ -64,13 +64,49 @@ export type OAuth2Profile = {
   authorizeUrl: URL;
   tokenUrl: URL;
   scopes: readonly string[];
+  scopeDelimiter: " " | ",";
+  apiBaseUrl: URL;
+  webBaseUrl: URL;
   /** Validates the token endpoint's response, because its shape is the provider's. */
   tokenResponse: unknown;
   /** Reads the connected account out of the provider's API. */
   identify(ctx: DriverContext): Promise<
     { externalAccountId: string; accountLabel: string }
   >;
+  connectedResource?(input: ConnectedResourceInput): ConnectedResource;
+  refusal?(tokenResponse: unknown): ConnectRefusal | null;
 };
+
+export type ConnectRefusal = "enterprise_install";
+
+export type ConnectedResourceInput = Readonly<{
+  tokenResponse: unknown;
+  externalAccountId: string;
+  accountLabel: string;
+}>;
+
+export type ConnectedResourceGrant = Readonly<{
+  capability: string;
+  actionVersion: number;
+}>;
+
+export type SignedEventSource = Readonly<{
+  appId: string;
+  workspaceId: string;
+  enterpriseId?: string;
+  botUserId: string;
+}>;
+
+export type ConnectedResource = Readonly<{
+  kind: string;
+  externalId: string;
+  displayName: string;
+  binding: Readonly<Record<string, string>>;
+  servicePrincipalName: string;
+  servicePurpose: string;
+  serviceGrants: readonly ConnectedResourceGrant[];
+  signedEventSource?: SignedEventSource;
+}>;
 
 /**
  * `connect.kind: "api-token"` - core stores and encrypts; the provider only proves it.
@@ -103,7 +139,7 @@ export type CredentialStrategy = {
     ctx: DriverContext;
   }): Promise<{
     token: string;
-    expiresAt: Date;
+    expiresAt: Date | null;
     /**
      * Where the credential goes on the wire. Closed, because each placement is a
      * different header and the host owns the request.

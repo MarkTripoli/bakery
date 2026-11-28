@@ -5,6 +5,7 @@ import { ToolGatewayCallImplementedAction } from "@bakery/contracts/implemented-
 import { StandardError, unprocessable } from "@bakery/contracts/http";
 import { appendAudit } from "@bakery/persistence";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
+import { appendSessionToolFeedEvent } from "../execution/session-tool-feed.ts";
 
 /**
  * Settling a tool gateway call (#436, 25-one-engine.md 15.5). The gateway
@@ -87,6 +88,12 @@ export async function settleToolGatewayCall(
       returning ${COLUMNS}`,
     [organizationId, id, input.status, failureCode],
   )).rows[0]!;
+  await appendSessionToolFeedEvent(transaction, {
+    organizationId,
+    callId: id,
+    phase: input.status,
+    ok: input.status === "completed",
+  });
   await appendAudit(transaction, {
     organizationId,
     principalId,

@@ -77,7 +77,13 @@ import { HandoffManifestSchema } from "./handoff-manifest.ts";
 
 type Continue = z.output<typeof contractSchemas.HandoffContinue>;
 
-const TERMINAL_RUN_STATUSES = ["completed", "failed", "canceled", "blocked"];
+const TERMINAL_RUN_STATUSES = [
+  "completed",
+  "failed",
+  "canceled",
+  "blocked",
+  "needs_human",
+];
 const TERMINAL_JOB_STATUSES = ["completed", "failed", "canceled"];
 const LIVE_ATTEMPT_STATUSES = ["leased", "running", "canceling"];
 const POSTGRES_UNIQUE_VIOLATION = "23505";

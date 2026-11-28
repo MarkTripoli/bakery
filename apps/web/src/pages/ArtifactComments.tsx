@@ -222,6 +222,7 @@ export function ArtifactComments(
       return;
     }
     pending.current = null;
+    const wasReply = reply !== null;
     mentionField.clear();
     setBody("");
     setReply(null);
@@ -232,6 +233,11 @@ export function ArtifactComments(
     // A post that gave access added someone: the People added link must count them now.
     if (canShare && input.data.accessLevel !== undefined) {
       void added.refetch();
+    }
+    if (!wasReply) {
+      requestAnimationFrame(() =>
+        document.getElementById("artifact-comment-body")?.focus()
+      );
     }
     await comments.refetch();
   };
@@ -277,6 +283,7 @@ export function ArtifactComments(
         t(reply ? "artifact.comments.sendReply" : "artifact.comments.post"),
     disabled: busy || comments.isError || (!reply && invalidAnchor) ||
       mentionField.refused || mentionField.blocked,
+    posting: busy,
     sendReason: mentionField.sendReason,
     mentionField,
     mode: reply
@@ -295,16 +302,18 @@ export function ArtifactComments(
           />
         ),
       },
-    agentAction: (
-      <ArtifactAgentRequest
-        conversationId={task.data?.conversationId ?? null}
-        selected={selected}
-        onReload={() => {
-          setSelected([]);
-          void comments.refetch();
-        }}
-      />
-    ),
+    agentAction: artifact.taskTitle
+      ? (
+        <ArtifactAgentRequest
+          conversationId={task.data?.conversationId ?? null}
+          selected={selected}
+          onReload={() => {
+            setSelected([]);
+            void comments.refetch();
+          }}
+        />
+      )
+      : null,
   };
   const lastReplyId = useRef<string | null>(null);
   useEffect(() => {

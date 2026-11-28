@@ -251,6 +251,40 @@ Deno.test("inventory report, components list and host projection match schemas",
     );
     assertEquals(update.status, 200);
     contractSchemas.WorkerProviderBinding.parse(await update.json());
+
+    const patchBinding = (ifMatch: string) =>
+      adminRequest(
+        fixture,
+        `/v1/workers/${worker.registration.workerHostId}/provider-bindings/${bindingBody.id}`,
+        { enabled: true },
+        {
+          method: "PATCH",
+          idempotencyKey: crypto.randomUUID(),
+          headers: { "If-Match": ifMatch },
+        },
+      );
+    const clientFormat = await patchBinding('"v2"');
+    assertEquals(clientFormat.status, 200, await clientFormat.clone().text());
+    const bareBinding = await patchBinding('"3"');
+    assertEquals(bareBinding.status, 200, await bareBinding.clone().text());
+    assertEquals((await patchBinding('"v9"')).status, 412);
+
+    const hostPath = `/v1/workers/${worker.registration.workerHostId}`;
+    const host = await adminRequest(fixture, hostPath, undefined, {
+      method: "GET",
+    });
+    const { version } = await host.json() as { version: number };
+    const patchHost = (ifMatch: string) =>
+      adminRequest(fixture, hostPath, { status: "draining" }, {
+        method: "PATCH",
+        idempotencyKey: crypto.randomUUID(),
+        headers: { "If-Match": ifMatch },
+      });
+    assertEquals((await patchHost(`"v${version + 7}"`)).status, 412);
+    const hostUpdated = await patchHost(`"v${version}"`);
+    assertEquals(hostUpdated.status, 200, await hostUpdated.clone().text());
+    const bareHost = await patchHost(`"${version + 1}"`);
+    assertEquals(bareHost.status, 200, await bareHost.clone().text());
   }));
 
 Deno.test("coding agents serve their payment methods; bindings keep to them (#68)", () =>

@@ -61,8 +61,8 @@ const withCases = (
 const asRevision3 = { interpreter: nextStepWithLoops };
 
 Deno.test("revision 3 is the forEach interpreter, kept beside the current one; revisions 1 and 2 refuse a forEach by name", async () => {
-  assertEquals(CURRENT_INTERPRETER_REVISION, "4");
-  assertEquals(Object.keys(INTERPRETER_REVISIONS), ["1", "2", "3", "4"]);
+  assertEquals(CURRENT_INTERPRETER_REVISION, "5");
+  assertEquals(Object.keys(INTERPRETER_REVISIONS), ["1", "2", "3", "4", "5"]);
   assert(INTERPRETER_REVISIONS["3"] === nextStepWithLoops);
   const document = await compiled([
     noop("prepare"),
@@ -102,7 +102,13 @@ Deno.test("without a forEach revision 3 answers exactly as revision 2", async ()
         failurePolicy: "stop-dependent",
         branches: [
           { id: "lane_a", repository: "main", steps: [noop("a1")] },
-          { id: "lane_b", repository: "main", steps: [noop("b1")] },
+          {
+            id: "lane_b",
+            repository: "main",
+            steps: [
+              noop("b1", { files: { read: ["inputs"], write: ["outputs"] } }),
+            ],
+          },
         ],
       },
     },

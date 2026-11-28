@@ -52,6 +52,7 @@ import { createBatchSupervisorWorkflow } from "../work/batch-tick.ts";
 import { createBatchCancelPort } from "../work/batch-cancel-port.ts";
 import { createBatchStartPort } from "../work/batch-start-port.ts";
 import type { TicketLabelWriter } from "../work/ticket-labels.ts";
+import type { TicketStatusWriter } from "../work/ticket-statuses.ts";
 import type { TicketNoteWriter } from "../work/ticket-notes.ts";
 import { selectTicketSourceReader } from "../work/ticket-reader-selection.ts";
 import { GITHUB_PROVIDER } from "../integrations/registry.ts";
@@ -59,6 +60,15 @@ import { createAuditRetentionFunction } from "../auth/audit/mod.ts";
 import { createAutomationIntakeFunction } from "../workflows/automations/event-intake.ts";
 import { createAutomationPromoteFunction } from "../workflows/automations/promote.ts";
 import { createAutomationTickFunction } from "../workflows/automations/tick.ts";
+import { createStartClockFunction } from "../workflows/start-clock.ts";
+import {
+  createRequestEmailFunction,
+  type RequestEmailDependencies,
+} from "../work/request-email.ts";
+import {
+  createRequestSlackFunction,
+  type RequestSlackDependencies,
+} from "../work/request-slack.ts";
 
 import { createOutputArchiveWorkflow } from "./output-archive.ts";
 import {
@@ -100,8 +110,8 @@ function createTicketAutomation(options: {
   integrations: IntegrationsBackgroundDependencies;
   /** Writes the ticket status note; without it the poll keeps none. */
   noteWriter?: TicketNoteWriter;
-  /** Changes Bakery's progress labels; without it the poll leaves labels alone. */
   labelWriter?: TicketLabelWriter;
+  statusWriter?: TicketStatusWriter;
 }) {
   const deps = {
     client: options.client,
@@ -123,6 +133,7 @@ function createTicketAutomation(options: {
     budget: options.budget,
     noteWriter: options.noteWriter,
     labelWriter: options.labelWriter,
+    statusWriter: options.statusWriter,
   };
   return [createTicketIntakeWorkflow(deps), createTicketPollWorkflow(deps)];
 }
@@ -137,14 +148,16 @@ export function createDefaultInngestFunctions(options: {
   integrations?: IntegrationsBackgroundDependencies;
   /** Writes the ticket status note on each poll; absent, the poll keeps none. */
   ticketNoteWriter?: TicketNoteWriter;
-  /** Changes Bakery's progress labels on each poll; absent, the poll leaves labels alone. */
   ticketLabelWriter?: TicketLabelWriter;
+  ticketStatusWriter?: TicketStatusWriter;
   /** Coordinator executor override; default is the worker executor outside the test environment (see `readCoordinatorExecutor`). */
   coordinatorExecutor?: CoordinatorTurnExecutor;
   /** Settles the steps a pack owns (delivery today); absent, they fail with a stable code. */
   engineSteps?: EngineStepRunner;
   storageLocalRoot?: string;
   storageBlobStore?: OrganizationBlobStore;
+  requestEmail?: RequestEmailDependencies;
+  requestSlack?: RequestSlackDependencies;
 }): readonly unknown[] {
   const storage = defaultStorageConnections({
     storageLocalRoot: options.storageLocalRoot,
@@ -273,6 +286,7 @@ export function createDefaultInngestFunctions(options: {
           integrations: options.integrations,
           noteWriter: options.ticketNoteWriter,
           labelWriter: options.ticketLabelWriter,
+          statusWriter: options.ticketStatusWriter,
         }),
       ]
       : []),
@@ -304,6 +318,24 @@ export function createDefaultInngestFunctions(options: {
       client: options.client,
       database: options.database,
     }),
+    createStartClockFunction({
+      client: options.client,
+      database: options.database,
+    }),
+    ...(options.requestEmail === undefined ? [] : [
+      createRequestEmailFunction({
+        ...options.requestEmail,
+        client: options.client,
+        database: options.database,
+      }),
+    ]),
+    ...(options.requestSlack === undefined ? [] : [
+      createRequestSlackFunction({
+        ...options.requestSlack,
+        client: options.client,
+        database: options.database,
+      }),
+    ]),
     // The batch supervisor: a supervisor over ordinary requests, not an engine. It
     // starts an issue only through the existing admission, with the same live reader
     // and budget policy as the ticket functions, so it is wired where they are; with no
@@ -379,9 +411,12 @@ export function createInngestHttpHandler(options: {
   integrations?: IntegrationsBackgroundDependencies;
   ticketNoteWriter?: TicketNoteWriter;
   ticketLabelWriter?: TicketLabelWriter;
+  ticketStatusWriter?: TicketStatusWriter;
   engineSteps?: EngineStepRunner;
   storageLocalRoot?: string;
   storageBlobStore?: OrganizationBlobStore;
+  requestEmail?: RequestEmailDependencies;
+  requestSlack?: RequestSlackDependencies;
 }): (context: unknown) => Promise<Response> {
   const client = (options.client ?? new Inngest({
     id: "bakery-server",
@@ -401,9 +436,12 @@ export function createInngestHttpHandler(options: {
         integrations: options.integrations,
         ticketNoteWriter: options.ticketNoteWriter,
         ticketLabelWriter: options.ticketLabelWriter,
+        ticketStatusWriter: options.ticketStatusWriter,
         engineSteps: options.engineSteps,
         storageLocalRoot: options.storageLocalRoot,
         storageBlobStore: options.storageBlobStore,
+        requestEmail: options.requestEmail,
+        requestSlack: options.requestSlack,
       })
       : [])) as ServeOptions["functions"];
   const officialHandler = serve({

@@ -13,6 +13,7 @@ import {
 import { registerPageHealth } from "./helpers/page-health.ts";
 import { laneBudgetMs } from "./helpers/lane-budget.ts";
 import { expectReferenceCardUsable } from "./helpers/reference-card.ts";
+import { still } from "./helpers/stills.ts";
 
 registerPageHealth(test);
 
@@ -310,6 +311,8 @@ const mergeEntryRow = (
   updatedAt: at(8),
   version: 1,
   blockedReason: null,
+  requestedBy: uuid(1),
+  requestedByName: "Ana",
   ...over,
 });
 
@@ -413,6 +416,7 @@ const approvalRow = (over: Record<string, unknown> = {}) => ({
   createdAt: at(6),
   updatedAt: at(6),
   version: 4,
+  mayDecide: true,
   ...over,
 });
 type ApprovalRow = ReturnType<typeof approvalRow>;
@@ -678,6 +682,18 @@ const openLink = async (section: Locator, testId: string) => {
   return link;
 };
 
+test("loading shows the shape of what is coming: one banner block and two rows", async ({ page }) => {
+  await mockRun(page);
+  await mockDelivery(page, CLEAN);
+  await stubSidePanel(page);
+  await page.route(`**/v1/runs/${runId}/checks*`, () => {});
+  await page.goto(`/tasks/${id}`);
+  const loading = page.getByTestId("delivery-section").getByRole("status");
+  await expect(loading.locator(".ui-skeleton--surface")).toHaveCount(1);
+  await expect(loading.locator(".ui-skeleton--row")).toHaveCount(2);
+  await still(page, "delivery-loading");
+});
+
 test("a clean run says nothing is waiting, offers no buttons and lists nothing that needs attention", async ({ page }) => {
   await mockRun(page);
   await mockDelivery(page, CLEAN);
@@ -850,11 +866,18 @@ test("a stopped run names the reason once, lists what remains, and its one butto
   await expect(page.locator("#task-message-field")).toBeFocused();
 });
 
-const allowanceAnswer = () => decisionRow(3, "repair", "repair_selected", NEW);
+const allowanceAnswer = () => ({
+  runId,
+  kind: "repair_loop",
+  addedTries: 3,
+  decisionId: uuid(503),
+  repeatKey: null,
+});
 
 async function mockMoreTries(
   page: Page,
-  reply: { status: number; reason?: string },
+  reply: { status: number; reason?: string; added?: number },
+  onPost: () => unknown = () => {},
 ) {
   const posted: { body: unknown; key: string | undefined }[] = [];
   await page.route(`**/v1/runs/${runId}/repair-allowances`, (route) => {
@@ -863,9 +886,13 @@ async function mockMoreTries(
       body: request.postDataJSON(),
       key: request.headers()["idempotency-key"],
     });
+    onPost();
     if (reply.status < 300) {
       return route.fulfill({
-        json: allowanceAnswer(),
+        json: {
+          ...allowanceAnswer(),
+          addedTries: reply.added ?? request.postDataJSON().tries,
+        },
       });
     }
     return route.fulfill({
@@ -902,6 +929,102 @@ test("a run that ran out of tries can be given more by an administrator, with th
   expect(posted[0].body).toEqual({ tries: 3 });
   expect(posted[0].key).toBeTruthy();
 });
+
+const atLimit = { repeatKey: "fix", iterations: 3, allowed: 3, max: 5 };
+
+async function mockLimitStop(
+  page: Page,
+  role: "admin" | "developer",
+  scenario: Scenario = { ...STOPPED, decisions: [] },
+) {
+  await mockRun(page);
+  await mockDelivery(page, { ...scenario, role });
+  let stop: typeof atLimit | null = atLimit;
+  await page.route(
+    `**/v1/runs/${runId}`,
+    (route) =>
+      route.fulfill({ json: { ...run, status: "failed", limitStop: stop } }),
+  );
+  return () => stop = null;
+}
+
+test("a run stopped at its repeat limit says how many more it can try and gives them", async ({ page }) => {
+  const clear = await mockLimitStop(page, "admin");
+  const posted = await mockMoreTries(page, { status: 200 }, clear);
+  await page.goto(`/tasks/${id}`);
+  const now = nowCard(page);
+  await expect(now).toContainText("Bakery stopped to ask you");
+  await expect(now).toContainText(
+    "It tried 3 times and 1 blocking finding remains. This workflow allows up to 5 tries, so it can try 2 more. Nothing was merged.",
+  );
+  await expect(now.getByRole("button")).toHaveCount(1);
+  await still(page, "limit-stop");
+  await button(now, "Give Bakery more tries").click();
+  const dialog = page.getByRole("dialog", { name: "Give Bakery more tries?" });
+  await expect(dialog).toContainText("Bakery tried 3 times and stopped.");
+  await expect(dialog).toContainText("From 1 to 2.");
+  await dialog.getByRole("button", { name: "Give more tries" }).click();
+  await expect(dialog).toBeHidden();
+  expect(posted[0].body).toEqual({ tries: 2 });
+  await expect(page.getByText("Bakery stopped to ask you")).toHaveCount(0);
+});
+
+test("a repeat limit with nothing delivered shows only the banner and one next step", async ({ page }) => {
+  await mockLimitStop(page, "admin", { checks: [] });
+  await page.goto(`/tasks/${id}`);
+  const section = page.getByTestId("delivery-section");
+  await expect(nowCard(page)).toContainText(
+    "It tried 3 times. This workflow allows up to 5 tries, so it can try 2 more.",
+  );
+  await expect(section).not.toContainText("No check results yet");
+  await expect(page.getByText("Send a message to try again.")).toHaveCount(0);
+});
+
+test("someone who cannot give tries at a repeat limit is told who can", async ({ page }) => {
+  await mockLimitStop(page, "developer");
+  await page.goto(`/tasks/${id}`);
+  const now = nowCard(page);
+  await expect(now).toContainText(
+    "An organization administrator can give Bakery more tries.",
+  );
+  await expect(now.getByRole("button")).toHaveCount(0);
+  await still(page, "limit-stop-no-permission");
+});
+
+for (
+  const [name, reply, answeredBeforeConfirm, posts] of [
+    ["fewer tries are added than asked", { status: 201, added: 1 }, false, 1],
+    [
+      "the server says the run is no longer stopped",
+      { status: 409, reason: "run_not_stopped_by_limit" },
+      false,
+      1,
+    ],
+    ["someone else answered while it was open", { status: 201 }, true, 0],
+  ] as const
+) {
+  test("when " + name + ", the dialog stays and says so", async ({ page }) => {
+    const clear = await mockLimitStop(page, "admin", { checks: [] });
+    const posted = await mockMoreTries(page, reply, clear);
+    await page.goto(`/tasks/${id}`);
+    await button(nowCard(page), "Give Bakery more tries").click();
+    const dialog = page.getByRole("dialog", {
+      name: "Give Bakery more tries?",
+    });
+    if (answeredBeforeConfirm) clear();
+    await dialog.getByRole("button", { name: "Give more tries" }).click();
+    await expect(dialog).toContainText(
+      "This run is no longer waiting for more tries. The page now shows where it is.",
+    );
+    await expect(page.getByText("Bakery stopped to ask you")).toHaveCount(0);
+    await expect(nowCard(page)).toHaveCount(0);
+    await expect(dialog).toBeVisible();
+    expect(posted).toHaveLength(posts);
+    await still(page, "limit-answered-elsewhere");
+    await dialog.getByRole("button", { name: "Close" }).last().click();
+    await expect(dialog).toHaveCount(0);
+  });
+}
 
 test("a refused allowance keeps the dialog open and says why", async ({ page }) => {
   await mockRun(page);
@@ -949,7 +1072,7 @@ test("a retry after no answer sends the same idempotency key", async ({ page }) 
       });
     }
     return route.fulfill({
-      json: allowanceAnswer(),
+      json: { ...allowanceAnswer(), addedTries: 2 },
     });
   });
   await page.goto(`/tasks/${id}`);

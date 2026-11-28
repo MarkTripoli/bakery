@@ -68,6 +68,20 @@ export function remember(
   }
 }
 
+const LINKED_ORGANIZATION_PARAM = "organization";
+const ORGANIZATION_ID =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function rememberLinkedOrganization(
+  search: string,
+  storage: Pick<Storage, "setItem"> | null = safeLocalStorage(),
+): void {
+  const linked = new URLSearchParams(search).get(LINKED_ORGANIZATION_PARAM);
+  if (linked !== null && ORGANIZATION_ID.test(linked)) {
+    remember(linked, storage);
+  }
+}
+
 /** Bounds how many cursor pages `resolve` walks looking for a remembered id. */
 const MAX_RESOLVE_PAGES = 10;
 

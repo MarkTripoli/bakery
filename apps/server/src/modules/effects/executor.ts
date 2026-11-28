@@ -59,6 +59,7 @@ export type RunEffectResult = Readonly<{
     | "in_flight";
   effect: ExternalEffectRow;
   dispatched: boolean;
+  refusal?: StandardError;
 }>;
 
 export type EffectExecutor = Readonly<{
@@ -199,7 +200,10 @@ export function createEffectExecutor(deps: EffectExecutorDeps): EffectExecutor {
       dispatchGeneration: claim.effect.dispatchGeneration,
       outcome: dispatched.outcome,
     });
-    return settled(recorded.effect, true);
+    const result = settled(recorded.effect, true);
+    return result.outcome === "failed" && dispatched.refusal !== undefined
+      ? { ...result, refusal: dispatched.refusal }
+      : result;
   };
 
   return {

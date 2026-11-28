@@ -43,6 +43,10 @@ type Version = {
   digest: string;
 };
 
+const SCHEDULED_INPUTS = {
+  repositoryId: "00000000-0000-4000-8000-000000000001",
+};
+
 Deno.test("1.1-1.5: publish locks, requires If-Match, refuses stale validation, transitions the draft and names the actor", () =>
   withFixture(async (fixture) => {
     const seed = await seedOrganization(fixture, "parity", { role: "admin" });
@@ -542,7 +546,7 @@ Deno.test("publishing a version stores its starts canonically, and an invalid st
         `update bakery.workflow_drafts set starts = $1::jsonb
           where organization_id = $2 and id = $3`,
         [
-          JSON.stringify([{ id: "clock", on }]),
+          JSON.stringify([{ id: "clock", inputs: SCHEDULED_INPUTS, on }]),
           seed.organizationId,
           bad.draft.id,
         ],
@@ -576,6 +580,7 @@ Deno.test("publishing a version stores its starts canonically, and an invalid st
       [
         JSON.stringify([{
           id: "clock",
+          inputs: SCHEDULED_INPUTS,
           on: {
             kind: "schedule",
             cron: "0 9 * * *",
@@ -599,6 +604,7 @@ Deno.test("publishing a version stores its starts canonically, and an invalid st
     );
     assertEquals(clockRow.rows[0].starts, [{
       id: "clock",
+      inputs: SCHEDULED_INPUTS,
       on: { cron: "0 9 * * *", kind: "schedule", timezone: "Europe/London" },
     }]);
   }));
@@ -646,6 +652,7 @@ Deno.test("a draft save carries its starts, keeps them when omitted, and refuses
       },
       {
         id: "morning",
+        inputs: SCHEDULED_INPUTS,
         on: { kind: "schedule", cron: "0 9 * * *", timezone: "europe/london" },
       },
     ];
@@ -653,6 +660,7 @@ Deno.test("a draft save carries its starts, keeps them when omitted, and refuses
       starts[0],
       {
         id: "morning",
+        inputs: SCHEDULED_INPUTS,
         on: { kind: "schedule", cron: "0 9 * * *", timezone: "Europe/London" },
       },
     ];
@@ -706,7 +714,7 @@ Deno.test("a draft save carries its starts, keeps them when omitted, and refuses
       ]
     ) {
       const unreadable = await save(kept.version, {
-        starts: [{ id: "clock", on }],
+        starts: [{ id: "clock", inputs: SCHEDULED_INPUTS, on }],
       });
       assertEquals((await refusal(unreadable)).code, "VALIDATION_FAILED");
     }

@@ -866,7 +866,13 @@ export function archiveIntegrationTests(
         const artifact = await reader.actions["artifacts.get"]({
           id: listed.id,
         });
-        assertEquals(artifact, listed);
+        const { taskTitle, ...artifactWithoutTitle } = artifact;
+        assertEquals(artifactWithoutTitle, listed);
+        const task = await fixture.pgDatabase.query<{ title: string }>(
+          `select title from bakery.tasks where organization_id=$1 and id=$2`,
+          [fixture.organizationId, own.job.taskId],
+        );
+        assertEquals(taskTitle, task.rows[0]?.title);
         assertEquals(artifact.artifactType, "log");
         assertEquals(
           artifact.name,

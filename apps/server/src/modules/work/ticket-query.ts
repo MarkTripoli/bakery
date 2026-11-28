@@ -13,6 +13,7 @@ import {
   nonterminalRequestsFor,
   type TicketRequest,
 } from "./ticket-store.ts";
+import { deliveryFor } from "./ticket-delivery-line.ts";
 import { requireWorkTransaction } from "./work-transaction.ts";
 
 /**
@@ -298,6 +299,7 @@ async function projectTickets(
     organizationId,
     requests,
   );
+  const deliveries = await deliveryFor(transaction, organizationId, ids);
   return rows.map((row) => {
     const stored = reports.get(row.id);
     const linked = links.get(row.id);
@@ -330,6 +332,7 @@ async function projectTickets(
       linkedTaskIds: linked?.ids ?? [],
       linkedTaskCount: linked?.count ?? 0,
       openQuestionCount: questions.get(row.id) ?? 0,
+      delivery: deliveries.get(row.id) ?? null,
       createdAt: row.created_at.toISOString(),
       updatedAt: row.updated_at.toISOString(),
       version: row.version,

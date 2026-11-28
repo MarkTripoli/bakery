@@ -58,9 +58,11 @@ async function listAttempts(
       join bakery.run_steps step on step.organization_id = job.organization_id and step.id = job.run_step_id
       join bakery.workflow_runs run on run.organization_id = step.organization_id and run.id = step.run_id
       join bakery.tasks task on task.organization_id = run.organization_id and task.id = run.task_id
-        and task.archived_at is null and task.application_id = job.application_id
+        and task.archived_at is null
+        and (job.application_id is null or task.application_id = job.application_id)
         and task.repository_id is not distinct from job.repository_id
-      join bakery.applications app on app.organization_id = job.organization_id and app.id = job.application_id and app.archived_at is null
+      join bakery.applications app on app.organization_id = job.organization_id
+        and app.id = coalesce(job.application_id, task.application_id) and app.archived_at is null
       left join bakery.repositories repo on repo.organization_id = job.organization_id and repo.id = job.repository_id
         and repo.application_id = app.id and repo.archived_at is null
       where job.organization_id = $1 and job.id = $2 and task.id = $3

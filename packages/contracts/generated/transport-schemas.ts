@@ -715,6 +715,43 @@ const transportSchemas = {
       ],
       "description": "Task-bound paginated attempt identity read. Rechecks current organization grants and active task, application, repository ownership."
     },
+    "WorkerAttemptListQuery": {
+      "fields": [
+        {
+          "name": "state",
+          "type": "enum",
+          "required": true,
+          "enum": [
+            "now",
+            "needs_attention",
+            "finished"
+          ],
+          "description": "Which of the machine's attempts to list, as the server classifies them: now is a current attempt with a live lease, which holds a slot; needs_attention is lost, quarantined, superseded or expired-lease work whose outcome needs a look; finished is completed, failed or canceled work."
+        },
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque continuation token from a prior page of this list for the same machine and state; rejected if replayed for another machine, state, principal or organization."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 25
+          },
+          "description": "Maximum attempts returned per page; defaults to 25 and cannot exceed 100."
+        }
+      ],
+      "pagination": "pagination",
+      "description": "Query for one machine's attempts in one server-owned state, newest first."
+    },
     "AgentVersionCreate": {
       "fields": [
         {
@@ -2970,7 +3007,7 @@ const transportSchemas = {
             "delivery.failedDeploymentRecoveryHours",
             "delivery.deploymentReworkRate"
           ],
-          "description": "Allowlisted metric key: prs.opened, prs.merged and prs.closedUnmerged count distinct pull requests by provider time in each bucket; prs.openAtCutoff counts those open at each bucket's end; prs.mergeRate is, for the cohort first opened in each bucket, merged by the window's end over all opened; prs.turnaroundHours is the mean merged minus opened time of pull requests merged in each bucket; prs.changedLines sums additions plus deletions once per distinct merged pull request; loc.changedLines sums the added plus deleted lines of source, test, docs and config files (lock, vendored and generated files excluded) from a complete line count of each merged pull request's head, leaving a pull request with no count, a binary file or a truncated file list unknown. tasks.leadTimeHours is the mean hours from a task's first admitted run to its delivery point (its first merged pull request, else its last completed run) for tasks delivered in each bucket, with median, 9-in-10 and where the time went in the summary. The delivery.* keys are the production delivery metrics (deployment frequency, change lead time, change fail rate, failed-deployment recovery time, deployment rework rate); until Bakery records a deployment they answer unknown with reason no_deploy_evidence."
+          "description": "Allowlisted metric key: prs.opened, prs.merged and prs.closedUnmerged count distinct pull requests by provider time in each bucket; prs.openAtCutoff counts those open at each bucket's end; prs.mergeRate is, for the cohort first opened in each bucket, merged by the window's end over all opened; prs.turnaroundHours is the mean merged minus opened time of pull requests merged in each bucket; prs.changedLines sums additions plus deletions once per distinct merged pull request; loc.changedLines sums the added plus deleted lines of source, test, docs and config files (lock, vendored and generated files excluded) from a complete line count of each merged pull request's head, leaving a pull request with no count, a binary file or a truncated file list unknown. tasks.leadTimeHours is the nearest-rank median hours from a task's first admitted run to its delivery point (its first merged pull request, else its last completed run) for tasks delivered in each bucket, with mean, median, 9-in-10 and where the time went in the summary. The delivery.* keys are the production delivery metrics (deployment frequency, change lead time, change fail rate, failed-deployment recovery time, deployment rework rate); until Bakery records a deployment they answer unknown with reason no_deploy_evidence."
         },
         {
           "name": "from",
@@ -2991,9 +3028,10 @@ const transportSchemas = {
           "enum": [
             "minute",
             "hour",
-            "day"
+            "day",
+            "week"
           ],
-          "description": "Time-bucket size for the returned series: minute, hour, or day; finer buckets over a long window are limited by the 1,000-point series cap."
+          "description": "Time-bucket size for the returned series: minute, hour, day or week; finer buckets over a long window are limited by the 1,000-point series cap."
         },
         {
           "name": "repositoryId",
@@ -3999,9 +4037,12 @@ const transportSchemas = {
           "name": "provider",
           "type": "enum",
           "required": true,
-          "description": "Fixed credential verifier; no caller-selected endpoint.",
+          "description": "Fixed credential verifier; no caller-selected endpoint. github is checked against the GitHub user read; anthropic, openai and openrouter (a coding agent's model API key) are checked once against that provider's fixed models read.",
           "enum": [
-            "github"
+            "github",
+            "anthropic",
+            "openai",
+            "openrouter"
           ]
         },
         {
@@ -4448,6 +4489,24 @@ const transportSchemas = {
             "interrupt"
           ],
           "description": "How the message reaches the active harness: \"steer\" redirects the running work immediately, while \"follow_up\" queues it after current work; legacy \"interrupt\" means steer and \"append\" means follow_up. A mode the session's adapter has not advertised returns an explicit unsupported conflict and creates no command."
+        },
+        {
+          "name": "mentions",
+          "type": "uuid[]",
+          "required": false,
+          "bounds": {
+            "maxItems": 20
+          },
+          "description": "Principal ids of the people this steer @-mentions. Each distinct non-self person is asked, as a request to just let them know on this run's step: they can see the run and are notified once; asking again reminds. A person who cannot be found falls back to the workflow's owner, or the run's starter when the workflow has no owner, with a visible note. A steerer without request permission (runRequest:write) can mention only people who can already see the run; mentioning anyone else is refused with AUTH_FORBIDDEN and writes nothing, not even the steer. Text that merely looks like @name never mentions anyone."
+        },
+        {
+          "name": "mentionHandles",
+          "type": "string[]",
+          "required": false,
+          "bounds": {
+            "maxItems": 20
+          },
+          "description": "Groups or roles this steer @-mentions by their mention name, such as @design-reviewers, @admins or @developers; the leading @ is optional. Every active member other than the steerer is asked to just let them know on this run's step, and any one of them can handle it. A name that matches no group or role, or a group with nobody in it, falls back to the workflow's owner, or the run's starter when the workflow has no owner, with a visible note. The same request permission rule as mentions applies to every member reached."
         }
       ],
       "description": "Delivers a message to a running agent session's active harness process, steering it immediately or queuing a follow-up, depending on mode and the adapter capabilities the worker advertised."
@@ -4564,8 +4623,8 @@ const transportSchemas = {
         {
           "name": "applicationId",
           "type": "uuid",
-          "required": true,
-          "description": "Identifier of the Bakery application this task belongs to."
+          "required": false,
+          "description": "Identifier of the Bakery application this task belongs to. Left out for work from a ticket source that names no application; a task with no application names no repository."
         },
         {
           "name": "repositoryId",
@@ -7187,15 +7246,16 @@ const transportSchemas = {
           "type": "enum",
           "required": true,
           "enum": [
-            "github"
+            "github",
+            "slack"
           ],
-          "description": "Integration provider to authorize against; only github is supported. The server builds the authorization URL from the provider app registered for this Bakery installation, never from request data."
+          "description": "Integration provider to authorize against: github through its registered App, or slack through the OAuth2 client credentials saved for this Bakery installation. The server builds the authorization URL from that registration, never from request data."
         },
         {
           "name": "reconnectConnectionId",
           "type": "uuid",
           "required": false,
-          "description": "When reconnecting an existing connection of the caller's organization, identifies it; completion for the same verified GitHub account refreshes that connection, and a different account creates a new pending connection and leaves this one unchanged. An unknown, archived or other organization's connection is refused as not found and no attempt is created."
+          "description": "When reconnecting an existing connection of the caller's organization, identifies it; completion for the same verified account (the GitHub account, or the Slack workspace) refreshes that connection, and a different account creates a new connection (pending for GitHub until repositories are chosen, enabled for Slack) and leaves this one unchanged. An unknown, archived or other organization's connection is refused as not found and no attempt is created."
         },
         {
           "name": "returnPath",
@@ -7507,6 +7567,52 @@ const transportSchemas = {
       ],
       "description": "A split: the parent run's step owns a plan of child work items joined by typed artifacts (chapter 25 section 5). The engine starts the lanes that name what they run, as many at a time as the plan's capacity allows."
     },
+    "PeopleTagEscalation": {
+      "fields": [
+        {
+          "name": "afterHours",
+          "type": "positiveInteger",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 72
+          },
+          "description": "Hours to wait after the first ask before asking the next person; 24 when left out, at most 72."
+        },
+        {
+          "name": "recipientId",
+          "type": "uuid",
+          "required": false,
+          "description": "The one person to ask next: an active human member of this organization. Resolved when the step runs and frozen on the request. Name exactly one recipient field here."
+        },
+        {
+          "name": "recipientRoleKey",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "description": "A role to ask next instead of one person: admin, developer or a custom role's key. Every active member holding the role is tagged, each with their own request, resolved and frozen when the step runs."
+        },
+        {
+          "name": "recipientGroupId",
+          "type": "uuid",
+          "required": false,
+          "description": "A group to ask next instead of one person. Every active member of the group is tagged, each with their own request, resolved and frozen when the step runs."
+        },
+        {
+          "name": "recipientRunRole",
+          "type": "enum(starter|task_owner)",
+          "required": false,
+          "description": "A person worked out from the run instead of named: starter is the person who started the run, task_owner the person who created its work item."
+        }
+      ],
+      "rules": [
+        "Name exactly one recipient, resolved when the second ask is made, with the same rules as the first."
+      ],
+      "description": "The second ask of a waiting Notify step: who to ask, and after how many hours of no response."
+    },
     "PeopleTagInput": {
       "fields": [
         {
@@ -7563,13 +7669,26 @@ const transportSchemas = {
           "type": "boolean",
           "required": false,
           "description": "True waits for a response before the run goes on; false, the default, carries on as soon as the tag is sent. Only a review can be waited for, because an FYI asks for nothing back."
+        },
+        {
+          "name": "ifNobodyAnswers",
+          "type": "PeopleTagEscalation",
+          "required": false,
+          "description": "Who to ask next if nobody tagged has responded after a while. Needs wait: the step keeps waiting, now on both asks, and completes responded when anyone answers."
+        },
+        {
+          "name": "onExpiry",
+          "type": "enum(stop|continue)",
+          "required": false,
+          "description": "What a waiting step does when every request has expired with no response. stop, the default, ends the run needs_human so a person decides what happens next; continue completes the step expired so a later condition can branch on it. Needs wait."
         }
       ],
       "rules": [
         "A step with no agent. The workflow tags on behalf of the person who started the run, who must still be able to write runs; the organization, the run and the step come from the run, never from this payload.",
         "Name exactly one recipient. Every rule of a request made on the run holds: a recipient who cannot be resolved falls back to the person who started the run, with a visible note, and a role or group too large to ask is refused whole.",
         "The step tags once, keyed by the run and the step, so a step looked at again finds its requests instead of tagging again.",
-        "A waiting step completes responded when anyone tagged responds, and expired when every request has expired or been withdrawn first. Nothing is approved by silence."
+        "A waiting step completes responded when anyone tagged responds. When every request has expired or been withdrawn first, it ends the run needs_human, or completes expired when onExpiry is continue. Nothing is approved by silence.",
+        "If ifNobodyAnswers names someone, the step asks them once, when afterHours have passed since the first ask and nobody has responded. Their request has its own seven days; the step completes expired only when every request has ended unanswered."
       ],
       "description": "A Notify step (chapter 25 section 19): tag a person, a role, a group or someone worked out from the run, then carry on or wait for the response."
     },
@@ -8332,6 +8451,12 @@ const transportSchemas = {
             "fixed-coding-reviewed"
           ],
           "description": "Built-in workflow to run for this issue only, instead of the source policy's preset (#61): fixed-coding or fixed-coding-reviewed. Omitted, the policy's preset runs. A new request pins it with its revision and digest for its whole life; when the ticket already has an open request, that request is answered unchanged and keeps its own workflow. A workflow the repository cannot run waits with preset_setup_required like the policy's own."
+        },
+        {
+          "name": "requirePlanApproval",
+          "type": "boolean",
+          "required": false,
+          "description": "When true, this request's task takes a human plan approval, so no run builds until the requester's plan is approved, even when the source policy approves plans automatically. False or omitted keeps the source policy's plan approval; it never removes an approval the policy requires. Only a new admission reads it."
         }
       ],
       "rules": [
@@ -9170,6 +9295,56 @@ const transportSchemas = {
         }
       ]
     },
+    "OpenPullRequestInput": {
+      "description": "Input to the delivery.openPullRequest workflow action: the pushed branch to open a pull request from, and its title and description. A retried step registers the pull request already open from that branch instead of opening another.",
+      "fields": [
+        {
+          "name": "repositoryId",
+          "type": "uuid",
+          "required": false,
+          "description": "Repository to open the pull request in; omitted, the step's own repository."
+        },
+        {
+          "name": "headBranch",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 250
+          },
+          "description": "Branch that holds the changes, already pushed, normally the branch a preceding implement step pushed."
+        },
+        {
+          "name": "baseBranch",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 250
+          },
+          "description": "Branch the changes should merge into; omitted, the repository's default branch."
+        },
+        {
+          "name": "title",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "description": "Pull request title GitHub shows."
+        },
+        {
+          "name": "body",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 65536
+          },
+          "description": "Pull request description in Markdown; omitted, empty."
+        }
+      ]
+    },
     "PrepareInput": {
       "description": "Input to the delivery.prepare workflow action: the exact merged commit to turn into a release candidate and the repository profile revision that governs how it is built.",
       "fields": [
@@ -9427,7 +9602,7 @@ const transportSchemas = {
       "fields": [
         {
           "name": "actionId",
-          "type": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|tool.call|coordination.split|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|people.tag|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief|secret.identity.read)",
+          "type": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|tool.call|coordination.split|delivery.candidate_evidence|delivery.prepare|delivery.openPullRequest|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|people.tag|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief|secret.identity.read)",
           "required": true,
           "description": "Registered workflow action name, for example harness.implement or delivery.candidate_evidence; an unknown name answers not found."
         },
@@ -9589,6 +9764,47 @@ const transportSchemas = {
           "type": "enum(draft|queued|active|waiting_input|blocked|completed|failed|canceled)",
           "required": true,
           "description": "Current status of the dependency task; never completed, because a completed dependency no longer blocks the run."
+        }
+      ]
+    },
+    "RunLimitStop": {
+      "description": "Where a failed run stopped at a repeat's ask-a-person limit: the repeat, the rounds it ran, the rounds it may run without a decision, and its most. Read live from the run's last plan failure.",
+      "fields": [
+        {
+          "name": "repeatKey",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1
+          },
+          "description": "Step key of the repeat block that stopped."
+        },
+        {
+          "name": "iterations",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 0
+          },
+          "description": "Rounds the repeat ran before it stopped."
+        },
+        {
+          "name": "allowed",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 0
+          },
+          "description": "Rounds allowed before a person must decide, after earlier decisions."
+        },
+        {
+          "name": "max",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 1
+          },
+          "description": "The repeat's most rounds; no decision goes past it."
         }
       ]
     },
@@ -11946,6 +12162,85 @@ const transportSchemas = {
       ],
       "description": "One draft comment frozen into a send-to-agent reference: a chosen root or one of its retained replies, exactly as it was at capture."
     },
+    "PullRequestRegistrationCreate": {
+      "fields": [
+        {
+          "name": "repositoryId",
+          "type": "uuid",
+          "required": true,
+          "description": "Bakery repository that owns the provider pull request; it must be bound to the task and its enabled selected integration resource."
+        },
+        {
+          "name": "providerNumber",
+          "type": "positiveInteger",
+          "required": true,
+          "description": "Provider-assigned pull request number to read from the task repository before Bakery stores any pull request state."
+        },
+        {
+          "name": "runId",
+          "type": "uuid",
+          "required": false,
+          "description": "Workflow run of this task and repository that opened the pull request; omit only when no workflow run created it."
+        }
+      ],
+      "description": "Registers one task-owned pull request from its Bakery repository identity and provider number; the server derives organization, installation, URL, commits, lifecycle and source evidence from live trusted state."
+    },
+    "PullRequestOpen": {
+      "fields": [
+        {
+          "name": "repositoryId",
+          "type": "uuid",
+          "required": true,
+          "description": "Bakery repository to open the pull request in; it must be bound to the task and its enabled selected integration resource."
+        },
+        {
+          "name": "headBranch",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 250
+          },
+          "description": "Branch that holds the changes, already pushed to the repository; any name git accepts. A pull request already open from it into the base is registered instead of a second one."
+        },
+        {
+          "name": "baseBranch",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 250
+          },
+          "description": "Branch the changes should merge into; omitted, the repository's default branch."
+        },
+        {
+          "name": "title",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "description": "Pull request title GitHub shows; at most 256 characters, and not only spaces."
+        },
+        {
+          "name": "body",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 65536
+          },
+          "description": "Pull request description in Markdown; omitted, empty."
+        },
+        {
+          "name": "runId",
+          "type": "uuid",
+          "required": false,
+          "description": "Workflow run of this task and repository that is opening the pull request; omit only when no workflow run opens it."
+        }
+      ],
+      "description": "Opens one task-owned pull request on the provider from a pushed branch and registers it, as pullRequests.register would; the server derives organization, installation, URL and commits from live trusted state."
+    },
     "PullRequestMerge": {
       "fields": [
         {
@@ -12002,8 +12297,7 @@ const transportSchemas = {
           "type": "integer",
           "required": true,
           "bounds": {
-            "minimum": 0,
-            "maximum": 5368709120
+            "minimum": 0
           },
           "description": "Total size of the file in bytes, declared up front and bounded by the 5 GiB per-blob limit. Declaring it lets the server refuse an incomplete assembly instead of accepting a truncated file."
         },
@@ -13339,6 +13633,16 @@ const transportSchemas = {
           "description": "The repository the batch works through. It must be taking issues (an enabled ticket source), and no other batch may be live in it."
         },
         {
+          "name": "presetId",
+          "type": "enum",
+          "required": true,
+          "enum": [
+            "fixed-coding",
+            "fixed-coding-reviewed"
+          ],
+          "description": "The built-in workflow every issue in this batch runs: fixed-coding or fixed-coding-reviewed. Required: a batch is never started without a workflow chosen, so no one is given a workflow they did not choose. Each issue is admitted with it; a workflow the repository cannot run stops the batch with the pause reason workflow_cannot_start."
+        },
+        {
           "name": "maxIssues",
           "type": "integer",
           "required": true,
@@ -13530,12 +13834,19 @@ const transportSchemas = {
           "type": "secretString",
           "required": true,
           "description": "The OAuth application's client secret. Write-only: it is sealed under the installation key and never returned; saving always replaces the stored secret with this one."
+        },
+        {
+          "name": "signingSecret",
+          "type": "secretString",
+          "required": false,
+          "description": "The secret the provider's app signs the requests it sends Bakery with (Slack's signing secret), accepted only for a provider whose manifest declares a signing_secret field. Write-only: it is sealed under the installation key as the next revision of one installation secret and never returned. Leaving it out keeps the signing secret already saved."
         }
       ],
       "rules": [
-        "clientSecret is write-only and is never returned by any operation, audit row or log."
+        "clientSecret is write-only and is never returned by any operation, audit row or log.",
+        "signingSecret is write-only and is never returned by any operation, audit row or log."
       ],
-      "description": "Registers or replaces the OAuth client credentials an installation uses to connect organizations to one integration provider. Both fields are required every time: a replacement states the whole pair, so the stored client ID and secret can never disagree."
+      "description": "Registers or replaces the OAuth client credentials an installation uses to connect organizations to one integration provider. The client ID and secret are required every time: a replacement states the whole pair, so the stored client ID and secret can never disagree. A signing secret is optional and replaced only when sent."
     },
     "McpToolClassificationPut": {
       "fields": [
@@ -13547,9 +13858,10 @@ const transportSchemas = {
             "read",
             "write_idempotent",
             "write_reconcilable",
+            "write_async",
             "write_opaque"
           ],
-          "description": "What the tool does to the outside world, as an Admin classifies it: read changes nothing; write_idempotent repeats safely when given the same effect key; write_reconcilable can be confirmed afterwards by a paired read tool; write_opaque is a write Bakery runs at most once and, if the outcome is unknown, leaves for a person."
+          "description": "What the tool does to the outside world, as an Admin classifies it: read changes nothing; write_idempotent repeats safely when given the same effect key; write_reconcilable can be confirmed afterwards by a paired read tool; write_async starts a remote operation under a Bakery-owned operation key that a paired read tool polls until it ends; write_opaque is a write Bakery runs at most once and, if the outcome is unknown, leaves for a person."
         },
         {
           "name": "effectKeyArgument",
@@ -13559,7 +13871,7 @@ const transportSchemas = {
           "bounds": {
             "maxLength": 128
           },
-          "description": "For write_idempotent only: the name of the tool argument whose value is the effect key, so a repeated call with the same value is the same effect. It must be an argument the tool's input schema declares."
+          "description": "For write_idempotent and write_async only: the name of the tool argument whose value is the effect key, so a repeated call with the same value is the same effect. It must be an argument the tool's input schema declares; for write_async the paired read tool must declare it too."
         },
         {
           "name": "pairedReadTool",
@@ -13569,12 +13881,13 @@ const transportSchemas = {
           "bounds": {
             "maxLength": 128
           },
-          "description": "For write_reconcilable only: the name of another tool in the same snapshot, already classified read, that confirms whether the write happened."
+          "description": "For write_reconcilable and write_async only: the name of another tool in the same snapshot, already classified read, that confirms whether the write happened or, for write_async, polls the operation it started."
         }
       ],
       "rules": [
-        "effectKeyArgument is required for write_idempotent and refused for any other class",
-        "pairedReadTool is required for write_reconcilable and refused for any other class",
+        "effectKeyArgument is required for write_idempotent and write_async and refused for any other class",
+        "pairedReadTool is required for write_reconcilable and write_async and refused for any other class",
+        "for write_async the paired read tool's input schema declares effectKeyArgument",
         "the tool must be in the connection's current snapshot"
       ],
       "description": "Classifies one tool's side effects (O26). Server hints are suggestions only: this is the Admin's statement and the only one Bakery acts on. An unclassified tool is a write that runs at most once."
@@ -13813,6 +14126,35 @@ const transportSchemas = {
       ],
       "description": "Replaces the organization's storage limits (O42): versions kept, trash and scratch retention, maximum file size and the organization, project and personal quotas."
     },
+    "RunAccessQuery": {
+      "fields": [
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque continuation token from the previous run-access page; bound to this run, caller, organization, ordering and filter set."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 20
+          },
+          "description": "Maximum removable direct grants returned on this page; defaults to 20 and cannot exceed 100."
+        }
+      ],
+      "pagination": "pagination",
+      "rules": [
+        "Cursor pagination only: reject page, pageNumber, pageIndex, offset and skip. Bind the cursor to this operation, current principal, organization, run, filters and ordering; validate and reauthorize before the keyset query."
+      ],
+      "description": "Pages through removable direct grants on one run, with open source requests first and then newest grants first."
+    },
     "RunRequestCreate": {
       "fields": [
         {
@@ -13884,7 +14226,7 @@ const transportSchemas = {
       "rules": [
         "Developer or Admin who can see the run. Bounded by the asker: nobody hands over a right they do not hold. Asking the same person for the same thing again while a request is open reminds them and returns the open request.",
         "Name exactly one recipient: recipientId, recipientRoleKey or recipientGroupId (request_recipient_required). A role or group nobody else holds is request_audience_empty, one only the asker holds is request_self, an unknown one is request_audience_not_found. One with more than 50 people to ask is refused whole with STATE_CONFLICT request_audience_too_large, and nobody is asked.",
-        "An agent asks only on the run its session belongs to (AUTH_FORBIDDEN agent_ask_own_run_only) and only a role or group a live ask grant on its workflow names (agent_ask_audience_not_granted; no ask grant at all is agent_power_requires_grant, a lapsed one agent_power_grant_expired). The response is the first member's request; runRequests.list shows each member's."
+        "An agent asks only on the run its session belongs to (AUTH_FORBIDDEN agent_ask_own_run_only). Without a grant it asks one person already involved in the run (its starter, the task's or workflow's owner, someone already asked, an approval's audience, or someone who steered one of its steps or left a step a note) and only for a power that person already holds; someone new is agent_ask_not_involved, a power they lack is agent_ask_power_not_held, unless a live ask grant names a role or group they belong to. A role or group is asked only where a live ask grant names it (agent_ask_audience_not_granted; a lapsed one is agent_power_grant_expired). An agent makes at most 3 tags per step and 10 per run (STATE_CONFLICT agent_ask_step_limit, agent_ask_run_limit); asking someone already tagged reminds them and does not count. The response is the first member's request; runRequests.list shows each member's."
       ],
       "description": "Asks one person, or every member of one role or group, on one run, for one thing. Gives each person asked the right to see this run and, for approve, answer, review and take_over, to do that one thing until the request ends."
     },
@@ -14358,7 +14700,7 @@ const transportSchemas = {
             "delivery.failedDeploymentRecoveryHours",
             "delivery.deploymentReworkRate"
           ],
-          "description": "Allowlisted metric key: prs.opened, prs.merged and prs.closedUnmerged count distinct pull requests by provider time in each bucket; prs.openAtCutoff counts those open at each bucket's end; prs.mergeRate is, for the cohort first opened in each bucket, merged by the window's end over all opened; prs.turnaroundHours is the mean merged minus opened time of pull requests merged in each bucket; prs.changedLines sums additions plus deletions once per distinct merged pull request; loc.changedLines sums the added plus deleted lines of source, test, docs and config files (lock, vendored and generated files excluded) from a complete line count of each merged pull request's head, leaving a pull request with no count, a binary file or a truncated file list unknown. tasks.leadTimeHours is the mean hours from a task's first admitted run to its delivery point (its first merged pull request, else its last completed run) for tasks delivered in each bucket, with median, 9-in-10 and where the time went in the summary. The delivery.* keys are the production delivery metrics (deployment frequency, change lead time, change fail rate, failed-deployment recovery time, deployment rework rate); until Bakery records a deployment they answer unknown with reason no_deploy_evidence."
+          "description": "Allowlisted metric key: prs.opened, prs.merged and prs.closedUnmerged count distinct pull requests by provider time in each bucket; prs.openAtCutoff counts those open at each bucket's end; prs.mergeRate is, for the cohort first opened in each bucket, merged by the window's end over all opened; prs.turnaroundHours is the mean merged minus opened time of pull requests merged in each bucket; prs.changedLines sums additions plus deletions once per distinct merged pull request; loc.changedLines sums the added plus deleted lines of source, test, docs and config files (lock, vendored and generated files excluded) from a complete line count of each merged pull request's head, leaving a pull request with no count, a binary file or a truncated file list unknown. tasks.leadTimeHours is the nearest-rank median hours from a task's first admitted run to its delivery point (its first merged pull request, else its last completed run) for tasks delivered in each bucket, with mean, median, 9-in-10 and where the time went in the summary. The delivery.* keys are the production delivery metrics (deployment frequency, change lead time, change fail rate, failed-deployment recovery time, deployment rework rate); until Bakery records a deployment they answer unknown with reason no_deploy_evidence."
         },
         {
           "name": "from",
@@ -15148,13 +15490,22 @@ const transportSchemas = {
           "type": "boolean",
           "required": false,
           "description": "true also lists archived (revoked and retired) machines; omitted or false lists only machines that are not archived."
+        },
+        {
+          "name": "query",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 200
+          },
+          "description": "Text to find in a machine's name, matched case-insensitively as a substring; wildcard characters match literally. Omitted or blank lists every machine. A cursor is good only with the same query."
         }
       ],
       "pagination": "pagination",
       "rules": [
-        "Cursor pagination only: reject page, offset and skip. Order is createdAt then id ascending; a cursor is good only with the same includeArchived value."
+        "Cursor pagination only: reject page, offset and skip. Order is createdAt then id ascending; a cursor is good only with the same includeArchived and query values."
       ],
-      "description": "Page window for the machine list, with an explicit opt-in to include archived machines that are hidden by default."
+      "description": "Page window for the machine list, with an optional name search and an explicit opt-in to include archived machines that are hidden by default."
     },
     "WorkerLinkCodeInspect": {
       "fields": [
@@ -15760,6 +16111,101 @@ const transportSchemas = {
       ],
       "configSchema": "package: { formatVersion: 1, name: <=120, items: [{ kind: workflow|artifactKind, key, digest: sha256, data }] 1..50, packageDigest: sha256 }. The strict BakeryPackageSchema in @bakery/contracts/library-packages enforces it; unknown members are refused.",
       "description": "Imports a T0 package into this organization as ordinary drafts (workflows) and new kind versions (artifact kinds), and records where each came from. Nothing is switched on: starts stay off until someone uses a version."
+    },
+    "IssueDelivery": {
+      "description": "Where Bakery's work on one issue stands: the Now card of the task its newest started request owns, reduced to one line for the issue page and the Issues list. Computed on read from the request, its run, the task's open approvals and questions, the newest pull request and the run's newest deployment, in one statement per page.",
+      "fields": [
+        {
+          "name": "taskId",
+          "type": "uuid",
+          "required": true,
+          "description": "Id of the task that does the work: the task of the issue's newest request that was not rejected."
+        },
+        {
+          "name": "runId",
+          "type": "uuid|null",
+          "required": true,
+          "description": "Id of the run doing the work: the request's run, else the task's current run; null while no run exists yet."
+        },
+        {
+          "name": "state",
+          "type": "enum(starting|working|fixing|question_open|question_expired|approval_waiting|paused|stopped|finished|merged|released)",
+          "required": true,
+          "description": "One state, first match wins: released (the run has a deployment), merged (the newest pull request merged), paused (the run or request is paused), approval_waiting (an open, unexpired approval waits for a person), question_open (a question waits for an answer), question_expired (a question expired unanswered), starting (no run yet, or the run is queued or waiting for capacity), stopped (the run failed, was canceled or is blocked, the newest delivery decision stopped it, or the request ended without a run), finished (the run completed without a merged pull request), fixing (the newest delivery decision is a repair try), working (otherwise)."
+        },
+        {
+          "name": "stepKey",
+          "type": "string|null",
+          "required": true,
+          "description": "Key of the workflow step in progress: for approval_waiting, the step the approval names when it names one; otherwise the run's running or waiting step with the highest position. Null when none is in progress."
+        },
+        {
+          "name": "approvalFor",
+          "type": "enum(plan|step|change)|null",
+          "required": true,
+          "description": "What the waiting approval decides when state is approval_waiting: plan (a plan revision), step (a workflow step's human approval), change (the reviewed change before merge). Null for every other state."
+        },
+        {
+          "name": "environment",
+          "type": "string|null",
+          "required": true,
+          "description": "Environment of the run's newest deployment (preview, staging or production); null when the run has no deployment."
+        },
+        {
+          "name": "releaseStatus",
+          "type": "enum(queued|deploying|verifying|healthy|degraded|failed|unknown|rolling_back|rolled_back)|null",
+          "required": true,
+          "description": "Status of the run's newest deployment, so released can say whether it is healthy; null when the run has no deployment."
+        },
+        {
+          "name": "pullRequestId",
+          "type": "uuid|null",
+          "required": true,
+          "description": "Id of the task's newest pull request, for the meta line's pull request reference; null when none was opened."
+        },
+        {
+          "name": "pullRequestNumber",
+          "type": "integer|null",
+          "required": true,
+          "description": "Provider number of the task's newest pull request; null when none was opened."
+        },
+        {
+          "name": "targetBranch",
+          "type": "string|null",
+          "required": true,
+          "description": "Default branch of the newest pull request's repository, the branch a merge lands on; null when no pull request was opened."
+        },
+        {
+          "name": "stopReason",
+          "type": "enum(policy_missing|stale_evidence|checks_unavailable|repeated_blocker|repair_cycles_exhausted|repair_time_exhausted|repair_budget_exhausted|reviewer_unavailable|review_failed)|null",
+          "required": true,
+          "description": "Why Bakery stopped, when state is stopped: the reason of the run's newest delivery decision when that decision stopped it, the same reason the task's Delivery headline names. Null for every other state, and when the run failed, was canceled or blocked, or the request ended, without a stop decision; the line then says Bakery stopped and points to the task."
+        },
+        {
+          "name": "mergedBranch",
+          "type": "string|null",
+          "required": true,
+          "description": "Branch the pull request merged into, when state is merged or released: the base branch of its newest merge attempt that merged. Null for every other state, and when it merged without a merge attempt recorded by Bakery; the line then says only Merged."
+        },
+        {
+          "name": "pausedBy",
+          "type": "enum(person|bakery)|null",
+          "required": true,
+          "description": "Who paused the work, when state is paused: person (someone paused the batch the issue runs in; pausedByName names them), bakery (Bakery paused the run itself after the issue changed; pausedReason says what changed). Null for every other state, and when neither is known; the line then says only Paused."
+        },
+        {
+          "name": "pausedByName",
+          "type": "string|null",
+          "required": true,
+          "description": "Display name of the person who paused the batch, when pausedBy is person; null otherwise."
+        },
+        {
+          "name": "pausedReason",
+          "type": "enum(edited_after_setup|label_removed|hold_label_added|dependency_unreadable)|null",
+          "required": true,
+          "description": "What changed on the issue, when pausedBy is bakery, in the words the issue page uses for a paused request; null otherwise, and when the change is none of those four."
+        }
+      ]
     }
   },
   "projections": {
@@ -16088,7 +16534,7 @@ const transportSchemas = {
       ],
       "fieldTypes": {
         "id": "uuid",
-        "applicationId": "uuid",
+        "applicationId": "uuid|null",
         "repositoryId": "uuid|null",
         "conversationId": "uuid",
         "parentTaskId": "uuid|null",
@@ -16267,7 +16713,7 @@ const transportSchemas = {
         "baseSha": "gitSha|null",
         "requestedBy": "uuid",
         "inngestRunId": "string|null",
-        "status": "enum(queued|running|waiting_input|waiting_capacity|paused|canceling|canceled|completed|failed|blocked)",
+        "status": "enum(queued|running|waiting_input|waiting_capacity|paused|canceling|canceled|completed|failed|blocked|needs_human)",
         "budgetLimitUsd": "decimal",
         "startedAt": "timestamp|null",
         "finishedAt": "timestamp|null",
@@ -16361,7 +16807,7 @@ const transportSchemas = {
         "runId": "uuid",
         "stepKey": "string",
         "iteration": "integer",
-        "status": "enum(pending|running|waiting|completed|failed|skipped|canceled)",
+        "status": "enum(pending|running|waiting|completed|failed|skipped|canceled|needs_human)",
         "input": "json",
         "output": "json|null",
         "error": "json|null",
@@ -17434,7 +17880,7 @@ const transportSchemas = {
       ],
       "fieldTypes": {
         "id": "uuid",
-        "provider": "enum(github)",
+        "provider": "enum(github|linear|slack)",
         "label": "string",
         "externalAccountId": "string",
         "config": "json",
@@ -17467,7 +17913,7 @@ const transportSchemas = {
       "description": "Explicit safe projection list. Runtime serializers use this allowlist; never auto-export new database columns. Config JSON is validated/redacted by its provider or action schema.",
       "fieldDescriptions": {
         "id": "Stable UUID identifying the integration connection record.",
-        "provider": "Integration provider this connection binds; only github is supported.",
+        "provider": "Integration provider this connection binds: github, linear or slack, each a provider registered in this Bakery build.",
         "label": "Human-readable label for the connection; the provider account login when Bakery creates it.",
         "externalAccountId": "Immutable provider account id the connection is bound to, such as the numeric GitHub account id of the installation owner, as a string.",
         "config": "Validated provider configuration for the connection; an empty object until an Admin configures it.",
@@ -21057,6 +21503,21 @@ const transportSchemas = {
         "inputs": "Every input pinned for this attempt's run, ordered as the pins were created."
       }
     },
+    "WorkerModelKey": {
+      "fields": [
+        "provider",
+        "apiKey"
+      ],
+      "fieldTypes": {
+        "provider": "enum(anthropic|openai|openrouter)",
+        "apiKey": "string"
+      },
+      "description": "The model API key a coding agent pays with on a metered route, read by the worker holding the attempt's live lease. It comes from the enabled api_secret binding of this machine, the job's harness and the job's provider, and is never stored by the worker or shown in output.",
+      "fieldDescriptions": {
+        "provider": "The model provider the key belongs to; the worker hands it to the harness under that provider's own variable.",
+        "apiKey": "The decrypted key from the binding's secret; the worker passes it to the coding agent's process and redacts it from every output."
+      }
+    },
     "CoordinationPlan": {
       "projection": "coordination_plans",
       "fields": [
@@ -21225,6 +21686,98 @@ const transportSchemas = {
     "Page<JobAttemptRead>": {
       "pageOf": "JobAttemptRead",
       "description": "Current-authority checked job attempt keyset page; null nextCursor marks completion."
+    },
+    "WorkerAttemptRead": {
+      "fields": [
+        "id",
+        "jobId",
+        "taskId",
+        "taskTitle",
+        "runStepId",
+        "stepKey",
+        "jobAction",
+        "codingAgent",
+        "model",
+        "status",
+        "leaseState",
+        "startedAt",
+        "createdAt"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "jobId": "uuid",
+        "taskId": "uuid|null",
+        "taskTitle": "string|null",
+        "runStepId": "uuid|null",
+        "stepKey": "string|null",
+        "jobAction": "string",
+        "codingAgent": "enum(pi|claude_code|codex|mastra)|null",
+        "model": "string|null",
+        "status": "enum(leased|running|canceling|completed|failed|canceled|lost|quarantined)",
+        "leaseState": "enum(active|expired|lost|closed|unknown)",
+        "startedAt": "timestamp|null",
+        "createdAt": "timestamp"
+      },
+      "fieldDescriptions": {
+        "id": "Stable attempt identity.",
+        "jobId": "Execution job the attempt ran.",
+        "taskId": "Task the job belongs to, through its workflow run or its coordinator conversation; null for work with no task, such as a repository inspection.",
+        "taskTitle": "Current title of that task, bounded to 200 characters; null when the job has no task.",
+        "runStepId": "Workflow run step the job executes; null for a standalone job.",
+        "stepKey": "Key of that run step; null for a standalone job.",
+        "jobAction": "Action the job performs, such as a coordinator turn or a repository inspection; shown when there is no step.",
+        "codingAgent": "Coding agent frozen on the job when it was created; null for work that runs no agent.",
+        "model": "Model pinned on the job's billing when it was created; null for work that calls no model.",
+        "status": "Persisted attempt lifecycle.",
+        "leaseState": "Server-evaluated lease state at read time; superseded or quarantined attempts are unknown.",
+        "startedAt": "When the worker started the attempt; null before it started.",
+        "createdAt": "When the attempt was assigned to the machine; stable keyset position."
+      },
+      "description": "One attempt a machine was assigned, with the work it ran and no credentials, lease tokens, fences, raw configuration, inputs or results."
+    },
+    "Page<WorkerAttemptRead>": {
+      "pageOf": "WorkerAttemptRead",
+      "description": "Keyset page of one machine's attempts in one state, newest first; null nextCursor marks the last page."
+    },
+    "MachineModel": {
+      "fields": [
+        "id",
+        "provider",
+        "model",
+        "harness",
+        "billingRoute",
+        "status",
+        "health",
+        "inferenceVerifiedAt",
+        "createdAt"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "provider": "string",
+        "model": "string",
+        "harness": "enum(pi|claude_code|codex|mastra)",
+        "billingRoute": "enum(subscription|api_metered|local)",
+        "status": "enum(active|disabled|revoked)",
+        "health": "enum(healthy|degraded|open|unverified)",
+        "inferenceVerifiedAt": "timestamp|null",
+        "createdAt": "timestamp"
+      },
+      "fieldDescriptions": {
+        "id": "Stable identity of the model route on this machine.",
+        "provider": "Model provider the route calls, such as anthropic or openai.",
+        "model": "Model name the route sends work to.",
+        "harness": "Coding agent on the machine that runs the model.",
+        "billingRoute": "How the model's use is paid for: the coding agent's subscription, metered API use, or a local model.",
+        "status": "Whether the model takes work: active, turned off (disabled), or removed for good (revoked).",
+        "health": "Last known health: healthy, degraded, open (paused while it is probed) or unverified.",
+        "inferenceVerifiedAt": "When the machine last proved the model answers; null before it has.",
+        "createdAt": "When the model was added; stable keyset position."
+      },
+      "description": "One model a machine may send work to, read through the machine itself, with no account, endpoint, credential or incident detail."
+    },
+    "Page<MachineModel>": {
+      "pageOf": "MachineModel",
+      "description": "Keyset page of the models one machine may use, newest first; null nextCursor marks the last page."
     },
     "JobAttemptRead": {
       "fields": [
@@ -21834,6 +22387,7 @@ const transportSchemas = {
       "fields": [
         "id",
         "taskId",
+        "taskTitle",
         "artifactType",
         "name",
         "currentVersionId",
@@ -21845,6 +22399,7 @@ const transportSchemas = {
       ],
       "fieldTypes": {
         "id": "uuid",
+        "taskTitle": "string|null",
         "taskId": "uuid",
         "artifactType": "enum(research|plan|design|check|review|log|image|patch|other)",
         "name": "string",
@@ -21862,6 +22417,7 @@ const transportSchemas = {
       ],
       "description": "The stable, task-owned identity of one artifact: its type and display name, and a pointer to its current version, which is null before the first version is published.",
       "fieldDescriptions": {
+        "taskTitle": "Title of the artifact's task, present only for a reader who can see the task; absent for a reader with a grant to the document alone.",
         "id": "Stable UUID identifying the artifact record.",
         "taskId": "Stable UUID linking this record to the related task entity.",
         "artifactType": "Classification of artifact content.",
@@ -21874,6 +22430,7 @@ const transportSchemas = {
         "pinnedBy": "Principal who pinned the artifact, null when unpinned."
       },
       "optionalFields": [
+        "taskTitle",
         "pinnedAt",
         "pinnedBy"
       ]
@@ -21935,6 +22492,7 @@ const transportSchemas = {
         "id",
         "artifactVersionId",
         "authorId",
+        "authorName",
         "body",
         "anchor",
         "status",
@@ -21951,6 +22509,7 @@ const transportSchemas = {
         "id": "uuid",
         "artifactVersionId": "uuid",
         "authorId": "uuid",
+        "authorName": "string|null",
         "body": "string|null",
         "anchor": "CommentAnchor|null",
         "status": "enum(open|resolved)|null",
@@ -21974,12 +22533,14 @@ const transportSchemas = {
       ],
       "description": "placement is derived only when viewVersionId is requested and never changes the stored anchor. Deleted rows expose body:null and redact quote/context text from both original and placement anchors, retaining their kind and position.",
       "optionalFields": [
+        "authorName",
         "placement"
       ],
       "fieldDescriptions": {
         "id": "Stable UUID identifying the artifact comment record.",
         "artifactVersionId": "Stable UUID linking this record to the related artifact version entity.",
         "authorId": "Stable UUID linking this record to the related author entity.",
+        "authorName": "Display name of the comment's author, shown to every reader who can see the comment, including a reader with a grant to the document alone; null when the author has no display name.",
         "body": "User-visible body content carried by the record.",
         "anchor": "Source location anchored by the comment.",
         "status": "Current lifecycle status of the record.",
@@ -22036,6 +22597,7 @@ const transportSchemas = {
         "revision",
         "runStepId",
         "authorId",
+        "authorName",
         "mediaType",
         "sizeBytes",
         "sha256",
@@ -22058,6 +22620,7 @@ const transportSchemas = {
         "artifactId": "uuid",
         "revision": "integer",
         "runStepId": "uuid|null",
+        "authorName": "string|null",
         "authorId": "uuid",
         "mediaType": "string",
         "sizeBytes": "integer",
@@ -22088,6 +22651,7 @@ const transportSchemas = {
       ],
       "description": "Metadata for one immutable artifact version published by a worker through its attempt lease: media type, size, server-computed digest, the run step that produced it, optional subject head/base commit SHAs, and validated metadata. Content bytes are not included.",
       "fieldDescriptions": {
+        "authorName": "Display name of the version's publisher, shown to every reader who can see the version, including a reader with a grant to the document alone; null when the publisher has no display name.",
         "id": "Stable UUID identifying the artifact version record.",
         "artifactId": "Stable UUID linking this record to the related artifact entity.",
         "revision": "Monotonic revision number used to order updates to the record.",
@@ -22111,6 +22675,7 @@ const transportSchemas = {
         "refusedReason": "Why the version was refused: the failing rule's message, the probe refusal code (too-large, malformed, unreadable), probe-abandoned when the probe failed on the host until the runner gave up, or bytes-missing when the bytes were gone before the probe could read them. Null unless publicationStatus is refused."
       },
       "optionalFields": [
+        "authorName",
         "retentionClass",
         "expiresAt",
         "purgedAt",
@@ -22128,6 +22693,7 @@ const transportSchemas = {
         "revision",
         "runStepId",
         "authorId",
+        "authorName",
         "mediaType",
         "sizeBytes",
         "sha256",
@@ -22150,6 +22716,7 @@ const transportSchemas = {
         "artifactId": "uuid",
         "revision": "integer",
         "runStepId": "uuid|null",
+        "authorName": "string|null",
         "authorId": "uuid",
         "mediaType": "string",
         "sizeBytes": "integer",
@@ -22180,6 +22747,7 @@ const transportSchemas = {
       ],
       "description": "Metadata for one immutable artifact version returned to the developer after artifactVersions.create or artifactVersions.import: digest, size, media type, and server-verified provenance without content bytes.",
       "fieldDescriptions": {
+        "authorName": "Display name of the version's publisher, shown to every reader who can see the version, including a reader with a grant to the document alone; null when the publisher has no display name.",
         "id": "Stable UUID identifying the artifact version metadata record.",
         "artifactId": "Stable UUID linking this record to the related artifact entity.",
         "revision": "Monotonic revision number used to order updates to the record.",
@@ -22203,6 +22771,7 @@ const transportSchemas = {
         "refusedReason": "Why the version was refused: the failing rule's message, the probe refusal code (too-large, malformed, unreadable), probe-abandoned when the probe failed on the host until the runner gave up, or bytes-missing when the bytes were gone before the probe could read them. Null unless publicationStatus is refused."
       },
       "optionalFields": [
+        "authorName",
         "retentionClass",
         "expiresAt",
         "purgedAt",
@@ -22424,7 +22993,7 @@ const transportSchemas = {
         "runId": "uuid",
         "stepKey": "string",
         "iteration": "integer",
-        "status": "enum(pending|running|waiting|completed|failed|skipped|canceled)",
+        "status": "enum(pending|running|waiting|completed|failed|skipped|canceled|needs_human)",
         "input": "json",
         "output": "json|null",
         "error": "json|null",
@@ -23432,7 +24001,7 @@ const transportSchemas = {
       ],
       "fieldTypes": {
         "id": "uuid",
-        "applicationId": "uuid",
+        "applicationId": "uuid|null",
         "repositoryId": "uuid|null",
         "conversationId": "uuid",
         "parentTaskId": "uuid|null",
@@ -23602,7 +24171,9 @@ const transportSchemas = {
         "budgetSummary",
         "blockedReason",
         "blockingTasks",
-        "waitingOnModel"
+        "waitingOnModel",
+        "releaseStep",
+        "limitStop"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -23619,7 +24190,7 @@ const transportSchemas = {
         "workspaceBaseSha": "gitSha|null",
         "requestedBy": "uuid",
         "inngestRunId": "string|null",
-        "status": "enum(queued|running|waiting_input|waiting_capacity|paused|canceling|canceled|completed|failed|blocked)",
+        "status": "enum(queued|running|waiting_input|waiting_capacity|paused|canceling|canceled|completed|failed|blocked|needs_human)",
         "budgetLimitUsd": "decimal",
         "environment": "enum(live|offline)",
         "startedAt": "timestamp|null",
@@ -23630,7 +24201,9 @@ const transportSchemas = {
         "budgetSummary": "RunBudgetSummary",
         "blockedReason": "string|null",
         "blockingTasks": "RunBlockingTask[]",
-        "waitingOnModel": "boolean"
+        "waitingOnModel": "boolean",
+        "releaseStep": "enum(yes|no|unknown)",
+        "limitStop": "RunLimitStop|null"
       },
       "description": "Kind-aware safe run projection. Workflow runs retain task and workflow ownership; skill imports expose null workflow owners and one registered source owner.",
       "nullableFields": [
@@ -23647,7 +24220,8 @@ const transportSchemas = {
         "inngestRunId",
         "startedAt",
         "finishedAt",
-        "blockedReason"
+        "blockedReason",
+        "limitStop"
       ],
       "optionalFields": [
         "kind",
@@ -23655,14 +24229,18 @@ const transportSchemas = {
         "workspaceBaseSha",
         "blockedReason",
         "blockingTasks",
-        "waitingOnModel"
+        "waitingOnModel",
+        "releaseStep",
+        "limitStop"
       ],
       "computedFields": {
         "budgetSummary": "Join budget_accounts + outstanding reservations for this run and the applicable installation period under one consistent read snapshot.",
         "workspaceBaseSha": "Base commit reported by the first completed harness step of this run: the step's output baseSha when it is a git SHA, else null. Read from run_steps joined to jobs by harness action; never written to workflow_runs.",
         "blockedReason": "snapshot.admission.reason of the run while status is blocked; null otherwise.",
         "blockingTasks": "task_dependencies of the run's task joined to tasks of the same organization whose status is not completed, only while blockedReason is dependency_incomplete.",
-        "waitingOnModel": "True when a live job of a non-terminal run is pinned to an active provider route with an open incident that the step has not been continued past; the same rule as routeContinuations.list."
+        "waitingOnModel": "True when a live job of a non-terminal run is pinned to an active provider route with an open incident that the step has not been continued past; the same rule as routeContinuations.list.",
+        "releaseStep": "Whether the run's frozen workflow plan runs a release step (delivery.deploy) after its merge step (delivery.merge): yes when one follows, no when none follows or the plan has no merge step, unknown when the plan cannot be read. Served on the run read.",
+        "limitStop": "The limit stop of a failed run whose last plan failure was a repeat reaching its ask-a-person limit; null otherwise. Served on the run read."
       },
       "fieldDescriptions": {
         "id": "Stable UUID identifying the run record.",
@@ -23690,7 +24268,9 @@ const transportSchemas = {
         "skillSourceId": "Registered source UUID for skill import runs; null for workflow runs.",
         "blockedReason": "Why the run is blocked, as admission recorded it (for example dependency_incomplete); null unless status is blocked. Served by runs.get and runs.list; omitted by other run responses.",
         "blockingTasks": "For a run blocked with dependency_incomplete, the dependency tasks of the run's task that have not completed, read live and limited to the run's organization, oldest dependency first, at most 25; empty otherwise. Served by runs.get and runs.list; omitted by other run responses.",
-        "waitingOnModel": "True while a step of the run is waiting on a model whose provider route has an open incident (the same steps routeContinuations.list offers a choice for); false otherwise and always false for a finished run. Served by runs.get and runs.list; omitted by other run responses."
+        "waitingOnModel": "True while a step of the run is waiting on a model whose provider route has an open incident (the same steps routeContinuations.list offers a choice for); false otherwise and always false for a finished run. Served by runs.get and runs.list; omitted by other run responses.",
+        "releaseStep": "Whether the run's frozen workflow plan runs a release step after its merge step: yes when a delivery.deploy step follows delivery.merge, no when none follows or the plan has no merge step, and unknown when the plan cannot be read. Served by runs.get; omitted by other run responses.",
+        "limitStop": "Where the run stopped to ask a person about more tries, or null. Served by runs.get; omitted by other run responses."
       },
       "fieldBounds": {
         "blockingTasks": {
@@ -24968,7 +25548,10 @@ const transportSchemas = {
         "config",
         "secretId",
         "grantedScopes",
+        "grantedScopeNames",
         "status",
+        "health",
+        "removedBy",
         "lastCheckedAt",
         "createdAt",
         "createdBy",
@@ -24977,13 +25560,16 @@ const transportSchemas = {
       ],
       "fieldTypes": {
         "id": "uuid",
-        "provider": "enum(github)",
+        "provider": "enum(github|linear|slack)",
         "label": "string",
         "externalAccountId": "string",
         "config": "json",
         "secretId": "uuid|null",
         "grantedScopes": "json",
+        "grantedScopeNames": "json|null",
         "status": "enum(pending|enabled|disabled|degraded|revoked)",
+        "health": "enum(unknown|healthy|degraded|auth_required)",
+        "removedBy": "enum(admin|provider)|null",
         "lastCheckedAt": "timestamp|null",
         "createdAt": "timestamp",
         "createdBy": "uuid",
@@ -24992,18 +25578,23 @@ const transportSchemas = {
       },
       "nullableFields": [
         "secretId",
+        "grantedScopeNames",
+        "removedBy",
         "lastCheckedAt"
       ],
       "description": "An organization's binding to one host-verified provider installation, such as a GitHub App installation or Slack workspace: label, validated config, granted provider permissions, and lifecycle status (`pending`/`enabled`/`disabled`/`degraded`/`revoked`), where `degraded` reflects a failed health check rather than an Admin action. Read via GET /v1/integration-connections/{id}; Admins create and update it.",
       "fieldDescriptions": {
         "id": "Stable UUID identifying the integration connection record.",
-        "provider": "Integration provider this connection binds; only github is supported.",
+        "provider": "Integration provider this connection binds: github, linear or slack, each a provider registered in this Bakery build.",
         "label": "Human-readable label for the connection; the provider account login when Bakery creates it.",
         "externalAccountId": "Immutable provider account id the connection is bound to, such as the numeric GitHub account id of the installation owner, as a string.",
         "config": "Validated provider configuration for the connection; an empty object until an Admin configures it.",
         "secretId": "UUID of the organization secret the connection uses, or null when it uses only host-owned installation credentials.",
         "grantedScopes": "Provider-side permission scopes the connection's credential was consented with, recorded when the connection was established. Informational: what Bakery may do through the connection is governed by explicit Bakery grants, which can be narrower than this provider consent.",
-        "status": "Client-facing connection state folded from the stored status and health columns: `pending` after verified setup until an Admin enables it, `revoked` when the provider revoked authorization, `disabled` when an Admin disabled it, `degraded` when an enabled connection's health is degraded or auth_required, otherwise `enabled`.",
+        "grantedScopeNames": "Exact provider scope names granted at the last connect or reconnect, such as channels:read and channels:history, so a client can tell scopes that grantedScopes folds into one level; null for connections that record none, such as GitHub App installations.",
+        "health": "Health of the connection: unknown until a check completes, healthy, degraded when the last check found a problem or a requested provider scope was not granted at the last connect or reconnect, or auth_required when the provider refused the credential.",
+        "removedBy": "Who removed a revoked connection: provider when the provider removed Bakery (Slack uninstalled the app or revoked its bot token, or GitHub removed its installation), admin when a Bakery Admin removed it; null while the connection is not revoked.",
+        "status": "Client-facing connection state folded from the stored status and health columns: `pending` after verified setup until an Admin enables it, `revoked` when the provider revoked authorization, `disabled` when an Admin disabled it, `degraded` when an enabled connection's recorded health is degraded or auth_required, otherwise `enabled`; a requested scope that was not granted shows only in health, because the connection still works.",
         "lastCheckedAt": "UTC timestamp when the record was last checked.",
         "createdAt": "UTC timestamp when the record was created.",
         "createdBy": "Principal id of the member who connected it (completed the provider setup), so a client can show who connected the integration and when; resolve the name through the organization member list.",
@@ -25431,9 +26022,9 @@ const transportSchemas = {
         "updatedAt": "timestamp",
         "version": "integer",
         "applicationId": "uuid",
-        "provider": "literal(github)",
-        "verifiedProviderAccountId": "decimalString",
-        "verifiedLogin": "githubLogin",
+        "provider": "enum(github|anthropic|openai|openrouter)",
+        "verifiedProviderAccountId": "decimalString|null",
+        "verifiedLogin": "githubLogin|null",
         "activeVersionRevision": "positiveInteger",
         "generation": "positiveInteger",
         "policyRevision": "positiveInteger",
@@ -25442,7 +26033,9 @@ const transportSchemas = {
       },
       "nullableFields": [
         "activeVersionId",
-        "revokedAt"
+        "revokedAt",
+        "verifiedProviderAccountId",
+        "verifiedLogin"
       ],
       "description": "A secret's identity and access policy without its value: name, the active-version pointer, the allowed-principals/allowed-actions lists (both default-deny), and revokedAt; returned by create, rotate and policy-update so a caller can confirm the change without ever seeing ciphertext.",
       "fieldDescriptions": {
@@ -25456,9 +26049,9 @@ const transportSchemas = {
         "updatedAt": "UTC timestamp when the record was last updated.",
         "version": "Optimistic-concurrency version used when updating the record.",
         "applicationId": "Owning live application UUID; legacy unscoped rows are not returned.",
-        "provider": "Fixed verified credential provider.",
-        "verifiedProviderAccountId": "Positive GitHub account ID selected from bounded authenticated verification.",
-        "verifiedLogin": "Validated GitHub login selected from verification, never caller supplied.",
+        "provider": "Credential verifier the secret was checked by: github, or anthropic, openai or openrouter for a coding agent's model API key.",
+        "verifiedProviderAccountId": "GitHub account id the credential authenticated as; null for a model API key, whose provider names no account.",
+        "verifiedLogin": "GitHub login the credential authenticated as; null for a model API key.",
         "activeVersionRevision": "Immutable revision number of the active encrypted version, distinct from metadata.version.",
         "generation": "Credential lifecycle generation; first creation is one.",
         "policyRevision": "Default-deny policy revision; first creation is one.",
@@ -25604,9 +26197,12 @@ const transportSchemas = {
         "readinessReason",
         "failedCheckIds",
         "unsettledAttemptCount",
+        "activeAttemptCount",
         "lastHeartbeatAt",
         "credentialGeneration",
         "archivedAt",
+        "checks",
+        "retirement",
         "cleanup",
         "createdAt",
         "updatedAt",
@@ -25628,9 +26224,12 @@ const transportSchemas = {
         "readinessReason": "string|null",
         "failedCheckIds": "json",
         "unsettledAttemptCount": "integer",
+        "activeAttemptCount": "integer",
         "lastHeartbeatAt": "timestamp|null",
         "credentialGeneration": "integer",
         "archivedAt": "timestamp|null",
+        "checks": "WorkerCheckResult[]",
+        "retirement": "WorkerRetirement|null",
         "cleanup": "WorkerHostCleanup",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
@@ -25639,7 +26238,8 @@ const transportSchemas = {
       "nullableFields": [
         "lastHeartbeatAt",
         "readinessReason",
-        "archivedAt"
+        "archivedAt",
+        "retirement"
       ],
       "description": "A registered worker machine's identity, derived operating state and declared capacity: OS/architecture, advertised capabilities and toolchain versions, concurrent execution slots, lifecycle status, and the server-derived desired mode, connectivity and readiness dimensions. desiredMode is Admin intent (accepting, paused, draining, revoked); connectivity derives only from authenticated heartbeat receipt times (stale after 30 seconds, offline after 60); readiness derives from current-generation checks, protocol compatibility, credential state and scheduling policy — never from a client-writable flag. Old inventory/check generations, unsafe secret isolation or offline capability cannot advertise usable capacity: readinessReason explains a needs_attention state. credentialGeneration increments on rotation or revocation, invalidating any bearer credential from an earlier generation; the credential itself is never returned in a response. Revocation stops authority immediately but deleting or archiving the cloud record never claims the host was erased: cleanup stays unconfirmed until the host itself reports the Bakery-owned files it removed. archivedAt marks a revoked host hidden from the default machine list.",
       "fieldDescriptions": {
@@ -25658,9 +26258,12 @@ const transportSchemas = {
         "readinessReason": "Safe bounded explanation when readiness is needs_attention; null otherwise.",
         "failedCheckIds": "Check identifiers with a fresh failing result, sorted; empty when none.",
         "unsettledAttemptCount": "Attempts on this machine that are not finished: leased, running, canceling, or quarantined with an unknown outcome. A machine in draining mode has nothing left when this is 0.",
+        "activeAttemptCount": "Attempts holding one of this machine's slots right now: leased, running or canceling with a lease that has not expired, the same count the scheduler admits new work against. It counts slot occupancy, not tasks or past work; slots minus this is free capacity.",
         "lastHeartbeatAt": "UTC timestamp when the worker last reported health.",
         "credentialGeneration": "Credential generation loaded by the worker host.",
         "archivedAt": "UTC timestamp when an Admin archived this revoked host; null while it is listed by default. Archived hosts keep every historical reference and stay readable by ID.",
+        "checks": "Every readiness check the machine last reported, passed or not, with its result and when it was observed.",
+        "retirement": "Who retired the machine and when; null unless the machine is retired.",
         "cleanup": "What Bakery knows about removal of its own files and service from the host after revocation; never claims confirmed without host evidence.",
         "createdAt": "UTC timestamp when the record was created.",
         "updatedAt": "UTC timestamp when the record was last updated.",
@@ -25672,7 +26275,9 @@ const transportSchemas = {
         "readiness",
         "readinessReason",
         "failedCheckIds",
-        "unsettledAttemptCount"
+        "unsettledAttemptCount",
+        "checks",
+        "retirement"
       ]
     },
     "Preview": {
@@ -25872,7 +26477,9 @@ const transportSchemas = {
         "createdAt",
         "updatedAt",
         "version",
-        "blockedReason"
+        "blockedReason",
+        "requestedBy",
+        "requestedByName"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -25889,11 +26496,14 @@ const transportSchemas = {
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
         "version": "integer",
-        "blockedReason": "enum(already_merged|not_open|head_moved|base_moved|checks_not_passed|not_permitted|evidence_changed|github_refused|not_merged|unavailable)|null"
+        "blockedReason": "enum(already_merged|not_open|head_moved|base_moved|checks_not_passed|not_permitted|evidence_changed|github_refused|not_merged|unavailable)|null",
+        "requestedBy": "uuid",
+        "requestedByName": "string|null"
       },
       "nullableFields": [
         "externalEffectId",
-        "blockedReason"
+        "blockedReason",
+        "requestedByName"
       ],
       "description": "One serialized merge-queue attempt for a pull request; the server allows at most one active entry per repository/target branch and requires its linked review cycle and check runs to still match this entry's exact head, base and policy digest before merging proceeds.",
       "fieldDescriptions": {
@@ -25911,7 +26521,9 @@ const transportSchemas = {
         "createdAt": "UTC timestamp when the record was created.",
         "updatedAt": "UTC timestamp when the record was last updated.",
         "version": "Optimistic-concurrency version used when updating the record.",
-        "blockedReason": "Why Bakery stopped this merge: already_merged, not_open, head_moved, base_moved, checks_not_passed, not_permitted, evidence_changed, github_refused, not_merged or unavailable. Null unless status is blocked, and null for an entry blocked before the reason was recorded."
+        "blockedReason": "Why Bakery stopped this merge: already_merged, not_open, head_moved, base_moved, checks_not_passed, not_permitted, evidence_changed, github_refused, not_merged or unavailable. Null unless status is blocked, and null for an entry blocked before the reason was recorded.",
+        "requestedBy": "Principal id of the person or agent whose request queued this merge, so a client can tell its own merge from one someone else started.",
+        "requestedByName": "Display name of whoever queued this merge, or null when that principal has no display name; shown as \"{name} already started this merge\"."
       }
     },
     "Deployment": {
@@ -25929,6 +26541,7 @@ const transportSchemas = {
         "externalEffectId",
         "healthEvidenceId",
         "rollbackFailed",
+        "address",
         "createdAt",
         "updatedAt",
         "version"
@@ -25946,6 +26559,7 @@ const transportSchemas = {
         "externalEffectId": "uuid|null",
         "healthEvidenceId": "uuid|null",
         "rollbackFailed": "boolean",
+        "address": "string|null",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
         "version": "integer"
@@ -25954,11 +26568,13 @@ const transportSchemas = {
         "previousDeploymentId",
         "previousCommitSha",
         "externalEffectId",
-        "healthEvidenceId"
+        "healthEvidenceId",
+        "address"
       ],
       "optionalFields": [
         "previousCommitSha",
-        "rollbackFailed"
+        "rollbackFailed",
+        "address"
       ],
       "description": "One attempt to release a specific commit/artifact to a named environment for a repository, tracked from `queued` through `deploying`/`verifying` to `healthy`, `failed`, or a rollback; only one deployment per environment is in flight at a time, and `previousDeploymentId` links a rollback to the release it reverts. Created by POST /v1/deployments; reverted by POST /v1/deployments/{id}/rollbacks.",
       "fieldDescriptions": {
@@ -25974,6 +26590,7 @@ const transportSchemas = {
         "externalEffectId": "Stable UUID linking this record to the related external effect entity.",
         "healthEvidenceId": "Stable UUID linking this record to the related health evidence entity.",
         "rollbackFailed": "True when a rollback of this release ended in failed, so the environment may not run the release before it; never cleared.",
+        "address": "Absolute address of the environment's running release, the page a person opens to see it; null when this install configures no address for that environment.",
         "createdAt": "UTC timestamp when the record was created.",
         "updatedAt": "UTC timestamp when the record was last updated.",
         "version": "Optimistic-concurrency version used when updating the record."
@@ -26050,7 +26667,7 @@ const transportSchemas = {
         "points": "MetricPoint[]",
         "from": "timestamp",
         "to": "timestamp",
-        "resolution": "enum(minute|hour|day)",
+        "resolution": "enum(minute|hour|day|week)",
         "unit": "enum(count|ratio|hours|lines)",
         "cohort": "string",
         "sampleCount": "integer",
@@ -26466,7 +27083,7 @@ const transportSchemas = {
         "modelBillingRequired"
       ],
       "fieldTypes": {
-        "actionId": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|tool.call|coordination.split|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|people.tag|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief|secret.identity.read)",
+        "actionId": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|tool.call|coordination.split|delivery.candidate_evidence|delivery.prepare|delivery.openPullRequest|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|people.tag|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief|secret.identity.read)",
         "version": "integer",
         "input": "string",
         "output": "string",
@@ -26511,7 +27128,7 @@ const transportSchemas = {
       ],
       "fieldTypes": {
         "stepId": "string",
-        "action": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|tool.call|coordination.split|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|people.tag|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief|secret.identity.read)",
+        "action": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|tool.call|coordination.split|delivery.candidate_evidence|delivery.prepare|delivery.openPullRequest|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|people.tag|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief|secret.identity.read)",
         "source": "enum(step|workflow|profile|none)",
         "agentVersionId": "uuid|null",
         "revision": "integer|null",
@@ -28529,7 +29146,6 @@ const transportSchemas = {
         "existingResourceId": "uuid"
       },
       "bounds": {
-        "additionalMembersMaxBytes": 8000,
         "issuesMaxItems": 50,
         "detailMaxLength": 2000,
         "titleMaxLength": 200
@@ -28556,7 +29172,7 @@ const transportSchemas = {
         "A STATE_CONFLICT whose cause is a named state rule sets reason to that stable lowercase snake_case slug (for example approval_required, approval_unavailable, task_not_startable) so a client can tell the rules apart without parsing prose. The slug is bounded to 64 characters; any other value is dropped.",
         "Params cannot override type, title, status, detail, instance, code or correlation IDs. Whitelist/redact known extensions; never serialize Error, cause, stack, SQL, raw provider payloads, secrets or submitted invalid values."
       ],
-      "description": "RFC 9457 problem-details body returned for every Bakery REST/MCP/WS failure: `type` is the primary identifier, `code` its stable registry alias, and `status` matches the actual response status, with `requestId`/`traceId` for correlation. `issues`, `retryAfterSeconds`, `reason`, and the sync-specific reset fields are present only when that failure kind applies.",
+      "description": "RFC 9457 problem-details body returned for every Bakery REST/MCP/WS failure: `type` is the primary identifier, `code` its stable registry alias, and `status` matches the actual response status, with `requestId`/`traceId` for correlation. `issues`, `retryAfterSeconds`, `reason`, and the sync-specific reset fields are present only when that failure kind applies. Members beyond these take at most 8000 bytes together.",
       "fieldDescriptions": {
         "type": "RFC 9457 URI identifying the problem type.",
         "title": "Human-readable title presented for the problem response.",
@@ -28929,10 +29545,9 @@ const transportSchemas = {
         "comments": "CommentSnapshot[]"
       },
       "bounds": {
-        "maxBytes": 32768,
-        "maxRoots": 100
+        "maxBytes": 32768
       },
-      "description": "Complete selected root threads as of send, byte bounded; reject oversized selection and ask for fewer threads. Every reference and current grant is validated before snapshot and again at admission/effects.",
+      "description": "Complete selected root threads as of send, at most 100 roots, byte bounded; reject oversized selection and ask for fewer threads. Every reference and current grant is validated before snapshot and again at admission/effects.",
       "fieldDescriptions": {
         "comments": "Contract-defined comments associated with the comment context record."
       }
@@ -29447,7 +30062,7 @@ const transportSchemas = {
         "id": "uuid",
         "organizationId": "uuid",
         "initiatingPrincipalId": "uuid",
-        "provider": "enum(github)",
+        "provider": "enum(github|linear|slack)",
         "reconnectConnectionId": "uuid|null",
         "returnPath": "string|null",
         "expiresAt": "timestamp",
@@ -29471,7 +30086,7 @@ const transportSchemas = {
         "id": "Stable UUID identifying this integration auth attempt record.",
         "organizationId": "UUID of the organization that owns this record.",
         "initiatingPrincipalId": "UUID of the principal associated with this integration auth attempt record.",
-        "provider": "Integration provider this attempt authorizes against; only github is supported.",
+        "provider": "Integration provider this attempt authorizes against: github, linear or slack, each a provider registered in this Bakery build.",
         "reconnectConnectionId": "UUID identifying the related reconnect connection resource. May be null when unavailable.",
         "returnPath": "Bakery path the browser returns to after the flow, or null when the caller gave none.",
         "expiresAt": "Timestamp recording when the expire event occurred for this integration auth attempt record.",
@@ -29783,6 +30398,7 @@ const transportSchemas = {
         "linkedTaskIds",
         "linkedTaskCount",
         "openQuestionCount",
+        "delivery",
         "createdAt",
         "updatedAt",
         "version"
@@ -29808,12 +30424,14 @@ const transportSchemas = {
         "version": "integer",
         "linkedTaskIds": "uuid[]",
         "linkedTaskCount": "integer",
-        "openQuestionCount": "integer"
+        "openQuestionCount": "integer",
+        "delivery": "IssueDelivery|null"
       },
       "nullableFields": [
         "number",
         "latestReadiness",
-        "activeRequest"
+        "activeRequest",
+        "delivery"
       ],
       "description": "Bounded, current snapshot of one provider-owned ticket synced into Bakery: its key/number/URL, normalized content, requirement digest, provider change marker, visibility, and last-observed time. Deduplicates on the provider's immutable ticket identity, independent of a changed URL or reconnected credential. Read via GET /v1/external-tickets/{id}.",
       "fieldDescriptions": {
@@ -29837,14 +30455,16 @@ const transportSchemas = {
         "version": "Monotonic revision used to order or conditionally update this external ticket record.",
         "linkedTaskIds": "Bakery tasks linked to this ticket through ticket_task_links (primary and reference links), most recently linked first, at most 25; linkedTaskCount tells whether more exist. Empty when no task is linked. Omitted by servers that predate it.",
         "linkedTaskCount": "Total number of tasks linked to this ticket; larger than the length of linkedTaskIds when the list was cut at 25. Omitted by servers that predate it.",
-        "openQuestionCount": "Open questions (kind question, not approvals) waiting for an answer on the task of this ticket's nonterminal request (activeRequest), counting neither answered nor expired ones; 0 when there is no such request. The Issues list shows Needs an answer from it without reading each task's questions. Omitted by servers that predate it."
+        "openQuestionCount": "Open questions (kind question, not approvals) waiting for an answer on the task of this ticket's nonterminal request (activeRequest), counting neither answered nor expired ones; 0 when there is no such request. The Issues list shows Needs an answer from it without reading each task's questions. Omitted by servers that predate it.",
+        "delivery": "Where Bakery's work on this issue stands, as one line (state, step, environment, pull request, why it stopped, the branch it merged into, who paused it), from the task of its newest request that was not rejected; null when no work was ever started for it. Computed for the whole page in one statement, so the Issues list and the issue page need no per-task reads. Omitted by servers that predate it."
       },
       "optionalFields": [
         "latestReadiness",
         "activeRequest",
         "linkedTaskIds",
         "linkedTaskCount",
-        "openQuestionCount"
+        "openQuestionCount",
+        "delivery"
       ],
       "fieldBounds": {
         "linkedTaskIds": {
@@ -30995,8 +31615,9 @@ const transportSchemas = {
       },
       "bounds": {
         "resourceKindsMaxItems": 50,
-        "providerPermissionsMaxItems": 100,
-        "schemaMaxBytes": 131072
+        "requiredProviderPermissionsMaxItems": 100,
+        "inputSchemaMaxBytes": 131072,
+        "outputSchemaMaxBytes": 131072
       },
       "description": "Effective intersection of the pinned provider manifest, installation permission, selected resource and current organization grant.",
       "fieldDescriptions": {
@@ -32186,7 +32807,8 @@ const transportSchemas = {
         "expiresAt",
         "createdAt",
         "updatedAt",
-        "version"
+        "version",
+        "mayDecide"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -32213,7 +32835,8 @@ const transportSchemas = {
         "expiresAt": "timestamp|null",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
-        "version": "integer"
+        "version": "integer",
+        "mayDecide": "boolean"
       },
       "nullableFields": [
         "turnId",
@@ -32254,7 +32877,8 @@ const transportSchemas = {
         "expiresAt": "UTC timestamp after which the approval can no longer be decided or consumed.",
         "createdAt": "UTC timestamp when the approval was requested.",
         "updatedAt": "UTC timestamp when the approval last changed.",
-        "version": "Optimistic-concurrency version used when deciding."
+        "version": "Optimistic-concurrency version used when deciding.",
+        "mayDecide": "True when the person asking may decide this approval now: it is open, or it expired while its plan or reviewed commit is still the current one so a new decision can be recorded, and the person is named in its audience or holds a grant for it and may decide approvals. The web shows decision buttons only when this is true."
       }
     },
     "Page<PlanRevision>": {
@@ -33607,13 +34231,24 @@ const transportSchemas = {
         "status",
         "targetKind",
         "path",
-        "anchor"
+        "anchor",
+        "reason",
+        "sharedByName",
+        "sharedAt"
+      ],
+      "optionalFields": [
+        "reason",
+        "sharedByName",
+        "sharedAt"
       ],
       "fieldTypes": {
         "status": "enum(available|part_unavailable|unavailable)",
         "targetKind": "enum(conversation_message|run|run_step|approval|question|document_version|comment)",
         "path": "string|null",
-        "anchor": "string|null"
+        "anchor": "string|null",
+        "reason": "enum(gone|no_longer_shared|unknown)",
+        "sharedByName": "string",
+        "sharedAt": "timestamp"
       },
       "nullableFields": [
         "path",
@@ -33625,13 +34260,19 @@ const transportSchemas = {
         },
         "anchor": {
           "maxLength": 200
+        },
+        "sharedByName": {
+          "maxLength": 200
         }
       },
       "fieldDescriptions": {
         "status": "Whether the stored destination still resolves and the recipient is still authorized to open it. part_unavailable means the task or document opens but the inner part (step, card, message or comment) is gone, so the client opens the page with no anchor and says so; unavailable means the client shows the no-longer-available state.",
         "targetKind": "The typed kind of the resolved destination, echoed so the client can pick the right view.",
-        "path": "A validated relative internal route to open when available or part_unavailable, or null when the destination is gone or no longer accessible.",
-        "anchor": "Optional exact anchor inside the destination, in kind:id form (step:, approval:, question:, message:, comment:) or version:N for a document version, or null."
+        "path": "A validated relative internal route to open when available or part_unavailable, or null when the destination is gone or no longer accessible. A reader who can open the task gets a task route (/tasks/{taskId} or /tasks/{taskId}/artifacts/{artifactId}); a reader whose access comes only from a direct grant gets /shared/documents/{artifactId}?version={versionId} with &comment={commentId} for a comment, or /shared/conversations/{conversationId}?message={messageId}.",
+        "anchor": "Optional exact anchor inside the destination, in kind:id form (step:, approval:, question:, message:, comment:) or version:N for a document version, or null.",
+        "reason": "Why an unavailable destination cannot be opened, present only when status is unavailable. gone means the document, conversation or task was deleted; no_longer_shared means it still exists but the recipient's access ended; unknown means the server cannot tell. A client reading an unavailable target with no reason, as older responses have, treats it as unknown.",
+        "sharedByName": "Current display name of the person who shared the document or conversation with the recipient through a direct grant, present only when the destination is reached through a grant or a revoked grant still records who gave it; never an email address.",
+        "sharedAt": "When the direct grant that opens, or last opened, this document or conversation for the recipient was given; present alongside sharedByName."
       },
       "rules": [
         "Recipient-only, and reauthorizes the destination on every call. A notification ID never grants access; an unauthorized target returns unavailable, not its title."
@@ -35456,6 +36097,7 @@ const transportSchemas = {
       "fields": [
         "id",
         "repositoryId",
+        "presetId",
         "startedBy",
         "maxIssues",
         "maxHours",
@@ -35480,6 +36122,7 @@ const transportSchemas = {
         "version"
       ],
       "nullableFields": [
+        "presetId",
         "pauseReason",
         "pausedBy",
         "pausedAt",
@@ -35491,6 +36134,7 @@ const transportSchemas = {
       "fieldTypes": {
         "id": "uuid",
         "repositoryId": "uuid",
+        "presetId": "enum(fixed-coding|fixed-coding-reviewed)",
         "startedBy": "uuid",
         "maxIssues": "integer",
         "maxHours": "integer",
@@ -35518,6 +36162,7 @@ const transportSchemas = {
       "fieldDescriptions": {
         "id": "Stable UUID of the batch.",
         "repositoryId": "The repository it works in.",
+        "presetId": "The built-in workflow each of its issues runs; null for a batch started before the workflow was stored.",
         "startedBy": "The person who started it; their authority is re-checked before every issue.",
         "maxIssues": "Limit: issues to merge.",
         "maxHours": "Limit: hours before nothing new starts.",
@@ -35692,18 +36337,21 @@ const transportSchemas = {
         "configured",
         "clientId",
         "clientSecretSavedAt",
+        "signingSecretSavedAt",
         "callbackUrl",
         "version"
       ],
       "nullableFields": [
         "clientId",
-        "clientSecretSavedAt"
+        "clientSecretSavedAt",
+        "signingSecretSavedAt"
       ],
       "fieldTypes": {
         "provider": "string",
         "configured": "boolean",
         "clientId": "string",
         "clientSecretSavedAt": "timestamp",
+        "signingSecretSavedAt": "timestamp",
         "callbackUrl": "uri",
         "version": "integer"
       },
@@ -35713,6 +36361,7 @@ const transportSchemas = {
         "configured": "True once a client ID and secret have been saved for this provider.",
         "clientId": "The registered client ID, or null while nothing is registered.",
         "clientSecretSavedAt": "UTC timestamp at which the current client secret was saved, or null while nothing is registered. A secret is never shown, so this is how an administrator tells it was replaced.",
+        "signingSecretSavedAt": "UTC timestamp at which the current signing secret was saved, or null while none is saved. The signing secret is never shown; this is how an administrator tells one is saved and when it was replaced.",
         "callbackUrl": "The URL to enter in the provider's OAuth application as its callback, derived from this installation's public address.",
         "version": "Registration version: 0 while nothing is registered, then the optimistic-concurrency value to send as If-Match when replacing the credentials."
       }
@@ -35735,7 +36384,7 @@ const transportSchemas = {
       ],
       "fieldTypes": {
         "toolName": "string",
-        "effectClass": "enum(read|write_idempotent|write_reconcilable|write_opaque)",
+        "effectClass": "enum(read|write_idempotent|write_reconcilable|write_async|write_opaque)",
         "classified": "boolean",
         "effectKeyArgument": "string",
         "pairedReadTool": "string",
@@ -35748,8 +36397,8 @@ const transportSchemas = {
         "toolName": "The tool's name in the pinned snapshot.",
         "effectClass": "The class in force: the Admin's, or write_opaque when unclassified.",
         "classified": "True once an Admin has classified this tool.",
-        "effectKeyArgument": "For write_idempotent, the argument that carries the effect key; otherwise null.",
-        "pairedReadTool": "For write_reconcilable, the read tool that confirms the write; otherwise null.",
+        "effectKeyArgument": "For write_idempotent and write_async, the argument that carries the effect key; otherwise null.",
+        "pairedReadTool": "For write_reconcilable, the read tool that confirms the write; for write_async, the read tool that polls the operation; otherwise null.",
         "classifiedAgainstCurrentSnapshot": "False when the connection has been rediscovered since this classification was made, so the Admin should check that it still describes the tool. True for an unclassified tool.",
         "classifiedAt": "UTC timestamp of the classification, or null when unclassified.",
         "version": "Classification version: 0 when unclassified, then the If-Match value for the next change."
@@ -36103,7 +36752,7 @@ const transportSchemas = {
         "installedRevision": "The exact source revision the installed version was imported from.",
         "latestRevision": "The exact revision the source's requested revision points to now, or null when the source could not be reached.",
         "lastCheckedAt": "UTC time of the last check that reached the source, which this check moves forward when it succeeds; null when the source was never reached.",
-        "problem": "When status is unreachable, why in one code (SOURCE_TIMEOUT, SOURCE_UNAVAILABLE, SOURCE_ORIGIN_REJECTED, SOURCE_INVALID, SOURCE_LIMIT_EXCEEDED or SOURCE_REVISION_MISMATCH); null otherwise.",
+        "problem": "When status is unreachable, why in one code (SOURCE_TIMEOUT, SOURCE_UNAVAILABLE, SOURCE_ORIGIN_REJECTED, SOURCE_INVALID, SOURCE_LIMIT_EXCEEDED, SOURCE_REVISION_MISMATCH or SOURCE_REVISION_NOT_FOUND); null otherwise.",
         "changes": "One entry per file that differs, by path: path, change (added, removed or changed), installedSha256 and latestSha256 (or null on the side without the file), installedSizeBytes and latestSizeBytes (or null), diff (hunks of lines with three lines of context, a line kept starting with a space, removed with - and added with +; null when none is shown) and diffOmitted (binary, too_large or mode_only when diff is null for that reason, otherwise null). At most 200.",
         "changesTruncated": "True when more than 200 files differ and the list stops at the first 200 by path."
       }
@@ -36260,6 +36909,28 @@ const transportSchemas = {
         "displayName": "The person's saved display name."
       }
     },
+    "RunRequestNextAsk": {
+      "fields": [
+        "dueAt",
+        "askedAt",
+        "who"
+      ],
+      "fieldTypes": {
+        "dueAt": "timestamp",
+        "askedAt": "timestamp|null",
+        "who": "string|null"
+      },
+      "nullableFields": [
+        "askedAt",
+        "who"
+      ],
+      "description": "The one next ask a waiting step makes when nobody answers in time.",
+      "fieldDescriptions": {
+        "dueAt": "UTC time the next ask is made if nobody has answered by then: the first ask plus the step's waiting hours.",
+        "askedAt": "UTC time the next ask was made, or null while it is still to come.",
+        "who": "The person, group or role asked next, by its current name, or null when it can no longer be found."
+      }
+    },
     "RunRequestAudience": {
       "fields": [
         "roleKey",
@@ -36303,7 +36974,9 @@ const transportSchemas = {
         "version",
         "questionId",
         "audience",
-        "artifactVersionId"
+        "artifactVersionId",
+        "nextAsk",
+        "passedOn"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -36324,7 +36997,9 @@ const transportSchemas = {
         "version": "integer",
         "questionId": "uuid|null",
         "audience": "RunRequestAudience|null",
-        "artifactVersionId": "uuid|null"
+        "artifactVersionId": "uuid|null",
+        "nextAsk": "RunRequestNextAsk|null",
+        "passedOn": "boolean"
       },
       "nullableFields": [
         "stepKey",
@@ -36334,7 +37009,8 @@ const transportSchemas = {
         "fallbackForName",
         "questionId",
         "audience",
-        "artifactVersionId"
+        "artifactVersionId",
+        "nextAsk"
       ],
       "description": "A request: one person asked for one thing on one run, with how it stands.",
       "fieldDescriptions": {
@@ -36349,14 +37025,16 @@ const transportSchemas = {
         "neededBy": "The optional deadline, or null.",
         "status": "open until answered, handled by someone else, expired seven days after it was made, or withdrawn.",
         "expiresAt": "UTC time the request expires; silence never approves.",
-        "ownerFallback": "True when the person asked for could not be resolved and the run's starter was asked instead.",
+        "ownerFallback": "True when the person asked for could not be resolved and the workflow's owner, or the run's starter when the workflow has no owner, was asked instead.",
         "fallbackForName": "Who was meant when ownerFallback is true, otherwise null.",
         "createdAt": "UTC time the request was made.",
         "updatedAt": "UTC time it last changed.",
         "version": "Optimistic-concurrency version used as If-Match.",
         "questionId": "The approval or question the request asks about, or null when it asks for none.",
         "audience": "The role or group this request was asked of, or null when one person was asked.",
-        "artifactVersionId": "The artifact version the request asks someone to review, or null when it asks for none."
+        "artifactVersionId": "The artifact version the request asks someone to review, or null when it asks for none.",
+        "nextAsk": "Who the step asks next if nobody answers this first request, and when; null when the step names nobody to ask next or this request was itself the next ask.",
+        "passedOn": "True when this request is the step's next ask, made because nobody answered the first one in time."
       },
       "optionalFields": [
         "questionId",
@@ -36377,6 +37055,134 @@ const transportSchemas = {
         "requests": "Requests in newest-first order; bounded to the most recent fifty."
       }
     },
+    "RunAccessPerson": {
+      "fields": [
+        "principalId",
+        "displayName"
+      ],
+      "fieldTypes": {
+        "principalId": "uuid",
+        "displayName": "string"
+      },
+      "nullableFields": [],
+      "description": "One person who has direct access to a run, identified by their current display name.",
+      "fieldDescriptions": {
+        "principalId": "Stable UUID of the person.",
+        "displayName": "Current display name of the person."
+      }
+    },
+    "RunAccessPower": {
+      "fields": [
+        "intent",
+        "stepKey",
+        "targetId",
+        "expiresAt"
+      ],
+      "fieldTypes": {
+        "intent": "enum(review|approve|answer|take_over)",
+        "stepKey": "string|null",
+        "targetId": "uuid",
+        "expiresAt": "timestamp"
+      },
+      "nullableFields": [
+        "stepKey"
+      ],
+      "description": "One current, expiring power that accompanied a request giving direct run access.",
+      "fieldDescriptions": {
+        "intent": "What the person may do.",
+        "stepKey": "The run step the power concerns, or null when it targets another kind of row.",
+        "targetId": "The approval, question, artifact version or run step the power targets.",
+        "expiresAt": "UTC time the power ends if it has not already been used or revoked."
+      }
+    },
+    "RunAccessItem": {
+      "projection": "run_access_grants",
+      "fields": [
+        "id",
+        "principal",
+        "via",
+        "grantedBy",
+        "grantedByKind",
+        "grantedAt",
+        "sourceRequestId",
+        "audience",
+        "powers",
+        "version"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "principal": "RunAccessPerson",
+        "via": "string",
+        "grantedBy": "RunAccessPerson|null",
+        "grantedByKind": "enum(person|agent|workflow)",
+        "grantedAt": "timestamp",
+        "sourceRequestId": "uuid|null",
+        "audience": "string|null",
+        "powers": "RunAccessPower[]",
+        "version": "integer"
+      },
+      "nullableFields": [
+        "grantedBy",
+        "sourceRequestId",
+        "audience"
+      ],
+      "description": "One removable direct grant on a run, with its provenance and current request powers.",
+      "fieldDescriptions": {
+        "id": "Stable UUID of the direct grant.",
+        "principal": "The person who can see the run through this grant.",
+        "via": "How direct access was granted, such as a request.",
+        "grantedBy": "The person recorded as granting access, or null when that principal no longer exists.",
+        "grantedByKind": "Whether a person, agent or workflow granted the access.",
+        "grantedAt": "UTC time direct access began.",
+        "sourceRequestId": "The request that first granted access, or null when none remains.",
+        "audience": "The frozen role or group name through which the source request was made, or null for one person.",
+        "powers": "Current unexpired powers on this run for the person.",
+        "version": "Optimistic-concurrency version used as If-Match when removing access."
+      }
+    },
+    "RunAccessList": {
+      "fields": [
+        "projectCount",
+        "totalCount",
+        "items",
+        "nextCursor"
+      ],
+      "fieldTypes": {
+        "projectCount": "integer",
+        "totalCount": "integer",
+        "items": "RunAccessItem[]",
+        "nextCursor": "string|null"
+      },
+      "nullableFields": [
+        "nextCursor"
+      ],
+      "description": "Who can see a run, separating project access from paginated removable direct grants.",
+      "fieldDescriptions": {
+        "projectCount": "Active people who can see the run through an organization role, custom role or matching project binding.",
+        "totalCount": "Project access plus active human recipients with current direct grants after excluding people already counted through project access.",
+        "items": "One page of removable direct grants, open-request first and then newest first.",
+        "nextCursor": "Opaque continuation token for the next direct-grant page, or null when this page is the end."
+      }
+    },
+    "RunAccessRemoval": {
+      "fields": [
+        "principalId",
+        "version",
+        "withdrawnRequestCount"
+      ],
+      "fieldTypes": {
+        "principalId": "uuid",
+        "version": "integer",
+        "withdrawnRequestCount": "integer"
+      },
+      "nullableFields": [],
+      "description": "Result of atomically removing one person's direct run access and ending their open requests and powers.",
+      "fieldDescriptions": {
+        "principalId": "Person whose direct access was removed.",
+        "version": "Final version of the revoked direct grant.",
+        "withdrawnRequestCount": "Open requests addressed to the person that were withdrawn in the same transaction."
+      }
+    },
     "StorageFolderItem": {
       "fields": [
         "id",
@@ -36392,6 +37198,7 @@ const transportSchemas = {
         "artifactId",
         "pinned",
         "contentRemoved",
+        "version",
         "updatedAt"
       ],
       "fieldTypes": {
@@ -36408,6 +37215,7 @@ const transportSchemas = {
         "artifactId": "uuid|null",
         "pinned": "boolean",
         "contentRemoved": "boolean",
+        "version": "integer",
         "updatedAt": "timestamp"
       },
       "nullableFields": [
@@ -36417,6 +37225,9 @@ const transportSchemas = {
         "mediaType",
         "sizeBytes",
         "artifactId"
+      ],
+      "optionalFields": [
+        "version"
       ],
       "description": "One folder or file as the files browser lists it: what it is called, what its folder allows, its artifact kind and current size, and the artifact it shows when it is a work item's document.",
       "fieldDescriptions": {
@@ -36433,6 +37244,7 @@ const transportSchemas = {
         "artifactId": "The artifact a work item's document shows; the page opens the artifact page for it instead of the plain file view. Null for working-area files and folders.",
         "pinned": "True when an administrator pinned the file's artifact, which suspends retention collection of its versions. Always false for folders and for working-area files, which have no artifact to pin.",
         "contentRemoved": "True when the file's current contents were removed by retention or an Admin purge; the entry stays as a record of the file. Always false for folders.",
+        "version": "The entry's optimistic concurrency version; send it as If-Match (bakery_files_write's version) to replace, move, delete or restore it.",
         "updatedAt": "When the entry or its current version last changed."
       }
     },
@@ -37341,7 +38153,7 @@ const transportSchemas = {
         "countedAt": "The provider time this metric places it at (opened, merged or closed time); null when unknown.",
         "value": "Its own contribution in the series unit (1 for counts, hours, lines, or 1/0 merged for merge rate); null is unknown.",
         "missingReason": "Why this record's value is unknown and it was left out of the number; null when it counted.",
-        "title": "The task's title; null for a pull request.",
+        "title": "The task's title for both task and pull-request records; null when the task title is unavailable.",
         "requestedAt": "When the task's first run was admitted; null for a pull request.",
         "deliveredAt": "When the task reached its delivery point; null for a pull request.",
         "deliveryPoint": "Which delivery point the task reached; null for a pull request.",
@@ -38717,7 +39529,8 @@ const transportSchemas = {
         "capabilities",
         "supported",
         "supportedSystems",
-        "expiresAt"
+        "expiresAt",
+        "repairsWorkerHostId"
       ],
       "fieldTypes": {
         "organizationName": "string",
@@ -38726,8 +39539,15 @@ const transportSchemas = {
         "capabilities": "json",
         "supported": "boolean",
         "supportedSystems": "json",
-        "expiresAt": "timestamp"
+        "expiresAt": "timestamp",
+        "repairsWorkerHostId": "uuid|null"
       },
+      "nullableFields": [
+        "repairsWorkerHostId"
+      ],
+      "optionalFields": [
+        "repairsWorkerHostId"
+      ],
       "description": "What a link code would do, shown in the terminal before its one question: the organization, machine name, slots and capabilities it binds, and whether this machine's system is supported. Never contains the code, its hash or any credential.",
       "fieldDescriptions": {
         "organizationName": "Display name of the organization the machine would join.",
@@ -38736,7 +39556,8 @@ const transportSchemas = {
         "capabilities": "Capabilities the machine may run.",
         "supported": "Whether the reported system and processor are supported (and match any system the Admin set); false means nothing should be installed and the code stays unused.",
         "supportedSystems": "The supported systems as a list of {os, architecture} pairs, such as linux arm64.",
-        "expiresAt": "UTC timestamp after which the code no longer works."
+        "expiresAt": "UTC timestamp after which the code no longer works.",
+        "repairsWorkerHostId": "The machine this code repairs (Set up again), or null for a code that adds a new machine. The terminal on a linked computer re-links only when this is the machine it is registered as."
       }
     },
     "WorkerLinkRequestCreated": {
@@ -39336,6 +40157,225 @@ const transportSchemas = {
         "packageDigest": "The digest of the imported package, which the lineage rows record.",
         "imported": "One entry per imported item, in package order.",
         "openBindings": "What a person still has to bind by hand: skills and agents a workflow named that the package did not carry, and the billing of each imported agent."
+      }
+    },
+    "GivenFact": {
+      "fields": [
+        "memoryId",
+        "wording",
+        "recordedAt",
+        "state"
+      ],
+      "fieldTypes": {
+        "memoryId": "uuid",
+        "wording": "string",
+        "recordedAt": "timestamp",
+        "state": "enum(given|corrected_since|stopped_since)"
+      },
+      "fieldBounds": {
+        "wording": {
+          "maxLength": 4096
+        }
+      },
+      "fieldDescriptions": {
+        "memoryId": "The memory entry this fact was sourced from.",
+        "wording": "The exact wording the agent was given for this fact.",
+        "recordedAt": "When this fact was recorded, in UTC.",
+        "state": "given while the memory still reads the same; corrected_since when the memory was revised after the step started; stopped_since when the memory was retired."
+      },
+      "description": "One fact the step was given, with whether it still reads the same now."
+    },
+    "GivenDocument": {
+      "fields": [
+        "artifactVersionId",
+        "state",
+        "name",
+        "kind",
+        "version",
+        "sizeBytes"
+      ],
+      "fieldTypes": {
+        "artifactVersionId": "uuid",
+        "state": "enum(available|hidden|gone|unchecked)",
+        "name": "string|null",
+        "kind": "string|null",
+        "version": "integer|null",
+        "sizeBytes": "integer"
+      },
+      "nullableFields": [
+        "name",
+        "kind",
+        "version"
+      ],
+      "fieldBounds": {
+        "name": {
+          "maxLength": 200
+        },
+        "kind": {
+          "maxLength": 80
+        },
+        "sizeBytes": {
+          "min": 0
+        }
+      },
+      "fieldDescriptions": {
+        "artifactVersionId": "The pinned artifact version the step was given.",
+        "state": "available while the reader may still see it; hidden when access ended; gone when its bytes are purged; unchecked when nothing truthful can be said.",
+        "name": "The document name when the reader may see it, else null.",
+        "kind": "The artifact type when the reader may see it, else null.",
+        "version": "The revision number when the reader may see it, else null.",
+        "sizeBytes": "The pinned byte size, always shown so a count stays truthful."
+      },
+      "description": "One document the step was given, redacted to the reader."
+    },
+    "StepGiven": {
+      "fields": [
+        "stepKey",
+        "startedAt",
+        "ranAnAgent",
+        "facts",
+        "factsOmitted",
+        "documents",
+        "documentsHidden",
+        "documentsGone",
+        "documentsUnchecked"
+      ],
+      "fieldTypes": {
+        "stepKey": "string",
+        "startedAt": "timestamp|null",
+        "ranAnAgent": "boolean",
+        "facts": "GivenFact[]",
+        "factsOmitted": "integer",
+        "documents": "GivenDocument[]",
+        "documentsHidden": "integer",
+        "documentsGone": "integer",
+        "documentsUnchecked": "integer"
+      },
+      "nullableFields": [
+        "startedAt"
+      ],
+      "fieldBounds": {
+        "stepKey": {
+          "maxLength": 200
+        },
+        "factsOmitted": {
+          "min": 0
+        },
+        "documentsHidden": {
+          "min": 0
+        },
+        "documentsGone": {
+          "min": 0
+        },
+        "documentsUnchecked": {
+          "min": 0
+        }
+      },
+      "fieldDescriptions": {
+        "stepKey": "The workflow step this describes.",
+        "startedAt": "When the step started, or null before it has.",
+        "ranAnAgent": "Whether an agent session ran for this step.",
+        "facts": "The sourced-memory facts the step was given, each with its state now.",
+        "factsOmitted": "How many facts were left out to stay inside the step bound.",
+        "documents": "The documents the step was given that the reader may still see.",
+        "documentsHidden": "Documents the reader may no longer see, counted but not named.",
+        "documentsGone": "Documents whose bytes are purged, counted but not named.",
+        "documentsUnchecked": "Documents nothing truthful can be said about, counted but not named."
+      },
+      "description": "What a step was given: the sourced-memory facts and pinned documents in use when it started, redacted to the reader."
+    },
+    "MySlackLink": {
+      "fields": [
+        "connection",
+        "workspaceName",
+        "state",
+        "linkedAt",
+        "removedAt"
+      ],
+      "fieldTypes": {
+        "connection": "enum(none|setup_unfinished|working|not_working)",
+        "workspaceName": "string",
+        "state": "enum(not_linked|linked|removed_by_admin)",
+        "linkedAt": "timestamp",
+        "removedAt": "timestamp"
+      },
+      "optionalFields": [
+        "workspaceName",
+        "linkedAt",
+        "removedAt"
+      ],
+      "description": "The signed-in member's own Slack link in the organization being viewed, with the state of the organization's Slack connection. It carries no Slack user id, token or email.",
+      "fieldDescriptions": {
+        "connection": "The organization's Slack connection: none when no Slack app credentials are saved and no connection exists; setup_unfinished when credentials are saved or a connection is pending but none has been enabled; working when a connection is enabled and its health is healthy or unknown; not_working when the connection is turned off, removed, or needs reconnecting.",
+        "workspaceName": "Name of the connected Slack workspace; present only when a connection exists and Slack gave it a name.",
+        "state": "not_linked when the member has no link; linked when the member's Slack account is linked in the connected workspace; removed_by_admin when an administrator removed the member's last link.",
+        "linkedAt": "UTC timestamp at which the member proved their Slack account; present only when state is linked.",
+        "removedAt": "UTC timestamp at which an administrator removed the link; present only when state is removed_by_admin."
+      }
+    },
+    "MySlackLinkAttemptCreated": {
+      "fields": [
+        "authorizationUrl",
+        "expiresAt"
+      ],
+      "fieldTypes": {
+        "authorizationUrl": "uri",
+        "expiresAt": "timestamp"
+      },
+      "description": "Returned once to the member's browser to start Sign in with Slack. The address carries an opaque single-use state and nonce only, never a token or the member's identity.",
+      "fieldDescriptions": {
+        "authorizationUrl": "Slack's OpenID Connect sign-in address, built from the organization's Slack app client id, Bakery's fixed identity callback and the connected workspace, carrying the single-use state and nonce; shown only in this response.",
+        "expiresAt": "UTC timestamp fifteen minutes after the attempt was created, after which the state is refused."
+      }
+    },
+    "WorkerCheckResult": {
+      "fields": [
+        "checkId",
+        "componentKey",
+        "result",
+        "reason",
+        "observedAt"
+      ],
+      "fieldTypes": {
+        "checkId": "string",
+        "componentKey": "string|null",
+        "result": "enum(pass|fail|unknown|not_applicable)",
+        "reason": "string<=8192bytes|null",
+        "observedAt": "timestamp"
+      },
+      "nullableFields": [
+        "componentKey",
+        "reason"
+      ],
+      "description": "One readiness check the machine last reported, as the machine page's Checks table shows it. A result that no longer applies to the machine's current sign-in, inventory or time window reads unknown (Could not be checked).",
+      "fieldDescriptions": {
+        "checkId": "Stable readiness check identifier, including capability:<capability> checks.",
+        "componentKey": "The software component the check is about, or null for a machine-wide check.",
+        "result": "pass, fail, unknown (could not be checked, or the result is out of date) or not_applicable (does not apply to this machine).",
+        "reason": "Bounded safe explanation recorded with the check, or null when it gave none.",
+        "observedAt": "UTC time the machine observed this result (the Checked column)."
+      }
+    },
+    "WorkerRetirement": {
+      "fields": [
+        "principalId",
+        "name",
+        "at"
+      ],
+      "fieldTypes": {
+        "principalId": "uuid|null",
+        "name": "string|null",
+        "at": "timestamp"
+      },
+      "nullableFields": [
+        "principalId",
+        "name"
+      ],
+      "description": "Who retired a machine and when, from the audit record of the retirement.",
+      "fieldDescriptions": {
+        "principalId": "The person who retired the machine, or null when the record names nobody.",
+        "name": "Their display name, or null when it is not known.",
+        "at": "UTC time the machine was retired."
       }
     }
   },

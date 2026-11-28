@@ -79,23 +79,6 @@ export function reconcile(
   return mentions.filter((mention) => carries(text, mention));
 }
 
-/**
- * The text without a person's `@Name` (and the space after it), for removing a
- * chip. It cuts the whole word the chip stands for, never the start of a longer
- * name such as `@Samir` when the chip is `@Sam`.
- */
-export function withoutMention(text: string, mention: Mention): string {
-  const at = find(text, mention);
-  if (at < 0) return text;
-  const end = at + mention.name.length + 1;
-  return text.slice(0, at) + text.slice(text[end] === " " ? end + 1 : end);
-}
-
-/**
- * The text with only the `@` taken off a person's `@Name`, so the name stays as
- * words ("Hi @Sam Patel" becomes "Hi Sam Patel"). It is for "Don't mention":
- * the chip's own remove button cuts the whole word instead.
- */
 export function withoutAtSign(text: string, mention: Mention): string {
   const at = find(text, mention);
   if (at < 0) return text;

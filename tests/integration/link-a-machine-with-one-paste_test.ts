@@ -12,6 +12,7 @@ import {
 } from "../helpers/worker-execution.ts";
 import { withWorkerFixture } from "../helpers/worker-execution/scenarios.ts";
 import { sha256Hex } from "../../apps/server/src/platform/canonical-json.ts";
+import { withPgTransaction } from "../../apps/server/src/platform/database.ts";
 
 /** One terminal: every public call comes from the same peer address. */
 const ONE_MACHINE = {
@@ -167,8 +168,12 @@ Deno.test("a link code in the command adds one machine and mints its own credent
       slots: 2,
       capabilities: ["git"],
       supported: true,
-      supportedSystems: [{ os: "linux", architecture: "arm64" }],
+      supportedSystems: [
+        { os: "linux", architecture: "arm64" },
+        { os: "linux", architecture: "x64" },
+      ],
       expiresAt: preview.expiresAt,
+      repairsWorkerHostId: null,
     });
 
     const credential = workerCredential();
@@ -348,6 +353,97 @@ Deno.test("a machine with no code is approved in the browser, then links", () =>
     ]);
   }));
 
+Deno.test("a poll that waits for the approval to commit still hands out the link code", () =>
+  withWorkerFixture(async (fixture) => {
+    await clearLinkRateLimits(fixture);
+    const request = await createRequest(fixture);
+    const approved = await adminRequest(
+      fixture,
+      `/v1/worker-link-requests/${request.requestId}/approvals`,
+      { slots: 2, capabilities: ["git"] },
+      { idempotencyKey: crypto.randomUUID() },
+    );
+    assertEquals(approved.status, 200, await approved.clone().text());
+    const decided = (await fixture.pgDatabase.query<Record<string, unknown>>(
+      `select organization_id, decided_at, decided_by, decision_idempotency_key,
+              decision_request_digest, enrollment_id
+         from bakery.worker_link_requests where id = $1`,
+      [request.requestId],
+    )).rows[0]!;
+    await fixture.pgDatabase.query(
+      `update bakery.worker_link_requests
+          set organization_id = null, decision = null, decided_at = null,
+              decided_by = null, decision_idempotency_key = null,
+              decision_request_digest = null, enrollment_id = null
+        where id = $1`,
+      [request.requestId],
+    );
+
+    let waiting: Promise<Response> | undefined;
+    await withPgTransaction(fixture.pgDatabase, async (approval) => {
+      await approval.query(
+        `update bakery.worker_link_requests
+            set organization_id = $2, decision = 'approved', decided_at = $3,
+                decided_by = $4, decision_idempotency_key = $5,
+                decision_request_digest = $6, enrollment_id = $7
+          where id = $1`,
+        [
+          request.requestId,
+          decided.organization_id,
+          decided.decided_at,
+          decided.decided_by,
+          decided.decision_idempotency_key,
+          decided.decision_request_digest,
+          decided.enrollment_id,
+        ],
+      );
+      waiting = poll(fixture, request.requestId, request.deviceSecret);
+      await new Promise((resolve) => setTimeout(resolve, 1_000));
+    });
+
+    const answer = await (await waiting!).json();
+    assertEquals(answer.state, "approved");
+    assertMatch(answer.linkCode, CODE);
+  }));
+
+Deno.test("a computer on an unsupported system cannot be approved, only declined", () =>
+  withWorkerFixture(async (fixture) => {
+    await clearLinkRateLimits(fixture);
+    const response = await publicPost(fixture, "/v1/worker/link-requests", {
+      ...MACHINE,
+      os: "macos",
+      architecture: "arm64",
+    });
+    assertEquals(response.status, 201, await response.clone().text());
+    const request = await response.json() as {
+      requestId: string;
+      deviceSecret: string;
+    };
+    const approved = await adminRequest(
+      fixture,
+      `/v1/worker-link-requests/${request.requestId}/approvals`,
+      { slots: 1, capabilities: ["git"] },
+      { idempotencyKey: crypto.randomUUID() },
+    );
+    assertEquals(approved.status, 409, await approved.clone().text());
+    assertEquals(
+      await problem(approved).then((body) => body.reason),
+      "unsupported_system",
+    );
+    assertEquals(
+      await (await poll(fixture, request.requestId, request.deviceSecret))
+        .json(),
+      { state: "pending" },
+    );
+    const declined = await adminRequest(
+      fixture,
+      `/v1/worker-link-requests/${request.requestId}/declines`,
+      {},
+      { idempotencyKey: crypto.randomUUID() },
+    );
+    assertEquals(declined.status, 200, await declined.clone().text());
+  }));
+
 Deno.test("a declined machine stops and can no longer be approved", () =>
   withWorkerFixture(async (fixture) => {
     await clearLinkRateLimits(fixture);
@@ -408,6 +504,14 @@ Deno.test("set up again returns the same one command for the machine", () =>
     const body = await repair.json();
     assertMatch(body.linkCode, CODE);
     assert(body.command.endsWith(`--code ${body.linkCode}`));
+    const repairInspection = await inspect(fixture, body.linkCode, {
+      architecture: "arm64",
+    });
+    assertEquals(repairInspection.status, 200);
+    assertEquals(
+      (await repairInspection.json()).repairsWorkerHostId,
+      workerHostId,
+    );
     const again = await registerWithLinkCode(
       fixture,
       body.linkCode,
@@ -416,6 +520,81 @@ Deno.test("set up again returns the same one command for the machine", () =>
     );
     assertEquals(again.status, 200, await again.clone().text());
     assertEquals((await again.json()).status, "updated");
+  }));
+
+Deno.test("a Claude machine enrolled before the tool gateway still registers and repairs with it", () =>
+  withWorkerFixture(async (fixture) => {
+    await clearLinkRateLimits(fixture);
+    const enrollment = await enrollForLink(fixture, {
+      name: "claude-box",
+      os: "linux",
+      architecture: "arm64",
+      capabilities: ["git", "claude"],
+    });
+    const before = await registerWithLinkCode(
+      fixture,
+      enrollment.linkCode,
+      workerCredential(),
+      { name: "claude-box", capabilities: ["git", "claude"] },
+    );
+    assertEquals(before.status, 200, await before.clone().text());
+    const { workerHostId } = await before.json();
+    fixture.workerHostIds.push(workerHostId);
+    const revoked = await adminRequest(
+      fixture,
+      `/v1/workers/${workerHostId}/revocations`,
+      {},
+      { idempotencyKey: crypto.randomUUID() },
+    );
+    assertEquals(revoked.status, 200, await revoked.clone().text());
+    const repair = await adminRequest(
+      fixture,
+      `/v1/workers/${workerHostId}/enrollments`,
+      {},
+      { idempotencyKey: crypto.randomUUID() },
+    );
+    assertEquals(repair.status, 201, await repair.clone().text());
+    const repaired = await registerWithLinkCode(
+      fixture,
+      (await repair.json()).linkCode,
+      workerCredential(),
+      { name: "claude-box", capabilities: ["git", "claude", "tool-gateway"] },
+    );
+    assertEquals(repaired.status, 200, await repaired.clone().text());
+    assertEquals((await repaired.json()).status, "updated");
+
+    const fresh = await enrollForLink(fixture, {
+      name: "claude-box-2",
+      capabilities: ["git", "claude"],
+    });
+    const registered = await registerWithLinkCode(
+      fixture,
+      fresh.linkCode,
+      workerCredential(),
+      {
+        name: "claude-box-2",
+        capabilities: ["git", "claude", "tool-gateway"],
+      },
+    );
+    assertEquals(registered.status, 200, await registered.clone().text());
+    fixture.workerHostIds.push((await registered.json()).workerHostId);
+  }));
+
+Deno.test("a machine enrolled without Claude cannot claim the tool gateway", () =>
+  withWorkerFixture(async (fixture) => {
+    await clearLinkRateLimits(fixture);
+    const enrollment = await enrollForLink(fixture, {
+      name: "codex-box",
+      capabilities: ["git", "codex"],
+    });
+    const refused = await registerWithLinkCode(
+      fixture,
+      enrollment.linkCode,
+      workerCredential(),
+      { name: "codex-box", capabilities: ["git", "codex", "tool-gateway"] },
+    );
+    assertEquals(refused.status, 422, await refused.clone().text());
+    assertEquals((await problem(refused)).code, "UNPROCESSABLE");
   }));
 
 Deno.test("the Bakery origin serves the link command as an npm tarball", () =>

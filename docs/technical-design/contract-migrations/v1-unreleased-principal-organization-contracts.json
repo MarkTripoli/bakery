@@ -1,13 +1,195 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "70cec2976e8bc36acf3c7689b53db580f9aa02f2"
+    "d3d57917f149ed2db7dae80fd30bc48f25e61eb0"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:dfb93dbcdaae42681e1df17a992922022317bdee693ea613c448d0cd4d5bb227",
-  "reason": "#975 approval notifications carry their outcome, by dev-server on 2026-11-24 under the owner's standing breaking-change authorization (2026-10-09), main 70cec2976e8bc36acf3c7689b53db580f9aa02f2: Notification gains a required approvalOutcome (how the approval ended and by whom, null when the destination is unavailable or the item is not an approval) so the inbox reads it in one call. No released client builds a Notification, so no caller sends the old shape.",
+  "targetCompatibilityDigest": "sha256:494e60e9587aa9c34654b1934db426431ce76def297af370a4ab564ff3fcb56c",
+  "reason": "Rebound onto main d3d57917: a secret may allow model.inference, the action a coding agent's model API key is released under (#70), and the worker reads its key from GET /v1/worker/attempts/{id}/model-key.",
   "priorApprovals": [
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "b4bf02407bdadc8b109b1ec3cab4f91233af2b86"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:430f74a08ee14e5b73d8dfd8f59f1f6225b351f58d13fa86ddd92fccb2df91c6",
+      "reason": "Rebound onto main b4bf0240: a secret can hold a coding agent model API key (anthropic, openai, openrouter); SecretMetadata.provider widens and the GitHub identity fields become nullable (#70)."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "73abaa09134da2dd7bc75b6faff32e31a15cf2ba"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:68e2e4f1029d8d60d39772d0e7d5d178c3962a4829be87e2297c5dd5c87c1c4b",
+      "reason": "#70 machine models read by dev-server on 2026-11-27 under the owner's standing breaking-change authorization (2026-10-09), main 73abaa09: adds machines.models and MachineModel."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "dfac7ed348849333360522d9cdba9afc0fd3bb5c"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:1ec459bf5ae9d35a0ed8c4b1ee4b7eab3e4ced338a43c23e26263b19131c87a1",
+      "reason": "#67 delivery.openPullRequest by dev-server on 2026-11-27 under the owner's standing breaking-change authorization (2026-10-09), main dfac7ed3: adds the delivery.openPullRequest workflow action and OpenPullRequestInput."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "eb0f10f8c8fd97a4e4663efe1b68c3b791e53c96"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:9a4b621950edc9002b59ed5995941988e7de3552225b20f921c43e4d2d072761",
+      "reason": "#67 pullRequests.open by dev-server on 2026-11-27 under the owner's standing breaking-change authorization (2026-10-09), main eb0f10f8: adds pullRequests.open and PullRequestOpen."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "0c0036071044f26f5e08f1f4e2d44c8ff05120d4"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:070b45b9314e52dcbf408223a33a00c3cc5799d2469a4d660948cbe150266825",
+      "reason": "#12 Slack removal by dev-server on 2026-11-27 under the owner's standing breaking-change authorization (2026-10-09), main 0c003607: IntegrationConnection gains removedBy."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "733031570eec6033bf1a00ef70efe0f8b6bdd5b5"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:9b65c56c63f5da75bdbc39b9f6df85df27e2269894d48b2d8a4e4893027c7c80",
+      "reason": "#57 merge requester by dev-server on 2026-11-27 under the owner's standing breaking-change authorization (2026-10-09), main 73303157: MergeEntry gains requestedBy and requestedByName."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "68987065d92dd1cd08e71d5183bd535941e0993f"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:37ddd6ede1b7e1bdddfe1cdd46be0f0a1cc0e81f1a28fbd589b6403aab6a8dd4",
+      "reason": "#12 connection health descriptions by dev-server on 2026-11-27 under the owner's standing breaking-change authorization (2026-10-09), main 68987065: IntegrationConnection gains health and grantedScopeNames; status and health descriptions say a missing scope shows only in health."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "46862400c88274fbfbce3ba06695a1cae0919e3d"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:3d408ef1eae1f833ed1bd09b5256aa291120d54d029665a15cd2a8beae7e8db6",
+      "reason": "#12 connection health and exact granted scope names by dev-server on 2026-11-27 under the owner's standing breaking-change authorization (2026-10-09), main 46862400: IntegrationConnection gains health and grantedScopeNames."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "d548b750fdd43b8f34e2a472515b22d0bfbebd72"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:224dd91d0460f916fbe50dc011dbe58e4350711786c0cec3adac5d49ecc7faf2",
+      "reason": "#409 S4 tasks without an application by dev-server on 2026-11-27 under the owner's standing breaking-change authorization (2026-10-09), main d548b750fdd43b8f34e2a472515b22d0bfbebd72: Task.applicationId becomes nullable and TaskCreate.applicationId optional, so a provider-neutral ticket source with no application creates tasks; a task with no application names no repository. The web reads the field as nullable in this PR."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "f9c1ef1f9240a85230080f1eddeb53537d515762"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:a667b25c30640cc23b2e5478b7a8f3022065d774392eacaad3b2f683939aff50",
+      "reason": "#458 Slack signing secret by dev-server on 2026-11-27 under the owner's standing breaking-change authorization (2026-10-09), main f9c1ef1f9240a85230080f1eddeb53537d515762: IntegrationClientCredentials gains a required, nullable signingSecretSavedAt (when the provider app's signing secret was saved, never the secret) and IntegrationClientCredentialsPut gains an optional write-only signingSecret, so Slack's signing secret is configured in the UI with the app registration. The web client and its test mocks in this PR carry the field."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "d041b89b69a41894e7a059daf3834debc662e09a"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:73834fa4bcbc8621befaf608164a4e3b65e638e330df12d01475e21f437ca44d",
+      "reason": "#458 Slack signing secret by dev-server on 2026-11-26 under the owner's standing breaking-change authorization (2026-10-09), main d041b89b69a41894e7a059daf3834debc662e09a: IntegrationClientCredentials gains a required, nullable signingSecretSavedAt (when the provider app's signing secret was saved, never the secret) and IntegrationClientCredentialsPut gains an optional write-only signingSecret, so Slack's signing secret is configured in the UI with the app registration. The web client and its test mocks in this PR carry the field."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "a6a33fa18fb838e462f67f831e0892b0fbaca861"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:69dc7039ce4346b5f82d2c89a7b45be58d3a300179d75760d33cfabcb07708f2",
+      "reason": "#458 run-page lines by dev-server on 2026-11-26 under the owner's standing breaking-change authorization (2026-10-09), main a6a33fa18fb838e462f67f831e0892b0fbaca861: RunRequest gains nextAsk (RunRequestNextAsk: dueAt, askedAt, who) and passedOn, read-only fields that say whom a waiting step asks next and when, and mark the request that next ask made."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "3b78d91be1112f11894eec624cc990b0bf94d344"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:4263d62fe87eff3bef2a814da4aa73e6153d1653c6003b969d47e9f4b64c8492",
+      "reason": "#458 contract bounds by dev-server on 2026-11-26 under the owner's standing breaking-change authorization (2026-10-09), main 3b78d91be1112f11894eec624cc990b0bf94d344: the generator now honours bounds spelled minimum/maximum, so BlobUploadStart.sizeBytes is at least 0 (an upload over 5 GiB still reaches its handler and answers 413 BODY_TOO_LARGE) and WorkerMaintenanceCreate.expectedInventoryRevision and WorkerMaintenanceReport.sequence are at least 1. Values outside them were never valid. Response schemas also gain the bounds their definitions declared (SkillFileManifestEntry path and size, ValidationIssue lengths, Problem title and detail, PinnedContextInput and StepContextInput size, CommentContext bytes, IntegrationCapability permissions and schema bytes); every producer already stays inside them, and the worker trims fault text to the Problem limits before it sends a result. Decimal amounts keep their range in the handler (budgetLimitUsd stays a 422 budget_limit_invalid) and name it in their description."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "f12807319179f32b96bb509a4b61cfa2beb76eb1"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:923ae300943dcf274794156ecb4f89223c16bbaf682f0b7703ec72b480450558",
+      "reason": "#70 slice 6 machine work read by dev-server on 2026-11-25 under the owner's standing breaking-change authorization (2026-10-09), main f12807319179f32b96bb509a4b61cfa2beb76eb1: WorkerHost gains a required activeAttemptCount, the live-lease slot occupancy the scheduler admits against, and workerAttempts.list returns one machine's attempts by state. No client has been released that builds a WorkerHost, and the web test mocks in this PR carry the field."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "6598ad95761856f0520b656e4abc1dc4ba4ae4d6"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:a3e493119604f361c23da81f325627e5828c3db4aeda7a041762f8261063242d",
+      "reason": "#70 slice 6 machine work read by dev-server on 2026-11-25 under the owner's standing breaking-change authorization (2026-10-09), main 6598ad95761856f0520b656e4abc1dc4ba4ae4d6: WorkerHost gains a required activeAttemptCount, the live-lease slot occupancy the scheduler admits against, and workerAttempts.list returns one machine's attempts by state. No client has been released that builds a WorkerHost, and the web test mocks in this PR carry the field."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "237679781fba4bf622a1a5aa66e9eee1c956e9c6",
+        "b2d43f5341ad9fa9fcc71d64202440231fb97c4f"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:e892eef376c870b79b8210829a682fe4e86b972d76769e2235fc5611823953f9",
+      "reason": "#60 W2 plan approval by dev-workflows on 2026-11-24 under the owner's standing breaking-change authorization (2026-10-09), main 237679781fba4bf622a1a5aa66e9eee1c956e9c6: Approval gains a required mayDecide (true when the person may decide that approval now: a human with approval:decide in the approval's audience while it is open, or after it expired while its plan revision or run stage is still current), so the web shows decision buttons only to people who can use them. A person who decides an expired approval whose plan or run stage is still current is served a new approval, and the old one stays expired. No client has been released that builds an Approval, so no caller sends the old shape."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "b2d43f5341ad9fa9fcc71d64202440231fb97c4f",
+        "bcf250d9b43bacc274e8054b81cb02a2bf5c9843"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:da4e6483b255d84e1026de9d528ed29eec7f66cbf2c91a13ee098fae305b27d4",
+      "reason": "#407 batch workflow under the owner's standing breaking-change authorization (2026-10-09), main b2d43f5341ad9fa9fcc71d64202440231fb97c4f: BatchCreate.presetId becomes a required field (fixed-coding or fixed-coding-reviewed), because a batch start admitted every issue with no workflow and #407 made that a refusal; Batch gains presetId, null for a batch started before the workflow was stored. No other contract shape changed by this branch. The #975 approval bound to main 70cec2976e8bc36acf3c7689b53db580f9aa02f2 stays below as history."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "70cec2976e8bc36acf3c7689b53db580f9aa02f2"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:dfb93dbcdaae42681e1df17a992922022317bdee693ea613c448d0cd4d5bb227",
+      "reason": "#975 approval notifications carry their outcome, by dev-server on 2026-11-24 under the owner's standing breaking-change authorization (2026-10-09), main 70cec2976e8bc36acf3c7689b53db580f9aa02f2: Notification gains a required approvalOutcome (how the approval ended and by whom, null when the destination is unavailable or the item is not an approval) so the inbox reads it in one call. No released client builds a Notification, so no caller sends the old shape."
+    },
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [

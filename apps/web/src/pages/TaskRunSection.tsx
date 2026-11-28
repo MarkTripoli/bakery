@@ -37,12 +37,16 @@ import {
 } from "./RunRules.tsx";
 import { stepTimelineEvents, stepTitle } from "./task-timeline.ts";
 import { TaskRunSectionView } from "./task-run-section-view.tsx";
+import { runOutcome, stepName } from "./task-step-approval/model.ts";
+import { useStepApproval } from "./task-step-approval/use-step-approval.ts";
 import { LINK_SLOT, withLink } from "./with-link.tsx";
 import { DeliverySection } from "./task-delivery/DeliverySection.tsx";
+import { stoppedAtLimit } from "./task-delivery/model.ts";
 import { focusMessageField } from "./task-delivery/focus-message.ts";
 import { HandOver } from "./task-handover/HandOver.tsx";
 import { useHandoverEvents } from "./task-handover/use-handover-events.ts";
 import { RouteWaiting } from "./task-waiting/RouteWaiting.tsx";
+import { WaitingFor } from "./task-waiting/WaitingFor.tsx";
 import { stepRowCopy } from "./task-waiting/model.ts";
 import { useWaitingOffers } from "./task-waiting/use-waiting-offers.ts";
 
@@ -91,6 +95,7 @@ const RUN_TONES = {
   completed: "success",
   failed: "danger",
   blocked: "warning",
+  needs_human: "warning",
 } as const;
 
 /** Where the server caps the tasks a blocked run names (work/run-query.ts). */
@@ -164,17 +169,23 @@ function BlockedNotice(
 
 /** Read the task's authoritative current run, never infer one from list order. */
 export function TaskRunSection(
-  { taskId, runId, enabled, connectivity = "online", artifacts, landingStepId }:
-    {
-      taskId: string;
-      runId: string;
-      enabled: boolean;
-      /** The step a notification opened: selected once, paging forward to find it. */
-      landingStepId?: string | null;
-      /** Sync connectivity; anything but `online` shows as a banner, never a row. */
-      connectivity?: DurableSyncConnectivity;
-      artifacts?: ReactNode;
-    },
+  {
+    taskId,
+    runId,
+    enabled,
+    connectivity = "online",
+    artifacts,
+    landingStepId,
+    onReviewStep,
+  }: {
+    onReviewStep?: () => void;
+    taskId: string;
+    runId: string;
+    enabled: boolean;
+    landingStepId?: string | null;
+    connectivity?: DurableSyncConnectivity;
+    artifacts?: ReactNode;
+  },
 ) {
   const api = useBakeryApi();
   const scope = useProtectedScope();
@@ -182,6 +193,14 @@ export function TaskRunSection(
   const { translate: t, locale, timeZone } = useI18n();
   const online = useConnectivity() === "online";
   const [outputStepId, setOutputStepId] = useState<string | null>(null);
+  const [changed, setChanged] = useState<
+    { readonly runId: string; readonly files: number } | null
+  >(null);
+  const reportFiles = useCallback(
+    (files: number | null) =>
+      setChanged(files === null ? null : { runId, files }),
+    [runId],
+  );
   const [cursors, setCursors] = useState<(string | undefined)[]>([undefined]);
   const authority =
     `${scope.sessionGeneration}:${scope.organizationId}:${taskId}:${runId}`;
@@ -220,6 +239,16 @@ export function TaskRunSection(
   const waitingOffers = waiting.offers;
   // A failed read of the choices still leaves the run waiting on a model.
   const waitingOnModel = waitingOffers.length > 0 || waiting.failed;
+  const stepApproval = useStepApproval(taskId, runId);
+  const waitingOnYou = enabled && stepApproval.approval?.mayDecide === true;
+  const waitingOnOthers = enabled && stepApproval.approval !== null &&
+    !waitingOnYou;
+  const approvalStepName = stepName(stepApproval.step?.stepKey ?? null);
+  const outcome = runOutcome(stepApproval.latest, run.data?.status);
+  const outcomePerson = outcome === null
+    ? null
+    : stepApproval.nameOf(outcome.decidedBy) ??
+      t("tasks.stepApproval.outcome.someone");
   const stepLanded = useRef(false);
   useEffect(() => {
     if (!landingStepId || stepLanded.current || !steps.data) return;
@@ -247,7 +276,8 @@ export function TaskRunSection(
         | "completed"
         | "failed"
         | "skipped"
-        | "canceled";
+        | "canceled"
+        | "needs_human";
     } | null
   >(null);
   const cursor = cursors.at(-1);
@@ -264,7 +294,10 @@ export function TaskRunSection(
       );
       const latest = changed.at(-1);
       if (latest) {
-        setStepUpdate({ name: latest.stepKey, status: latest.status });
+        setStepUpdate({
+          name: stepName(latest.stepKey),
+          status: latest.status,
+        });
       }
     } else {
       setStepUpdate(null);
@@ -313,12 +346,14 @@ export function TaskRunSection(
         ? (
           <SessionRunNow
             source={runningSource}
-            stepName={otherRunning ? runningStepKey : undefined}
+            stepName={otherRunning && runningStepKey !== undefined
+              ? stepTitle(t, runningStepKey)
+              : undefined}
             onSelect={selectRunning}
           />
         )
         : null,
-    [runningSource, otherRunning, runningStepKey, selectRunning],
+    [runningSource, otherRunning, runningStepKey, selectRunning, t],
   );
   const nowLinePublished = usePublishNowLine(nowLine);
   const usageAuthority = `${authority}:${selectedStepId}`;
@@ -345,7 +380,9 @@ export function TaskRunSection(
     enabled: validRun && run.data !== undefined,
   });
   const stepNames = new Map(
-    (steps.data?.items ?? []).map((step) => [step.id, step.stepKey] as const),
+    (steps.data?.items ?? []).map((step) =>
+      [step.id, stepName(step.stepKey)] as const
+    ),
   );
   const showRulesDetails = () => {
     const details = document.getElementById("run-details");
@@ -363,6 +400,42 @@ export function TaskRunSection(
   const runLine = (() => {
     if (!validRun || !run.data) return null;
     const current = run.data;
+    if (outcome !== null && outcomePerson !== null) {
+      return (
+        <UI.Text data-placement="line">
+          {outcome.decision === "reject"
+            ? t("tasks.stepApproval.outcome.rejected", {
+              name: outcomePerson,
+              step: approvalStepName,
+            })
+            : outcome.note === ""
+            ? t("tasks.stepApproval.outcome.changes", { name: outcomePerson })
+            : t("tasks.stepApproval.outcome.changesNote", {
+              name: outcomePerson,
+              note: outcome.note,
+            })}
+        </UI.Text>
+      );
+    }
+    if (waitingOnYou && online) {
+      return (
+        <>
+          <UI.Text data-placement="line">
+            {t("tasks.stepApproval.line", { step: approvalStepName })}
+          </UI.Text>
+          <UI.Button onClick={onReviewStep}>
+            {t("tasks.stepApproval.review", { step: approvalStepName })}
+          </UI.Button>
+        </>
+      );
+    }
+    if (waitingOnOthers && online) {
+      return (
+        <UI.Text data-placement="line">
+          {t("tasks.stepApproval.refusal.outside")}
+        </UI.Text>
+      );
+    }
     if (!online) {
       return (
         <UI.Text data-placement="line">{t("tasks.controls.offline")}</UI.Text>
@@ -390,9 +463,13 @@ export function TaskRunSection(
       case "blocked":
         return <BlockedNotice run={current} />;
       case "failed":
-        return (
-          <UI.Text data-placement="line">{t("tasks.run.line.failed")}</UI.Text>
-        );
+        return stoppedAtLimit(current.limitStop)
+          ? null
+          : (
+            <UI.Text data-placement="line">
+              {t("tasks.run.line.failed")}
+            </UI.Text>
+          );
       case "canceled":
         return (
           <UI.Text data-placement="line">
@@ -422,17 +499,23 @@ export function TaskRunSection(
         const whole = Math.round(lasted / 1000);
         return (
           <UI.Text data-placement="line">
-            {t("tasks.run.line.finished", {
-              steps: steps.data.items.length,
-              duration: lasted < 1000
-                ? t("tasks.run.duration.instant")
-                : whole < 60
-                ? t("tasks.run.duration.seconds", { seconds: whole })
-                : t("tasks.run.duration.minutes", {
-                  minutes: Math.floor(whole / 60),
-                  seconds: whole % 60,
-                }),
-            })}
+            {t(
+              changed?.runId === runId
+                ? "tasks.run.line.finishedFiles"
+                : "tasks.run.line.finished",
+              {
+                files: changed?.runId === runId ? changed.files : 0,
+                steps: steps.data.items.length,
+                duration: lasted < 1000
+                  ? t("tasks.run.duration.instant")
+                  : whole < 60
+                  ? t("tasks.run.duration.seconds", { seconds: whole })
+                  : t("tasks.run.duration.minutes", {
+                    minutes: Math.floor(whole / 60),
+                    seconds: whole % 60,
+                  }),
+              },
+            )}
           </UI.Text>
         );
       }
@@ -470,7 +553,9 @@ export function TaskRunSection(
       ].reverse()
       : null;
   const folds = stepEvents !== null && run.data !== undefined &&
-    ["completed", "failed", "canceled", "paused"].includes(run.data.status) &&
+    ["completed", "failed", "canceled", "needs_human", "paused"].includes(
+      run.data.status,
+    ) &&
     stepEvents.length > 3;
   const timelineProps = {
     label: t("tasks.run.timeline"),
@@ -497,16 +582,25 @@ export function TaskRunSection(
             {validRun && run.data
               ? (
                 <UI.Badge
-                  tone={waitingOnModel ? "warning" : RUN_TONES[run.data.status]}
+                  tone={outcome !== null
+                    ? outcome.decision === "reject" ? "danger" : "warning"
+                    : waitingOnModel || waitingOnYou
+                    ? "warning"
+                    : RUN_TONES[run.data.status]}
                 >
-                  {waitingOnModel
+                  {outcome !== null
+                    ? t(`tasks.stepApproval.outcome.badge.${outcome.decision}`)
+                    : waitingOnYou
+                    ? t("tasks.stepApproval.badge")
+                    : waitingOnModel
                     ? t("tasks.waiting.badge")
                     : t(`tasks.run.status.${run.data.status}`)}
                 </UI.Badge>
               )
               : null}
             {runLine}
-            {validRun && run.data && run.data.status !== "blocked"
+            {validRun && run.data && run.data.status !== "blocked" &&
+                outcome === null
               ? (
                 <TaskRunControls
                   key={`${scope.sessionGeneration}:${scope.organizationId}:${taskId}:${runId}`}
@@ -528,6 +622,16 @@ export function TaskRunSection(
               )
               : null}
           </UI.Inline>
+          {activeRun && run.data !== undefined &&
+              !["completed", "canceled"].includes(run.data.status)
+            ? (
+              <WaitingFor
+                runFailed={run.data.status === "failed"}
+                runId={runId}
+                steps={steps.data?.items ?? []}
+              />
+            )
+            : null}
           {steeringUnsupported && (
             <UI.InlineNotice
               tone="information"
@@ -573,7 +677,9 @@ export function TaskRunSection(
             {validRun && run.data
               ? (
                 <>
-                  {t("tasks.run.heading")}: {waitingOnModel
+                  {t("tasks.run.heading")}: {outcome !== null
+                    ? t(`tasks.stepApproval.outcome.badge.${outcome.decision}`)
+                    : waitingOnModel
                     ? t("tasks.waiting.badge")
                     : t(`tasks.run.status.${run.data.status}`)}
                   {stepUpdate && !steps.isError && !invalidSteps
@@ -694,6 +800,7 @@ export function TaskRunSection(
           !steps.isPending && !steps.isError && !invalidSteps
         ? (
           <TaskRunRevision
+            onFiles={reportFiles}
             taskId={taskId}
             runId={runId}
             baseSha={run.data.workspaceBaseSha ?? run.data.baseSha}
@@ -704,10 +811,12 @@ export function TaskRunSection(
       delivery={activeRun && run.data
         ? (
           <DeliverySection
+            key={runId}
             taskId={taskId}
             runId={runId}
             enabled={activeRun}
             baseSha={run.data.workspaceBaseSha ?? run.data.baseSha}
+            limitStop={run.data.limitStop}
             paused={run.data.status === "paused"}
             offline={connectivity === "offline" ||
               connectivity === "reconnecting"}
@@ -777,7 +886,7 @@ export function TaskRunSection(
                           value={selectedStepId}
                           options={steps.data.items.map((step) => ({
                             value: step.id,
-                            label: step.stepKey,
+                            label: stepTitle(t, step.stepKey),
                           }))}
                           onChange={(event) =>
                             setOutputStepId(event.target.value)}

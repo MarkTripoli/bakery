@@ -2,6 +2,7 @@
   "status": "approved action catalog for implementation; routes remain unimplemented",
   "accessPolicies": [
     "Admin",
+    "Any member linking self",
     "Authenticated",
     "Authenticated principal",
     "Authenticated principal allowed to create organizations",
@@ -942,6 +943,27 @@
         "SCOPE_REQUIRED",
         "RESOURCE_NOT_FOUND",
         "INVALID_CURSOR",
+        "MALFORMED_REQUEST"
+      ]
+    },
+    {
+      "group": "Work",
+      "method": "GET",
+      "path": "/v1/runs/{id}/steps/{stepKey}/given",
+      "action": "runSteps.given",
+      "access": "Developer",
+      "permission": "runStep:read",
+      "organizationContext": "required_authenticated_context",
+      "input": "IdPath",
+      "output": "StepGiven",
+      "event": "",
+      "mcp": "bakery_runSteps_given",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
         "MALFORMED_REQUEST"
       ]
     },
@@ -3074,7 +3096,7 @@
       "output": "SkillDraft",
       "event": "",
       "mcp": null,
-      "idempotency": "natural; the same draft comes back",
+      "idempotency": "Idempotency-Key; opening again with a new key returns the same draft",
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
@@ -5656,6 +5678,50 @@
     },
     {
       "group": "Workers",
+      "method": "GET",
+      "path": "/v1/workers/{id}/attempts",
+      "action": "workerAttempts.list",
+      "access": "Developer",
+      "permission": "worker:read",
+      "input": "WorkerAttemptListQuery",
+      "output": "Page<WorkerAttemptRead>",
+      "event": "",
+      "mcp": "bakery_workerAttempts_list",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Workers",
+      "method": "GET",
+      "path": "/v1/workers/{id}/models",
+      "action": "machines.models",
+      "access": "Developer",
+      "permission": "worker:read",
+      "input": "CursorQuery",
+      "output": "Page<MachineModel>",
+      "event": "",
+      "mcp": null,
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Workers",
       "method": "POST",
       "path": "/v1/worker-enrollments",
       "action": "workers.enroll",
@@ -6128,8 +6194,11 @@
       "idempotency": "Read; opaque cursor pagination",
       "errors": [
         "AUTH_REQUIRED",
-        "AUTH_FORBIDDEN"
-      ]
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context"
     },
     {
       "group": "Providers",
@@ -6813,6 +6882,28 @@
         "BODY_TOO_LARGE",
         "PRECONDITION_FAILED",
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "LEASE_EXPIRED",
+        "LEASE_FENCED"
+      ]
+    },
+    {
+      "group": "Worker protocol",
+      "method": "GET",
+      "path": "/v1/worker/attempts/{id}/model-key",
+      "action": "worker.modelKey",
+      "access": "Worker+lease",
+      "permission": null,
+      "input": "IdPath",
+      "output": "WorkerModelKey",
+      "event": "",
+      "mcp": null,
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
         "LEASE_EXPIRED",
         "LEASE_FENCED"
       ]
@@ -7757,6 +7848,60 @@
         "MALFORMED_REQUEST"
       ],
       "implemented": true
+    },
+    {
+      "group": "Delivery",
+      "method": "POST",
+      "path": "/v1/tasks/{id}/pull-requests",
+      "action": "pullRequests.register",
+      "access": "Developer",
+      "permission": "pullRequest:register",
+      "input": "PullRequestRegistrationCreate",
+      "output": "PullRequest",
+      "event": "",
+      "mcp": "bakery_pullRequests_register",
+      "idempotency": "Idempotency-Key required; exact payload retries replay the committed response",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "DEPENDENCY_UNAVAILABLE",
+        "DEPENDENCY_TIMEOUT",
+        "PROVIDER_QUOTA_EXCEEDED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Delivery",
+      "method": "POST",
+      "path": "/v1/tasks/{id}/pull-requests/open",
+      "action": "pullRequests.open",
+      "access": "Developer",
+      "permission": "pullRequest:register",
+      "input": "PullRequestOpen",
+      "output": "PullRequest",
+      "event": "",
+      "mcp": "bakery_pullRequests_open",
+      "idempotency": "Idempotency-Key required; exact payload retries replay the committed response, and a retry after an unknown answer finds the pull request already open on that branch",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "DEPENDENCY_UNAVAILABLE",
+        "DEPENDENCY_TIMEOUT",
+        "PROVIDER_QUOTA_EXCEEDED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context"
     },
     {
       "group": "Delivery",
@@ -9545,6 +9690,32 @@
     {
       "group": "Integration setup",
       "method": "GET",
+      "path": "/v1/integration-auth/:provider/callback",
+      "action": "integrationAuth.providerCallback",
+      "access": "Bound browser auth attempt",
+      "permission": null,
+      "input": "OAuthCallback",
+      "output": "AuthRedirect",
+      "event": "integration.auth_attempt_changed",
+      "mcp": null,
+      "idempotency": "single-use state hash + provider code; no Idempotency-Key",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "SESSION_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "DEPENDENCY_UNAVAILABLE",
+        "INTERNAL"
+      ],
+      "organizationContext": "derived_bound_auth_attempt"
+    },
+    {
+      "group": "Integration setup",
+      "method": "GET",
       "path": "/v1/integration-auth/github/setup",
       "action": "integrationAuth.setup",
       "access": "Bound browser auth attempt",
@@ -9586,6 +9757,83 @@
         "DEPENDENCY_UNAVAILABLE"
       ],
       "organizationContext": "derived_bound_auth_attempt"
+    },
+    {
+      "group": "Integration identity",
+      "method": "GET",
+      "path": "/v1/me/slack-link",
+      "action": "mySlackLink.get",
+      "access": "Any member linking self",
+      "permission": "ownIdentityLink:read",
+      "input": "Empty",
+      "output": "MySlackLink",
+      "event": "",
+      "mcp": null,
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Integration identity",
+      "method": "POST",
+      "path": "/v1/me/slack-link/attempts",
+      "action": "mySlackLinkAttempts.create",
+      "access": "Any member linking self",
+      "permission": "ownIdentityLink:write",
+      "input": "Empty",
+      "output": "MySlackLinkAttemptCreated",
+      "event": "",
+      "mcp": null,
+      "idempotency": "none; each call supersedes the member's earlier pending attempt for the workspace",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED",
+        "STATE_CONFLICT",
+        "DEPENDENCY_UNAVAILABLE"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Integration identity",
+      "method": "DELETE",
+      "path": "/v1/me/slack-link",
+      "action": "mySlackLink.delete",
+      "access": "Any member linking self",
+      "permission": "ownIdentityLink:write",
+      "input": "Empty",
+      "output": "MySlackLink",
+      "event": "integration.identity_link_changed",
+      "mcp": null,
+      "idempotency": "natural; repeating it returns the same read with state not_linked",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context"
     },
     {
       "group": "Installation administration",
@@ -10911,7 +11159,7 @@
       "output": "BlobUploadSession",
       "event": "",
       "mcp": "bakery_blobUploads_start",
-      "idempotency": "None: each call opens a new session, and a retry that completes twice stores nothing (recordBlob is insert-on-conflict)",
+      "idempotency": "Idempotency-Key; a new key opens a new session, and a retry that completes twice stores nothing (recordBlob is insert-on-conflict)",
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
@@ -10933,7 +11181,7 @@
       "output": "BlobUploadSession",
       "event": "",
       "mcp": "bakery_blobUploads_part",
-      "idempotency": "Natural: a part is keyed by its ordinal, so a retry replaces the same row rather than appending",
+      "idempotency": "Idempotency-Key; a part is keyed by its ordinal, so a retry with a new key replaces the same row rather than appending",
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
@@ -10957,7 +11205,7 @@
       "output": "Blob",
       "event": "",
       "mcp": "bakery_blobUploads_complete",
-      "idempotency": "Natural: completing an already-completed session answers with the blob it produced, so a client that never saw the first response can retry safely; recordBlob is insert-on-conflict-do-nothing, so the bytes are stored once",
+      "idempotency": "Idempotency-Key; completing an already-completed session answers with the blob it produced, and recordBlob is insert-on-conflict-do-nothing, so the bytes are stored once",
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
@@ -14337,7 +14585,7 @@
       "output": "MergeAttempt",
       "event": "merge.dispatched",
       "mcp": "bakery_pullRequests_merge",
-      "idempotency": "natural",
+      "idempotency": "Idempotency-Key; the same key answers with the first merge attempt",
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
@@ -14361,7 +14609,7 @@
       "output": "MergeReconciliation",
       "event": "merge.reconciled",
       "mcp": "bakery_mergeAttempts_reconcile",
-      "idempotency": "natural",
+      "idempotency": "Idempotency-Key; a new key reconciles again",
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
@@ -14414,6 +14662,51 @@
         "AUTH_FORBIDDEN",
         "SCOPE_REQUIRED",
         "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST"
+      ]
+    },
+    {
+      "group": "Work",
+      "mcp": null,
+      "organizationContext": "required_authenticated_context",
+      "access": "Developer",
+      "permission": "run:read",
+      "method": "GET",
+      "path": "/v1/runs/{id}/access",
+      "action": "runAccess.list",
+      "input": "RunAccessQuery",
+      "output": "RunAccessList",
+      "event": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST"
+      ]
+    },
+    {
+      "group": "Work",
+      "mcp": null,
+      "organizationContext": "required_authenticated_context",
+      "access": "Developer",
+      "permission": "runRequest:write",
+      "method": "POST",
+      "path": "/v1/runs/{id}/access/{principalId}/remove",
+      "action": "runAccess.remove",
+      "input": "Empty",
+      "output": "RunAccessRemoval",
+      "event": "",
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "PRECONDITION_FAILED",
+        "PRECONDITION_REQUIRED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
         "MALFORMED_REQUEST"
       ]
     },

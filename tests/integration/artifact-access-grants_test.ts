@@ -252,7 +252,38 @@ Deno.test("a document grant opens that document, comments and nothing else", asy
     await t.step(
       "the grant opens the document and its comments only",
       async () => {
+        const taskTitle = `Task only its team may name ${crypto.randomUUID()}`;
+        await db.query("update bakery.tasks set title = $1 where id = $2", [
+          taskTitle,
+          f.taskId,
+        ]);
         const read = await as(ana, `/v1/artifacts/${artifact}`);
+        const opened = await json<{ taskTitle?: string }>(read.clone(), 200);
+        assertEquals(opened.taskTitle, undefined);
+        const byTaskReader = await json<{ taskTitle?: string }>(
+          await as(writer, `/v1/artifacts/${artifact}`),
+          200,
+        );
+        assertEquals(byTaskReader.taskTitle, taskTitle);
+        assert(!JSON.stringify(opened).includes(taskTitle));
+        const versions = await json<
+          { items: { authorId: string; authorName?: string | null }[] }
+        >(
+          await as(ana, `/v1/artifacts/${artifact}/versions?limit=5`),
+          200,
+        );
+        const publishers =
+          (await db.query<{ id: string; display_name: string }>(
+            "select id, display_name from bakery.principals where id = any($1)",
+            [versions.items.map((item) => item.authorId)],
+          )).rows;
+        for (const item of versions.items) {
+          assertEquals(
+            item.authorName,
+            publishers.find((p: { id: string }) => p.id === item.authorId)
+              ?.display_name,
+          );
+        }
         assertEquals(read.status, 200, await read.text());
         assertEquals(
           await status(
@@ -272,6 +303,36 @@ Deno.test("a document grant opens that document, comments and nothing else", asy
           { method: "POST", body: { body: "Looks right to me." } },
         );
         assertEquals(posted.status, 201, await posted.text());
+        const listed = await json<
+          { items: { authorId: string; authorName?: string | null }[] }
+        >(
+          await as(ana, `/v1/artifact-versions/${version}/comments?limit=50`),
+          200,
+        );
+        const names = (await db.query<{ id: string; display_name: string }>(
+          "select id, display_name from bakery.principals where id = any($1)",
+          [listed.items.map((item) => item.authorId)],
+        )).rows;
+        assert(listed.items.length > 0);
+        for (const item of listed.items) {
+          assertEquals(
+            item.authorName,
+            names.find((n: { id: string }) => n.id === item.authorId)
+              ?.display_name,
+          );
+        }
+        const outsider = await person("Zed", "member");
+        for (
+          const path of [
+            `/v1/artifacts/${artifact}`,
+            `/v1/artifacts/${artifact}/versions?limit=50`,
+            `/v1/artifact-versions/${version}/comments?limit=50`,
+          ]
+        ) {
+          const text = await (await as(ana, path)).text();
+          assert(!text.includes(outsider.principalId), path);
+          assert(!text.includes(`Zed ${tag}`), path);
+        }
         // Not the task, not publishing, not resharing, not the grant list's writes.
         assertDenied(await status(await as(ana, `/v1/tasks/${f.taskId}`)));
         // The editor is closed at read_comment and open at edit: opening a draft
@@ -518,13 +579,19 @@ Deno.test("a document grant opens that document, comments and nothing else", asy
             targetKind: string;
             path: string;
             anchor: string | null;
+            sharedByName?: string;
+            sharedAt?: string;
           }
         >(await as(cy, `/v1/notifications/${item.id}/target`), 200);
-        assertEquals(target, {
+        const { sharedAt, ...route } = target;
+        assert(sharedAt !== undefined, "the target says when it was shared");
+        assertEquals(route, {
           status: "available",
           targetKind: "comment",
-          path: `/files/versions/${version}`,
+          path:
+            `/shared/documents/${artifact}?version=${version}&comment=${posted.id}`,
           anchor: `comment:${posted.id}`,
+          sharedByName: "Comments",
         });
         // A plain comment notification for the same person and document is not a
         // mention: it must survive the Undo.

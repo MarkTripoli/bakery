@@ -330,7 +330,8 @@ export async function ensurePresetWorkflowVersion(
   if (version.status !== "published") conflict("workflow_not_published");
   await transaction.query(
     `update bakery.workflow_definitions
-        set active_version_id = $3, updated_at = now(), version = version + 1
+        set active_version_id = $3, active_version_set_at = now(),
+            updated_at = now(), version = version + 1
       where organization_id = $1 and id = $2 and active_version_id is null`,
     [organizationId, workflowId, version.id],
   );

@@ -35,6 +35,8 @@ Deno.test("a tag step input is refused before anything is read", async () => {
       { intent: "fyi", recipientId: person, wait: true },
       { intent: "approve", recipientId: person },
       { intent: "fyi", recipientRunRole: "seat_owner" },
+      { intent: "review", recipientId: person, onExpiry: "continue" },
+      { intent: "review", recipientId: person, wait: true, onExpiry: "later" },
     ]
   ) {
     const result = await runner.run(request(input));
@@ -46,13 +48,13 @@ Deno.test("a tag step input is refused before anything is read", async () => {
   }
 });
 
-Deno.test("a tag step waits up to a day past its request's seven days, looked at each minute", () => {
+Deno.test("a tag step waits up to a day past its request's seven days plus the longest wait before asking next, looked at each minute", () => {
   const runner = createPeopleTagStepRunner({ database: unreachable });
   assertEquals(runner.handles("people.tag"), true);
   assertEquals(runner.handles("coordination.split"), false);
   assertEquals(PEOPLE_TAG_PACING, {
     retryMs: 60_000,
-    waitLimitMs: 8 * 86_400_000,
+    waitLimitMs: 8 * 86_400_000 + 72 * 3_600_000,
   });
   const other: EngineStepRunner = {
     handles: (action) => action === "tool.call",

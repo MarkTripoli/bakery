@@ -848,6 +848,25 @@ export function readPlanAgents(
 }
 
 /** The dispatch the engine recorded for a plan step, as much as a job is built from. */
+const PLAN_DISPATCH_LIMIT_KEYS: ReadonlySet<string> = new Set([
+  "maxDurationMs",
+  "maxCostUsd",
+  "maxFindings",
+]);
+
+function isPlanDispatchLimits(value: unknown): value is Record<string, number> {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return false;
+  }
+  return Object.entries(value).every(([key, entry]) =>
+    PLAN_DISPATCH_LIMIT_KEYS.has(key) &&
+    typeof entry === "number" &&
+    Number.isFinite(entry) &&
+    entry >= 0 &&
+    (key === "maxCostUsd" || Number.isSafeInteger(entry))
+  );
+}
+
 export type PlanDispatch = Readonly<{
   action: string;
   input: unknown;
@@ -856,6 +875,7 @@ export type PlanDispatch = Readonly<{
   /** Input slots the step declared, each with the value the engine resolved. */
   inputs?: readonly Readonly<{ slot: string; value: unknown }>[];
   retry: Readonly<{ maxAttempts: number }>;
+  limits?: Readonly<Record<string, number>>;
 }>;
 
 /**
@@ -888,6 +908,8 @@ export function planDispatchFromRow(value: unknown): PlanDispatch {
           typeof (entry as JsonRecord).slot !== "string" ||
           !Object.hasOwn(entry as JsonRecord, "value")
         ))) ||
+    (record.limits !== undefined &&
+      !isPlanDispatchLimits(record.limits)) ||
     retry === null || typeof retry !== "object" || Array.isArray(retry) ||
     !Number.isSafeInteger((retry as JsonRecord).maxAttempts) ||
     Number((retry as JsonRecord).maxAttempts) < 1
@@ -905,6 +927,9 @@ export function planDispatchFromRow(value: unknown): PlanDispatch {
         value: entry.value,
       })),
     }),
+    ...(record.limits === undefined
+      ? {}
+      : { limits: { ...(record.limits as Record<string, number>) } }),
     retry: { maxAttempts: Number((retry as JsonRecord).maxAttempts) },
   };
 }

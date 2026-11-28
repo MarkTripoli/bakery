@@ -25,19 +25,30 @@ import {
   connectionHealth,
   type ConnectionStatus,
   permissionsOf,
+  scopeNamesOf,
   setupSteps,
 } from "./model.ts";
 import type { ConnectionOutcome } from "./outcomes.ts";
 import { useConnectionActions } from "./use-connection.ts";
-import { PROVIDER_IDENTITY, useProviderConnect } from "./providers/index.ts";
+import { SlackOwnLinkNotice } from "./providers/slack/SlackOwnLinkNotice.tsx";
+import {
+  type ConnectOptions,
+  hasHealthCheck,
+  hasSetupPages,
+  PROVIDER_IDENTITY,
+  providerLook,
+  useOAuthConnect,
+  useProviderConnect,
+} from "./providers/index.ts";
 
 const INTEGRATIONS_PATH = "/settings/organization/integrations";
 
 /** One connection's own page. */
 export function ConnectionPage(
-  { connectionId, outcome }: {
+  { connectionId, outcome, outcomeProvider }: {
     readonly connectionId: string;
     readonly outcome: ConnectionOutcome | null;
+    readonly outcomeProvider: string;
   },
 ) {
   const api = useBakeryApi();
@@ -76,6 +87,7 @@ export function ConnectionPage(
             connection={read.data}
             organizationId={organizationId}
             outcome={outcome}
+            outcomeProvider={outcomeProvider}
             scope={scoped}
           />
         )
@@ -118,6 +130,8 @@ const NOTHING: Omit<
 > = {
   canManage: false,
   account: "",
+  provider: PROVIDER_IDENTITY.slug,
+  granted: null,
   status: "enabled",
   health: connectionHealth({ status: "enabled", lastCheckedAt: null }),
   steps: null,
@@ -125,6 +139,7 @@ const NOTHING: Omit<
   createdAt: "",
   lastCheckedAt: null,
   outcome: null,
+  outcomeProvider: "",
   continuing: false,
   connectStatus: "idle",
   checkStatus: "idle",
@@ -161,7 +176,7 @@ function Frame(
   const { translate } = useI18n();
   return (
     <>
-      <Crumbs title={translate(PROVIDER_IDENTITY.headingKey)} />
+      <Crumbs title={translate("settings.connections.title")} />
       <ConnectionView
         {...NOTHING}
         formatTime={String}
@@ -173,18 +188,37 @@ function Frame(
 }
 
 function Loaded(
-  { connection, canManage, organizationId, outcome, scope }: {
+  {
+    connection,
+    canManage,
+    organizationId,
+    outcome,
+    outcomeProvider,
+    scope,
+  }: {
     readonly connection: IntegrationConnection;
     readonly canManage: boolean;
     readonly organizationId: string;
     readonly outcome: ConnectionOutcome | null;
+    readonly outcomeProvider: string;
     readonly scope: ReturnType<typeof useProtectedScope>;
   },
 ) {
   const navigate = useNavigate();
   const { locale, timeZone, translate } = useI18n();
   const listKey = protectedQueryKey(scope, "integrationConnections.list", {});
-  const connectFlow = useProviderConnect({ organizationId, outcome });
+  const guided = hasSetupPages(connection.provider);
+  const ownFlow = useProviderConnect({
+    organizationId,
+    outcome: outcomeProvider === "slack" ? null : outcome,
+  });
+  const oauthFlow = useOAuthConnect({ organizationId, provider: "slack" });
+  const connectFlow = guided ? ownFlow : {
+    connect: (options?: ConnectOptions) =>
+      oauthFlow.connectFor(connection.provider, options),
+    connectStatus: oauthFlow.connectStatus,
+    continuing: false,
+  };
   const actions = useConnectionActions({
     connection,
     listKey,
@@ -203,15 +237,30 @@ function Loaded(
       },
     );
   const repositories = actions.repositories;
+  const dismissOutcome = () =>
+    void navigate({
+      to: "/settings/organization/integrations/$connectionId",
+      params: { connectionId: connection.id },
+      search: {},
+      replace: true,
+    });
   return (
     <>
       <Crumbs
-        title={translate("settings.connections.row.title", {
-          account: connection.label,
-        })}
+        title={hasSetupPages(connection.provider)
+          ? translate("settings.connections.row.title", {
+            account: connection.label,
+          })
+          : translate("settings.connections.other.title", {
+            provider: providerLook(connection.provider, translate).name,
+            account: connection.label,
+          })}
       />
       <ConnectionView
         account={connection.label}
+        provider={connection.provider}
+        granted={connection.grantedScopes}
+        grantedScopeNames={scopeNamesOf(connection.grantedScopeNames)}
         canManage={canManage}
         checkFaulted={actions.checked?.faulted ?? false}
         checkStatus={actions.checkStatus}
@@ -222,21 +271,33 @@ function Loaded(
         health={health}
         lastCheckedAt={connection.lastCheckedAt}
         onCheck={() => void actions.check()}
-        onDismissOutcome={() =>
-          void navigate({
-            to: "/settings/organization/integrations/$connectionId",
-            params: { connectionId: connection.id },
-            search: {},
-            replace: true,
+        onRemove={() =>
+          void actions.remove().then((removed) => {
+            if (!removed) return;
+            void navigate({
+              to: INTEGRATIONS_PATH,
+              search: { removed: connection.id },
+            });
           })}
+        removeStatus={actions.removeStatus}
+        ownLinkNotice={!guided && canManage &&
+            (status === "enabled" || status === "degraded") &&
+            hasHealthCheck(connection.provider)
+          ? <SlackOwnLinkNotice />
+          : null}
+        onDismissOutcome={dismissOutcome}
         onFix={() => {
           if (health.action === "turnOn") void actions.setEnabled(true);
           else reconnect();
         }}
         onReload={() => void repositories.refetch()}
-        onTurnOff={() => void actions.setEnabled(false)}
+        onTurnOff={() => {
+          dismissOutcome();
+          void actions.setEnabled(false);
+        }}
         onTurnOn={() => void actions.setEnabled(true)}
         outcome={outcome}
+        outcomeProvider={outcomeProvider}
         permissions={permissionsOf(connection.grantedScopes)}
         repositories={{
           state: repositories.isError
@@ -269,10 +330,9 @@ function Loaded(
         }}
         state="ready"
         status={status}
-        steps={setupSteps(
-          connection,
-          actions.repositories.data ? saved : null,
-        )}
+        steps={hasSetupPages(connection.provider)
+          ? setupSteps(connection, actions.repositories.data ? saved : null)
+          : null}
         switchStatus={actions.switchStatus}
       />
     </>

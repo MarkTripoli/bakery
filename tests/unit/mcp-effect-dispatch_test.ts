@@ -6,6 +6,7 @@ import {
   type McpWriteClass,
   type McpWriteResult,
 } from "../../apps/server/src/modules/effects/mcp.ts";
+import { pollVerdict } from "../../apps/server/src/modules/mcp/effect-port.ts";
 import type { ExternalEffectRow } from "../../apps/server/src/modules/effects/schema.ts";
 
 /**
@@ -230,4 +231,63 @@ Deno.test("a confirmation proves the write, or leaves it uncertain, and never se
     (await confirmMcpEffect(LIMITS, effect())).kind,
     "uncertain",
   );
+});
+
+Deno.test("an accepted async submit stays uncertain under its operation key and is never retried", async () => {
+  const { fake, calls } = port(
+    "write_async",
+    () => Promise.resolve({ kind: "accepted", operationKey: "run:step:0" }),
+  );
+  const result = await dispatchMcpEffect({ ...LIMITS, mcp: fake }, effect());
+  assertEquals(result.outcome, { kind: "uncertain", remoteId: "run:step:0" });
+  assertEquals(calls.write, 1);
+  const lost = port("write_async", () => Promise.resolve({ kind: "unknown" }));
+  assertEquals(
+    (await dispatchMcpEffect({ ...LIMITS, mcp: lost.fake }, effect())).outcome,
+    { kind: "uncertain" },
+  );
+});
+
+Deno.test("a poll answer maps to confirmed, still running or a fixed failure, and nothing else", () => {
+  assertEquals(pollVerdict({ state: "pending" }), { status: "unconfirmed" });
+  assertEquals(pollVerdict({ state: "not_found" }), { status: "unconfirmed" });
+  assertEquals(pollVerdict({ state: "succeeded", result: { id: 1 } }), {
+    status: "confirmed",
+    result: { id: 1 },
+  });
+  assertEquals(pollVerdict({ state: "succeeded" }), {
+    status: "confirmed",
+    result: null,
+  });
+  for (
+    const [answer, failureCode] of [
+      [{ state: "failed" }, "async_poll_failed"],
+      [{ state: "canceled" }, "async_poll_canceled"],
+      [{ state: "failed", message: "remote text" }, "async_poll_invalid"],
+      [{ state: "finished" }, "async_poll_invalid"],
+      [null, "async_poll_invalid"],
+      [
+        { state: "succeeded", result: "x".repeat(70_000) },
+        "async_poll_invalid",
+      ],
+    ] as const
+  ) {
+    assertEquals(pollVerdict(answer), { status: "failed", failureCode });
+  }
+});
+
+Deno.test("a failed poll fails the confirmation with its code and sends no write", async () => {
+  const { fake, calls } = port(
+    "write_async",
+    () => Promise.resolve({ kind: "done", output: null }),
+    () =>
+      Promise.resolve({ status: "failed", failureCode: "async_poll_failed" }),
+  );
+  const checked = await confirmMcpEffect({ ...LIMITS, mcp: fake }, effect());
+  assertEquals(checked.kind, "failed");
+  assertEquals(
+    checked.kind === "failed" ? checked.failureCode : null,
+    "async_poll_failed",
+  );
+  assertEquals(calls.write, 0);
 });

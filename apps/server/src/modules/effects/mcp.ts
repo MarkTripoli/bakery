@@ -38,11 +38,13 @@ import {
 export type McpWriteClass =
   | "write_idempotent"
   | "write_reconcilable"
+  | "write_async"
   | "write_opaque";
 
 /** How one send of a write ended, as far as the sender can tell. */
 export type McpWriteResult =
   | Readonly<{ kind: "done"; output: unknown }>
+  | Readonly<{ kind: "accepted"; operationKey: string }>
   /** Refused before anything left the server: no connection, no grant, a drifted tool. */
   | Readonly<{ kind: "not_sent"; retryable: boolean }>
   /** The server answered with a definite error: the write did not happen. */
@@ -84,6 +86,7 @@ export type McpEffectPort = Readonly<{
   ): Promise<
     | Readonly<{ status: "confirmed"; result: unknown }>
     | Readonly<{ status: "unconfirmed" }>
+    | Readonly<{ status: "failed"; failureCode: EffectFailureCode }>
   >;
 }>;
 
@@ -326,6 +329,11 @@ export async function dispatchMcpEffect(
       retryable: false,
     };
     end = { kind: "threw", timedOut: sent.timedOut };
+  } else if (sent.value.kind === "accepted") {
+    return {
+      outcome: { kind: "uncertain", remoteId: sent.value.operationKey },
+      requests: [{ ref, state: "fulfilled", retryable: false }],
+    };
   } else if (sent.value.kind === "done") {
     record = { ref, state: "fulfilled", retryable: false };
     end = { kind: "resolved", output: sent.value.output };
@@ -369,6 +377,11 @@ export type McpConfirmResult =
     requests: readonly RequestRecord[];
     outcome: "uncertain" | "threw" | "denied";
     error?: unknown;
+  }>
+  | Readonly<{
+    kind: "failed";
+    failureCode: EffectFailureCode;
+    requests: readonly RequestRecord[];
   }>;
 
 /** Looks for proof of one unsettled MCP write. It never sends a write a second time unless the tool is idempotent. */
@@ -410,7 +423,16 @@ export async function confirmMcpEffect(
     state: "fulfilled",
     retryable: false,
   }];
-  return checked.value.status === "confirmed"
-    ? { kind: "confirmed", result: checked.value.result, requests }
-    : { kind: "uncertain", requests, outcome: "uncertain" };
+  switch (checked.value.status) {
+    case "confirmed":
+      return { kind: "confirmed", result: checked.value.result, requests };
+    case "failed":
+      return {
+        kind: "failed",
+        failureCode: checked.value.failureCode,
+        requests,
+      };
+    case "unconfirmed":
+      return { kind: "uncertain", requests, outcome: "uncertain" };
+  }
 }

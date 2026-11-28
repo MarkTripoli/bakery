@@ -182,8 +182,10 @@ const FOR_EACH_NODE_KEYS: ReadonlySet<string> = new Set([
 const FOR_EACH_BODY_KEYS: ReadonlySet<string> = new Set([
   "items",
   "max",
+  "maxConcurrency",
   "as",
   "steps",
+  "collect",
 ]);
 const FOR_EACH_AS = /^[a-z][A-Za-z0-9]{0,63}$/;
 const CALL_NODE_KEYS: ReadonlySet<string> = new Set([
@@ -1369,10 +1371,6 @@ function shapeRepeat(
   return node;
 }
 
-/**
- * A bounded sequential forEach: `forEach: {items, max, as, steps}`. Whether
- * `items` is a list, and the type of its items, is checked by the flow pass.
- */
 function shapeForEach(
   context: Context,
   raw: Raw,
@@ -1412,6 +1410,19 @@ function shapeForEach(
   } else {
     max = body["max"];
   }
+  let maxConcurrency = 1;
+  if (Object.hasOwn(body, "maxConcurrency")) {
+    if (!isInteger(body["maxConcurrency"], 1, max || 1)) {
+      report(
+        context,
+        [...bodyPath, "maxConcurrency"],
+        "parallel_concurrency_invalid",
+      );
+      failed = true;
+    } else {
+      maxConcurrency = body["maxConcurrency"];
+    }
+  }
   let as = "";
   if (!Object.hasOwn(body, "as")) {
     report(context, [...bodyPath, "as"], "field_missing");
@@ -1435,6 +1446,30 @@ function shapeForEach(
     );
     if (!steps) failed = true;
   }
+  const collect: Record<string, WorkflowValueNode> = Object.create(null);
+  if (Object.hasOwn(body, "collect")) {
+    const rawCollect = body["collect"];
+    const collectPath = [...bodyPath, "collect"];
+    if (!isPlainObject(rawCollect)) {
+      report(context, collectPath, "field_invalid");
+      failed = true;
+    } else {
+      for (const name of Object.keys(rawCollect)) {
+        if (!OUTPUT_NAME.test(name)) {
+          report(context, collectPath, "output_name_invalid");
+          failed = true;
+          continue;
+        }
+        const value = compileWorkflowValue(
+          rawCollect[name],
+          [...collectPath, name],
+          context.collector,
+        );
+        if (value) collect[name] = value;
+        else failed = true;
+      }
+    }
+  }
   if (failed || !items || !steps) return undefined;
   const node: WorkflowForEachNode = {
     kind: "forEach",
@@ -1442,8 +1477,10 @@ function shapeForEach(
     needs,
     items,
     max,
+    maxConcurrency,
     as,
     steps,
+    collect,
   };
   if (condition) node.if = condition;
   return node;
@@ -1586,15 +1623,9 @@ function shapeWait(
     if (durationMs !== undefined) wait = { kind: "duration", durationMs };
   } else if (hasEvent && !hasDuration) {
     const keys = Object.keys(body);
-    // A human.approval wait names the approval it waits on, so the step and the
-    // answer are paired by id rather than by position; "approvalId" is the only
-    // key an event wait may carry beyond event and timeout.
-    if (
-      keys.some((key) =>
-        key !== "event" && key !== "timeout" &&
-        key !== "approvalId"
-      )
-    ) {
+    if (body["event"] === HUMAN_APPROVAL_COMPILER_EVENT) {
+      report(context, [...bodyPath, "event"], "approval_wait_use_step");
+    } else if (keys.some((key) => key !== "event" && key !== "timeout")) {
       report(context, bodyPath, "wait_shape_invalid");
     } else if (
       typeof body["event"] !== "string" || !EVENT_NAME.test(body["event"])
@@ -1603,36 +1634,16 @@ function shapeWait(
     } else if (!Object.hasOwn(body, "timeout")) {
       report(context, bodyPath, "wait_timeout_required");
     } else {
-      // A human.approval wait lasts up to seven days; every other wait keeps the
-      // one-day ceiling.
-      const eventMax = body["event"] === HUMAN_APPROVAL_COMPILER_EVENT
-        ? WORKFLOW_COMPILER_LIMITS.approvalWaitMaxMs
-        : max;
       const timeoutMs = readDurationField(
         context,
         body,
         "timeout",
         bodyPath,
         min,
-        eventMax,
+        max,
       );
       if (timeoutMs !== undefined) {
-        const approvalId = body["approvalId"];
-        if (
-          approvalId !== undefined &&
-          (typeof approvalId !== "string" || approvalId === "")
-        ) {
-          report(context, [...bodyPath, "approvalId"], "wait_shape_invalid");
-        } else {
-          wait = {
-            kind: "event",
-            event: body["event"],
-            timeoutMs,
-            ...(approvalId === undefined
-              ? {}
-              : { approvalId: approvalId as string }),
-          };
-        }
+        wait = { kind: "event", event: body["event"], timeoutMs };
       }
     }
   } else {

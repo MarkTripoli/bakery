@@ -68,7 +68,7 @@ function NotificationBellGlyph(
   },
 ) {
   const drawn = status.state === "unread"
-    ? (status.count >= cap ? `${cap}+` : String(status.count))
+    ? (status.count > cap ? `${cap}+` : String(status.count))
     : null;
   return (
     <>

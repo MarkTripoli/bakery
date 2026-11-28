@@ -31,7 +31,9 @@ import {
 import { useLiveEvents } from "../../api/use-live-events.ts";
 import { useConnectivity } from "../../app/connectivity.ts";
 import { useShellViewport } from "../../app/responsive.ts";
+import { FingerprintRow } from "../FingerprintRow.tsx";
 import { RouterLink } from "../../app/router-link.tsx";
+import { NotificationBellControl } from "../../notifications/NotificationBellControl.tsx";
 import { WORK_HOME } from "../../shell/breadcrumb-paths.ts";
 import { ShellFlushMain, ShellSlot } from "../../shell/shell-slots.tsx";
 import { NowLineOutlet, NowLineProvider } from "../now-line-slot.tsx";
@@ -56,9 +58,12 @@ import {
   chronological,
   commandFailure,
   currentStage,
+  expiredApproval,
   latestRevision,
   participantsOf,
   planBody,
+  type PlanRefusal,
+  planRefusal,
   questionOptions,
   stageWait,
 } from "./model.ts";
@@ -69,6 +74,9 @@ import {
 } from "./PlanRevisionPanel.tsx";
 import { Participants } from "./Participants.tsx";
 import { QuestionAnswer } from "./QuestionAnswer.tsx";
+import { RequestsForYou } from "../task-requests/RequestsForYou.tsx";
+import { rereadRequests } from "../task-requests/reread.ts";
+
 import { TASK_READS, useQuestionAnswers } from "./useQuestionAnswers.ts";
 import { StageStrip } from "./StageStrip.tsx";
 import { TurnStatus } from "./TurnStatus.tsx";
@@ -89,16 +97,20 @@ export function TaskConversation(
   {
     aside,
     banner,
+    onReviewStep,
     extras,
     questionDefaults,
     references,
+    renderStepReview,
     state = "ready",
     task,
   }: {
     /** More inspector content, such as the task's artifact pane. */
     aside?: ReactNode;
+    renderStepReview?: (layout: "rail" | "sheet") => ReactNode;
     /** A notice that belongs right under the stages, such as a landing's. */
     banner?: ReactNode;
+    onReviewStep?: () => void;
     /** Transcript-end content: run controls, output and artifacts. */
     extras?: ReactNode;
     /** Option preselected per question id; a design fixture supplies it. */
@@ -167,12 +179,14 @@ export function TaskConversation(
     refetchInterval: poll,
   });
 
-  const refresh = () =>
-    cache.invalidateQueries({
+  const refresh = () => {
+    void rereadRequests(cache, organizationId, task.currentRunId);
+    return cache.invalidateQueries({
       predicate: ({ queryKey }) =>
         queryKey[0] === "protected" && queryKey[2] === organizationId &&
         TASK_READS.has(String(queryKey[3])),
     });
+  };
   refreshRef.current = () => void refresh();
 
   // ---- draft -------------------------------------------------------------
@@ -308,6 +322,7 @@ export function TaskConversation(
     } | null
   >(null);
   const [obsolete, setObsolete] = useState<number | null>(null);
+  const [refusal, setRefusal] = useState<PlanRefusal | null>(null);
   // Pending decisions are scoped to the approval id and version they were
   // sent for; another approval always gets the person's current choice and a
   // fresh idempotency key.
@@ -331,6 +346,7 @@ export function TaskConversation(
       input: { decision: choice, ...(comment ? { comment } : {}) },
     };
     pendingDecision.current = next;
+    setRefusal(null);
     setDecision({ revision: revision.revision, phase: "deciding", done: null });
     const result = await api.decideApproval({
       organizationId,
@@ -366,6 +382,7 @@ export function TaskConversation(
       return;
     }
     pendingDecision.current = null;
+    setRefusal(planRefusal(result.error));
     if (failure === "conflict") setObsolete(revision.revision);
     setDecision({
       revision: revision.revision,
@@ -394,6 +411,16 @@ export function TaskConversation(
   // ---- planning only -----------------------------------------------------
   const phone = useShellViewport() === "phone";
   const [planOpen, setPlanOpen] = useState(false);
+  const [wantedQuestion, setWantedQuestion] = useState<string | null>(null);
+  useEffect(() => {
+    if (wantedQuestion === null) return;
+    const card = globalThis.document.querySelector<HTMLElement>(
+      `[data-ui-component="questionCard"][data-question-id="${wantedQuestion}"]`,
+    );
+    card?.scrollIntoView({ block: "center" });
+    card?.focus();
+    setWantedQuestion(null);
+  }, [wantedQuestion]);
   const [planningPending, setPlanningPending] = useState<boolean | null>(null);
   const [planningFailed, setPlanningFailed] = useState(false);
   const setPlanningOnly = async (value: boolean) => {
@@ -454,7 +481,7 @@ export function TaskConversation(
     ? run.data.status
     : undefined;
   const runEnded = runStatus === "completed" || runStatus === "failed" ||
-    runStatus === "canceled";
+    runStatus === "canceled" || runStatus === "needs_human";
   const runBlocked = runStatus === "blocked";
   const runPaused = runStatus === "paused";
   const runActive = task.currentRunId !== null && !runBlocked &&
@@ -503,7 +530,17 @@ export function TaskConversation(
   const decided = decision && revision &&
       decision.revision === revision.revision && decision.done
     ? decision.done
+    : approval?.status === "expired"
+    ? null
     : approval?.decision ?? null;
+  const expired = approval?.status === "expired"
+    ? expiredApproval(
+      approval,
+      approval.decidedBy === principalId
+        ? t("tasks.conversation.author.you")
+        : nameOf(approval.decidedBy),
+    )
+    : null;
 
   const obsoleteNotice = obsolete !== null && revision &&
       revision.revision > obsolete
@@ -521,6 +558,10 @@ export function TaskConversation(
       ? nameOf(approval.decidedBy)
       : null,
     phase: planPhase,
+    mayDecide: approval?.mayDecide ?? false,
+    startRunAvailable: task.status === "draft",
+    expired,
+    refusal,
     offline: !online,
     paused: liveTurn !== undefined,
     approvalId: approval?.id,
@@ -528,14 +569,15 @@ export function TaskConversation(
     onRetry: retryDecision,
     onRefresh: () => {
       setObsolete(null);
+      setRefusal(null);
       void refresh();
     },
   });
   const conflictNotice = planPhase === "conflict" ||
     revision?.status === "superseded" || obsoleteNotice !== null;
   const application = useQuery({
-    ...applicationQueryOptions(api, scope, task.applicationId),
-    enabled,
+    ...applicationQueryOptions(api, scope, task.applicationId ?? ""),
+    enabled: enabled && task.applicationId !== null,
   });
   const repository = useQuery({
     ...repositoryQueryOptions(api, scope, task.repositoryId ?? ""),
@@ -549,6 +591,10 @@ export function TaskConversation(
   ].filter((part) => part !== undefined).join(" · ");
   const reference = references?.[task.id] ?? task.id.slice(0, 8);
   const coordinationLink = (coordination.data?.items.length ?? 0) > 0;
+  const showQuestion = (questionId: string) => {
+    if (phone) setPlanOpen(true);
+    setWantedQuestion(questionId);
+  };
   const planCard = (
     <UI.PlanSummaryCard
       data-approval-id={approval?.id}
@@ -625,6 +671,16 @@ export function TaskConversation(
       ))}
       {plan?.body}
       {!phone && aside}
+      <UI.PaneSection>
+        <FingerprintRow
+          copyFailedText={t("tasks.queue.inspector.taskIdCopyFailed")}
+          display={reference}
+          fingerprint={task.id}
+          label={t("tasks.queue.inspector.taskId")}
+          noHelp
+          testId="task-id-row"
+        />
+      </UI.PaneSection>
     </>
   );
   return (
@@ -671,7 +727,13 @@ export function TaskConversation(
           </UI.Inline>
         </ShellSlot>
       )}
-      {!phone && (
+      {!phone && renderStepReview?.("rail") && (
+        <ShellSlot name="inspector" size="medium">
+          {renderStepReview("rail")}
+        </ShellSlot>
+      )}
+      {phone && renderStepReview?.("sheet")}
+      {!phone && !renderStepReview?.("rail") && (
         <ShellSlot name="inspector" size="medium">
           <UI.SessionPane
             label={t("tasks.conversation.plan.heading")}
@@ -745,9 +807,7 @@ export function TaskConversation(
         layout="conversation"
         variant={phone ? "sheet" : "rail"}
         title={task.title}
-        subtitle={phone
-          ? <UI.DataText variant="timestamp">{reference}</UI.DataText>
-          : subtitle}
+        subtitle={subtitle}
         leading={phone
           ? (
             <RouterLink
@@ -759,6 +819,7 @@ export function TaskConversation(
             </RouterLink>
           )
           : undefined}
+        trailing={phone ? <NotificationBellControl /> : undefined}
         state={state}
         meta={<TaskFromIssue taskId={task.id} />}
         data-ui-region="task-conversation"
@@ -883,6 +944,13 @@ export function TaskConversation(
             </UI.Stack>
           </UI.InlineNotice>
         )}
+        <RequestsForYou
+          currentRunId={task.currentRunId}
+          online={online}
+          onReviewStep={() => onReviewStep?.()}
+          onShowQuestion={showQuestion}
+          taskId={task.id}
+        />
         {task.description && (
           <UI.Stack gap="compact" data-ui-region="task-brief">
             <UI.Text variant="caption">

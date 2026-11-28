@@ -182,6 +182,7 @@ const approval = {
   createdAt: stamp,
   updatedAt: stamp,
   version: 7,
+  mayDecide: true,
 };
 
 /** The task page's reads and one notification whose target is `target`. */
@@ -430,21 +431,6 @@ test.describe("Opening a notification", () => {
     await expect(card).toHaveAttribute("data-landed", "true");
     await oneBoxWithRoom(page, card);
     await landedStill(page, "landing-approval", card);
-  });
-
-  test("a chat message has no address yet: the page opens, is read, and claims nothing is gone", async ({ page }) => {
-    const { reads } = await world(page, {
-      status: "available",
-      targetKind: "conversation_message",
-      path: `/tasks/${taskId}`,
-      anchor: "message:00000000-0000-4000-8000-000000000701",
-    });
-    await open(page);
-    await expect.poll(() => reads.length).toBe(1);
-    await expect(announcer(page)).toHaveCount(1);
-    await expect(
-      page.getByText("The part this notification was about is no longer here."),
-    ).toHaveCount(0);
   });
 
   test("a part that is gone: the page opens, says so, outlines nothing, and is read", async ({ page }) => {

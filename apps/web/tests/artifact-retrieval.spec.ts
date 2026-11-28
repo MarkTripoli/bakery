@@ -229,6 +229,7 @@ const ORGANIZATION_STUB = {
 const ARTIFACT = {
   id: ARTIFACT_ID,
   taskId: TASK_ID,
+  taskTitle: "Retrieval task",
   artifactType: "log",
   name: "Bounded retrieval stub",
   currentVersionId: VERSION_ID,
@@ -861,6 +862,8 @@ test.describe("artifact retrieval states", () => {
         password: true,
         submit: /Sign in/,
         nextPath: "/register",
+        arrived: () =>
+          page.getByRole("heading", { name: "You need an invitation" }),
         transition: async () => {
           await page.getByRole("link", {
             name: "How to get one",
@@ -876,6 +879,7 @@ test.describe("artifact retrieval states", () => {
         password: false,
         submit: /Verify and sign in/,
         nextPath: "/sign-in",
+        arrived: () => page.getByRole("heading", { name: "Welcome back" }),
         transition: async () => {
           await page.getByRole("link", {
             name: "Back to sign in",
@@ -891,6 +895,7 @@ test.describe("artifact retrieval states", () => {
         password: false,
         submit: /Verify and sign in/,
         nextPath: "/sign-in/two-factor",
+        arrived: () => page.getByLabel("Authentication code"),
         transition: async () => {
           await page.getByRole("link", {
             name: "Use authenticator instead",
@@ -958,8 +963,7 @@ test.describe("artifact retrieval states", () => {
 
           await flow.transition();
           await expect(page).toHaveURL(flow.nextPath);
-          // Requests caused by the completed transition are the baseline; only
-          // an increment after the delayed mutation is released is stale work.
+          await expect(flow.arrived()).toBeVisible();
           const identityRequestsBeforeRelease = identityRequests;
 
           releaseResponse();

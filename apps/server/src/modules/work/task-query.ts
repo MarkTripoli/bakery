@@ -10,15 +10,9 @@ import {
 import { accessScopeClause } from "../auth/application/bindings.ts";
 import { TASK_COLUMNS, type TaskRow, toTask } from "./postgres.ts";
 import { requireWorkTransaction } from "./work-transaction.ts";
+import { escapeIlikePattern } from "../../platform/like-pattern.ts";
 
 const TASK_ORDERING = "createdAt:desc,id:desc";
-
-function escapeIlikePattern(value: string): string {
-  return value.replaceAll("\\", "\\\\").replaceAll("%", "\\%").replaceAll(
-    "_",
-    "\\_",
-  );
-}
 
 type TaskCursorQuery = z.output<typeof contractSchemas.TaskCursorQuery>;
 

@@ -846,6 +846,8 @@ Deno.test("authored field enums are enforced regardless of primitive type", () =
 Deno.test("compatibility digest changes for nested wire contract changes", () => {
   const mutated = structuredClone(transport) as unknown as typeof transport;
   mutated.inputs.ApplicationCreate.fields[1].type = "integer";
+  delete (mutated.inputs.ApplicationCreate.fields[1] as { bounds?: unknown })
+    .bounds;
   assert(
     generateContracts().compatibilityDigest !==
       generateContracts(mutated).compatibilityDigest,
@@ -882,11 +884,29 @@ Deno.test("CheckOutput field descriptions say what each field means before they 
 
 Deno.test("compatibility migration approves only its exact generated delta", () => {
   const approvedBases = [
-    "70cec2976e8bc36acf3c7689b53db580f9aa02f2",
+    "d3d57917f149ed2db7dae80fd30bc48f25e61eb0",
   ];
   const approvedDigest =
-    "sha256:dfb93dbcdaae42681e1df17a992922022317bdee693ea613c448d0cd4d5bb227";
+    "sha256:494e60e9587aa9c34654b1934db426431ce76def297af370a4ab564ff3fcb56c";
   const rejectedPriorDigests = [
+    "sha256:430f74a08ee14e5b73d8dfd8f59f1f6225b351f58d13fa86ddd92fccb2df91c6",
+    "sha256:68e2e4f1029d8d60d39772d0e7d5d178c3962a4829be87e2297c5dd5c87c1c4b",
+    "sha256:1ec459bf5ae9d35a0ed8c4b1ee4b7eab3e4ced338a43c23e26263b19131c87a1",
+    "sha256:9a4b621950edc9002b59ed5995941988e7de3552225b20f921c43e4d2d072761",
+    "sha256:070b45b9314e52dcbf408223a33a00c3cc5799d2469a4d660948cbe150266825",
+    "sha256:9b65c56c63f5da75bdbc39b9f6df85df27e2269894d48b2d8a4e4893027c7c80",
+    "sha256:37ddd6ede1b7e1bdddfe1cdd46be0f0a1cc0e81f1a28fbd589b6403aab6a8dd4",
+    "sha256:3d408ef1eae1f833ed1bd09b5256aa291120d54d029665a15cd2a8beae7e8db6",
+    "sha256:224dd91d0460f916fbe50dc011dbe58e4350711786c0cec3adac5d49ecc7faf2",
+    "sha256:a667b25c30640cc23b2e5478b7a8f3022065d774392eacaad3b2f683939aff50",
+    "sha256:73834fa4bcbc8621befaf608164a4e3b65e638e330df12d01475e21f437ca44d",
+    "sha256:69dc7039ce4346b5f82d2c89a7b45be58d3a300179d75760d33cfabcb07708f2",
+    "sha256:4263d62fe87eff3bef2a814da4aa73e6153d1653c6003b969d47e9f4b64c8492",
+    "sha256:923ae300943dcf274794156ecb4f89223c16bbaf682f0b7703ec72b480450558",
+    "sha256:a3e493119604f361c23da81f325627e5828c3db4aeda7a041762f8261063242d",
+    "sha256:e892eef376c870b79b8210829a682fe4e86b972d76769e2235fc5611823953f9",
+    "sha256:da4e6483b255d84e1026de9d528ed29eec7f66cbf2c91a13ee098fae305b27d4",
+    "sha256:dfb93dbcdaae42681e1df17a992922022317bdee693ea613c448d0cd4d5bb227",
     "sha256:5cfe619f3601d1696c8f0643474401b857405396750e3e4ed297c62a0e6e9b81",
     "sha256:c1996b1fc81811d3ce7edbef9c5698b84f446d7720c11b44f292e22f89f5d97d",
     "sha256:ff538cd915f6d61b5380041e74552e8a88b92ebdd2cdb951a1ecfc473476f70a",
@@ -1294,6 +1314,8 @@ Deno.test("compatibility migration approves only its exact generated delta", () 
   };
   const mutated = structuredClone(transport) as unknown as typeof transport;
   mutated.inputs.ApplicationCreate.fields[1].type = "integer";
+  delete (mutated.inputs.ApplicationCreate.fields[1] as { bounds?: unknown })
+    .bounds;
   const alteredDigest = generateContracts(mutated).compatibilityDigest;
 
   assertEquals(migration.targetCompatibilityDigest, approvedDigest);

@@ -152,7 +152,10 @@ Deno.test("a plan's runtime survives storage and resolves to the pinned revision
   assert(runtime !== null);
   assertEquals(runtime.pin, snapshot.runtime.pin);
   assertEquals(runtime.document, document);
-  assert(runtime.interpreter === INTERPRETER_REVISIONS["4"]);
+  assert(
+    runtime.interpreter ===
+      INTERPRETER_REVISIONS[snapshot.runtime.pin.interpreterRevision],
+  );
 });
 
 Deno.test("a runtime section that is there but wrong is refused by name, never read as legacy", async () => {
@@ -213,16 +216,22 @@ Deno.test("an old run resumes on its pinned revision or is refused, never moved"
 
   // The pinned revision is no longer deployed.
   const gone = await assertRejects(
-    () =>
-      planRuntimeFromSnapshot(snapshot, { "5": () => ({ kind: "finished" }) }),
+    () => planRuntimeFromSnapshot(snapshot, {}),
     WorkflowInterpreterError,
   );
   assertEquals(gone.code, "revision_unavailable");
 
   // A deploy that adds a revision leaves the old run on the old one.
-  const later = { ...INTERPRETER_REVISIONS, "5": () => ({ kind: "finished" }) };
+  const later = {
+    ...INTERPRETER_REVISIONS,
+    future: () => ({ kind: "finished" }),
+  };
   const kept = await planRuntimeFromSnapshot(snapshot, later as never);
-  assert(kept !== null && kept.interpreter === INTERPRETER_REVISIONS["4"]);
+  assert(
+    kept !== null &&
+      kept.interpreter ===
+        INTERPRETER_REVISIONS[snapshot.runtime.pin.interpreterRevision],
+  );
 });
 
 Deno.test("the frozen inputs are read from the snapshot, and a snapshot without them is refused", () => {
@@ -264,14 +273,16 @@ Deno.test("a row becomes a record only once it has a result", () => {
     row("f", "pending"),
     row("g", "running"),
     row("h", "waiting"),
+    row("i", "needs_human", { outcome: "expired", asked: 1 }),
   ]);
-  assertEquals([...records.keys()], ["a", "b", "c", "d", "e"]);
+  assertEquals([...records.keys()], ["a", "b", "c", "d", "e", "i"]);
   assertEquals(records.get("a"), { status: "completed", output: { x: 1 } });
   // A completed step with no stored output is a step that produced null.
   assertEquals(records.get("b"), { status: "completed", output: null });
   assertEquals(records.get("c"), { status: "completed", output: null });
   assertEquals(records.get("d"), { status: "failed" });
   assertEquals(records.get("e"), { status: "canceled" });
+  assertEquals(records.get("i"), { status: "needs_human" });
 });
 
 Deno.test("a row that cannot be read as a record is refused, not guessed at", () => {

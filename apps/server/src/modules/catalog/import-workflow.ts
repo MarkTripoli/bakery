@@ -99,6 +99,7 @@ const nonRetriableImportCodes = new Set([
   "SOURCE_LIMIT_EXCEEDED",
   "SOURCE_ORIGIN_REJECTED",
   "SOURCE_REVISION_MISMATCH",
+  "SOURCE_REVISION_NOT_FOUND",
   "STATE_CONFLICT",
   "UNPROCESSABLE",
 ]);
@@ -228,6 +229,51 @@ async function ensureSkillIdentity(
     skillId,
     ordinal: (latest.rows[0]?.revision ?? 0) + 1,
   });
+}
+
+type VersionTarget = Readonly<{
+  identity: SkillIdentity;
+  sourceRevision: string;
+  validated: Awaited<ReturnType<typeof validatePinnedSkillSource>>;
+}>;
+
+async function resolveVersionTarget(
+  database: PgDatabase,
+  checkpoint: SkillImportCheckpointRow,
+  proof: SkillSourceProof,
+  identity: SkillIdentity,
+): Promise<VersionTarget> {
+  const validate = (revision: number) =>
+    validatePinnedSkillSource({
+      proof,
+      skillId: identity.skillId,
+      revision,
+      registeredLicense: checkpoint.registered_license,
+    });
+  const next = await validate(identity.ordinal);
+  const existing = await withPgTransaction(
+    database,
+    (transaction) =>
+      transaction.query<{ revision: number; source_revision: string }>(
+        `select revision, source_revision from bakery.skill_versions
+          where organization_id = $1 and skill_id = $2 and digest = $3`,
+        [checkpoint.organization_id, identity.skillId, next.version.digest],
+      ),
+  );
+  const same = existing.rows[0];
+  if (!same) {
+    return { identity, sourceRevision: proof.sourceRevision, validated: next };
+  }
+  return {
+    identity: Object.freeze({
+      skillId: identity.skillId,
+      ordinal: same.revision,
+    }),
+    sourceRevision: same.source_revision,
+    validated: same.revision === identity.ordinal
+      ? next
+      : await validate(same.revision),
+  };
 }
 
 function reservationInventory(preparation: SkillVersionPublicationPreparation) {
@@ -363,6 +409,12 @@ export async function executeSkillImport(
 
   let proof = await fetchProof(execution);
   assertProof(execution, proof);
+  await validatePinnedSkillSource({
+    proof,
+    skillId: crypto.randomUUID(),
+    revision: 1,
+    registeredLicense: execution.registered_license,
+  });
   execution = await withPgTransaction(
     options.database,
     (transaction) =>
@@ -384,12 +436,12 @@ export async function executeSkillImport(
         execution.requested_by,
       ),
   );
-  let validated = await validatePinnedSkillSource({
+  const reserveTarget = await resolveVersionTarget(
+    options.database,
+    execution,
     proof,
-    skillId: identity.skillId,
-    revision: identity.ordinal,
-    registeredLicense: execution.registered_license,
-  });
+    identity,
+  );
   let preparation = await withPgTransaction(
     options.database,
     (transaction) =>
@@ -397,9 +449,9 @@ export async function executeSkillImport(
         transaction,
         execution,
         execution.requested_by,
-        validated.version,
-        proof.sourceRevision,
-        identity,
+        reserveTarget.validated.version,
+        reserveTarget.sourceRevision,
+        reserveTarget.identity,
       ),
   );
   execution = await withPgTransaction(
@@ -434,12 +486,16 @@ export async function executeSkillImport(
   if (execution.skill_id === null || execution.ordinal === null) {
     throw new StandardError({ code: "STATE_CONFLICT" });
   }
-  validated = await validatePinnedSkillSource({
+  const target = await resolveVersionTarget(
+    options.database,
+    execution,
     proof,
-    skillId: execution.skill_id,
-    revision: execution.ordinal,
-    registeredLicense: execution.registered_license,
-  });
+    {
+      skillId: execution.skill_id,
+      ordinal: execution.ordinal,
+    },
+  );
+  const validated = target.validated;
   preparation = await withPgTransaction(
     options.database,
     (transaction) =>
@@ -448,7 +504,7 @@ export async function executeSkillImport(
         execution,
         execution.requested_by,
         validated.version,
-        proof.sourceRevision,
+        target.sourceRevision,
       ),
   );
   const objectProof = await readStoredProof(
@@ -464,7 +520,7 @@ export async function executeSkillImport(
         current,
         current.requested_by,
         validated.version,
-        proof.sourceRevision,
+        target.sourceRevision,
       );
       const version = await finalizeSkillVersionPublication({
         transaction,

@@ -1,5 +1,6 @@
 import {
   gitLauncherArgs,
+  MAX_FETCH_BLOB_OBJECTS,
   SERVER_GIT_LAUNCHER,
 } from "../../platform/server-exec.ts";
 import type { JsonValue } from "@bakery/contracts/contracts";
@@ -19,12 +20,35 @@ import {
   validateLocalSkillVersion,
 } from "./validation.ts";
 import { unicodeDefaultCaseFold } from "./unicode-case-fold.ts";
+import {
+  deriveSkillMdManifest,
+  SkillMdManifestInvalid,
+} from "./skill-md-manifest.ts";
 
 export const SKILL_SOURCE_TIMEOUT_MS = 30_000;
 const MAX_GIT_TEXT_BYTES = 256 * 1024;
 const MAX_GIT_HASH_BYTES = 129;
 const GIT_OBJECT_ID = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/;
 const DIGEST = /^[0-9a-f]{64}$/;
+export const MAX_GIT_ERROR_BYTES = 16 * 1024;
+const GIT_REF_NOT_FOUND =
+  /not our ref|couldn't find remote ref|no such remote ref/;
+
+export async function readBoundedText(
+  stream: ReadableStream<Uint8Array>,
+  limit: number,
+): Promise<string> {
+  const kept: Uint8Array[] = [];
+  let size = 0;
+  for await (const chunk of stream) {
+    if (size >= limit) continue;
+    const room = limit - size;
+    const piece = chunk.byteLength > room ? chunk.subarray(0, room) : chunk;
+    kept.push(piece);
+    size += piece.byteLength;
+  }
+  return new TextDecoder().decode(concatenate(kept, size));
+}
 
 export const SKILL_SOURCE_GIT_ENVIRONMENT = Object.freeze({
   PATH: "/usr/bin:/bin",
@@ -86,6 +110,7 @@ export type SkillSourceAdapterErrorCode =
   | "SOURCE_LIMIT_EXCEEDED"
   | "SOURCE_ORIGIN_REJECTED"
   | "SOURCE_REVISION_MISMATCH"
+  | "SOURCE_REVISION_NOT_FOUND"
   | "SOURCE_TIMEOUT"
   | "SOURCE_UNAVAILABLE";
 
@@ -131,7 +156,7 @@ export type GitCommandInvocation = Readonly<{
   env: Readonly<Record<string, string>>;
   stdin: "null";
   stdout: "piped";
-  stderr: "null";
+  stderr: "piped";
   stdoutLimit: number;
   signal: AbortSignal;
 }>;
@@ -375,17 +400,29 @@ const productionHttpFetch: HttpSourceFetch = async (url, init) => {
   };
 };
 
+const GIT_STOP_GRACE_MS = 2_000;
+
+function signal(child: Deno.ChildProcess, name: Deno.Signal): void {
+  try {
+    child.kill(name);
+  } catch (error) {
+    if (!(error instanceof TypeError)) throw error;
+  }
+}
+
 async function killAndReap(child: Deno.ChildProcess): Promise<void> {
-  try {
-    child.kill("SIGKILL");
-  } catch {
-    // Process may already have exited.
-  }
-  try {
-    await child.status;
-  } catch {
-    // Status can reject after forced termination.
-  }
+  signal(child, "SIGTERM");
+  let grace: ReturnType<typeof setTimeout> | undefined;
+  const stopped = await Promise.race([
+    child.status.then(() => true, () => true),
+    new Promise<false>((resolve) => {
+      grace = setTimeout(() => resolve(false), GIT_STOP_GRACE_MS);
+    }),
+  ]);
+  clearTimeout(grace);
+  if (stopped) return;
+  signal(child, "SIGKILL");
+  await child.status.catch(() => undefined);
 }
 
 const productionGitRunner: GitCommandRunner = {
@@ -409,6 +446,9 @@ const productionGitRunner: GitCommandRunner = {
     }
     const terminate = () => void killAndReap(child);
     invocation.signal.addEventListener("abort", terminate, { once: true });
+    const errors = readBoundedText(child.stderr, MAX_GIT_ERROR_BYTES).catch(
+      () => "",
+    );
     try {
       const reader = child.stdout.getReader();
       const chunks: Uint8Array[] = [];
@@ -429,7 +469,14 @@ const productionGitRunner: GitCommandRunner = {
         reader.releaseLock();
       }
       const status = await abortable(child.status, invocation.signal);
-      if (!status.success) fail("SOURCE_UNAVAILABLE");
+      if (!status.success) {
+        const text = await abortable(errors, invocation.signal);
+        fail(
+          GIT_REF_NOT_FOUND.test(text)
+            ? "SOURCE_REVISION_NOT_FOUND"
+            : "SOURCE_UNAVAILABLE",
+        );
+      }
       return concatenate(chunks, total);
     } catch (error) {
       await killAndReap(child);
@@ -459,7 +506,7 @@ async function runGit(
         : SKILL_SOURCE_GIT_ENVIRONMENT,
       stdin: "null",
       stdout: "piped",
-      stderr: "null",
+      stderr: "piped",
       stdoutLimit,
       signal: budget.signal,
     });
@@ -581,7 +628,14 @@ async function loadGitInventory(
       }));
     }
   }
-  if (!manifestBytes || files.length > MAX_UPLOAD_FILES) fail("SOURCE_INVALID");
+  if (files.length > MAX_UPLOAD_FILES) fail("SOURCE_INVALID");
+  if (!manifestBytes) {
+    return Object.freeze({
+      manifest: Object.freeze({}),
+      manifestBytes: new Uint8Array(),
+      files: Object.freeze(files),
+    });
+  }
   let manifest: unknown;
   try {
     manifest = JSON.parse(
@@ -602,6 +656,109 @@ async function loadGitInventory(
   });
 }
 
+async function isObjectPresent(
+  dependencies: SkillSourceAdapterDependencies,
+  directory: string,
+  objectId: string,
+  signal?: AbortSignal,
+): Promise<boolean> {
+  try {
+    await runGit(
+      dependencies,
+      directory,
+      ["cat-file", "-t", objectId],
+      16,
+      signal,
+    );
+    return true;
+  } catch (error) {
+    if (
+      error instanceof SkillSourceAdapterError &&
+      error.code === "SOURCE_UNAVAILABLE"
+    ) {
+      return false;
+    }
+    throw error;
+  }
+}
+
+async function fetchMissingBlobs(
+  dependencies: SkillSourceAdapterDependencies,
+  directory: string,
+  normalizedLocator: string,
+  entries: readonly GitTreeEntry[],
+  signal?: AbortSignal,
+): Promise<void> {
+  const missing: string[] = [];
+  for (const objectId of new Set(entries.map((entry) => entry.objectId))) {
+    if (!await isObjectPresent(dependencies, directory, objectId, signal)) {
+      missing.push(objectId);
+    }
+  }
+  if (missing.length === 0) return;
+  if (missing.length > MAX_FETCH_BLOB_OBJECTS) fail("SOURCE_LIMIT_EXCEEDED");
+  await runGit(
+    dependencies,
+    directory,
+    [
+      "-c",
+      "credential.helper=",
+      "-c",
+      "core.askPass=",
+      "-c",
+      "http.followRedirects=false",
+      "-c",
+      "protocol.version=2",
+      "-c",
+      "fetch.negotiationAlgorithm=noop",
+      "fetch",
+      "--no-tags",
+      "--no-write-fetch-head",
+      "--filter=blob:none",
+      "--",
+      normalizedLocator,
+      ...missing,
+    ],
+    64 * 1024,
+    signal,
+  );
+}
+
+function commitOrName(revision: string): string {
+  const lower = revision.toLowerCase();
+  return GIT_OBJECT_ID.test(lower) ? lower : revision;
+}
+
+async function requireAdvertisedRevision(
+  dependencies: SkillSourceAdapterDependencies,
+  directory: string,
+  normalizedLocator: string,
+  revision: string,
+  signal?: AbortSignal,
+): Promise<void> {
+  const advertised = await runGit(
+    dependencies,
+    directory,
+    [
+      "-c",
+      "credential.helper=",
+      "-c",
+      "core.askPass=",
+      "-c",
+      "http.followRedirects=false",
+      "-c",
+      "protocol.version=2",
+      "ls-remote",
+      "--",
+      normalizedLocator,
+      revision,
+    ],
+    MAX_GIT_TEXT_BYTES,
+    signal,
+  );
+  if (advertised.byteLength === 0) fail("SOURCE_REVISION_NOT_FOUND");
+}
+
 async function fetchGitSource(
   dependencies: SkillSourceAdapterDependencies,
   request: SkillSourceFetchRequest,
@@ -615,7 +772,7 @@ async function fetchGitSource(
   if (expectedRevision !== undefined && !GIT_OBJECT_ID.test(expectedRevision)) {
     fail("SOURCE_INVALID");
   }
-  const fetchRevision = expectedRevision ?? requestedRevision;
+  const fetchRevision = expectedRevision ?? commitOrName(requestedRevision);
   const normalizedPath = normalizeSourcePath(request.path);
   const directory = await dependencies.makeTempDirectory();
   try {
@@ -626,6 +783,15 @@ async function fetchGitSource(
       4_096,
       request.signal,
     );
+    if (expectedRevision === undefined && !GIT_OBJECT_ID.test(fetchRevision)) {
+      await requireAdvertisedRevision(
+        dependencies,
+        directory,
+        normalizedLocator,
+        fetchRevision,
+        request.signal,
+      );
+    }
     await runGit(
       dependencies,
       directory,
@@ -680,6 +846,13 @@ async function fetchGitSource(
         request.signal,
       ),
       normalizedPath,
+    );
+    await fetchMissingBlobs(
+      dependencies,
+      directory,
+      normalizedLocator,
+      entries,
+      request.signal,
     );
     const inventory = await loadGitInventory(
       dependencies,
@@ -785,7 +958,9 @@ async function fetchUrlSource(
     }
     let inventory: SkillArchiveInventory;
     try {
-      inventory = await parseGzipUstarArchive(compressed, normalizedPath);
+      inventory = await parseGzipUstarArchive(compressed, normalizedPath, {
+        manifestRequired: false,
+      });
     } catch (error) {
       if (error instanceof TarArchiveError) fail("SOURCE_INVALID");
       throw error;
@@ -890,6 +1065,35 @@ function encodeBase64(bytes: Uint8Array): string {
   return btoa(binary);
 }
 
+async function sourceManifest(
+  proof: SkillSourceProof,
+  registeredLicense: string,
+): Promise<Readonly<Record<string, unknown>>> {
+  if (proof.inventory.manifestBytes.byteLength > 0) {
+    return proof.inventory.manifest;
+  }
+  try {
+    return await deriveSkillMdManifest(
+      proof.inventory.files,
+      registeredLicense,
+    );
+  } catch (error) {
+    if (error instanceof SkillMdManifestInvalid) fail("SOURCE_INVALID");
+    throw error;
+  }
+}
+
+function wellFormedStrings(value: unknown): boolean {
+  if (typeof value === "string") return value.isWellFormed();
+  if (Array.isArray(value)) return value.every(wellFormedStrings);
+  if (value !== null && typeof value === "object") {
+    return Object.entries(value).every(([key, entry]) =>
+      key.isWellFormed() && wellFormedStrings(entry)
+    );
+  }
+  return true;
+}
+
 /** Reconciles a proved source inventory through the unchanged catalog validator. */
 export async function validatePinnedSkillSource(
   options: Readonly<{
@@ -900,7 +1104,7 @@ export async function validatePinnedSkillSource(
   }>,
 ): Promise<ValidatedPinnedSkillSource> {
   const { proof } = options;
-  const manifest = proof.inventory.manifest;
+  const manifest = await sourceManifest(proof, options.registeredLicense);
   if (
     typeof manifest.digest !== "string" || !DIGEST.test(manifest.digest) ||
     typeof manifest.entryPath !== "string" || !Array.isArray(manifest.files)
@@ -952,5 +1156,6 @@ export async function validatePinnedSkillSource(
   if (version.manifest.license !== options.registeredLicense) {
     fail("SOURCE_INVALID");
   }
+  if (!wellFormedStrings(version.manifest)) fail("SOURCE_INVALID");
   return Object.freeze({ proof, version });
 }

@@ -58,10 +58,15 @@ export type NotificationListResponse = ClientOutputMap["Page<Notification>"];
 export type NotificationResponse = ClientOutputMap["Notification"];
 export type NotificationCountResponse = ClientOutputMap["NotificationCount"];
 export type NotificationTargetResponse = ClientOutputMap["NotificationTarget"];
+export type NotificationUndoMarkAllReadResponse =
+  ClientOutputMap["NotificationUndoMarkAllReadResult"];
 export type NotificationMarkAllReadResponse =
   ClientOutputMap["NotificationMarkAllReadResult"];
 export type NotificationCursorQuery = ClientInputMap["NotificationCursorQuery"];
 
+export type WorkerLinkRequestResponse = ClientOutputMap["WorkerLinkRequest"];
+export type WorkerLinkRequestApprove =
+  ClientInputMap["WorkerLinkRequestApprove"];
 export type TaskListResponse = ClientOutputMap["Page<Task>"];
 export type TaskCursorQuery = ClientInputMap["TaskCursorQuery"];
 export type TaskCreate = ClientInputMap["TaskCreate"];
@@ -81,6 +86,9 @@ export type WorkflowDraftUpdate = ClientInputMap["WorkflowDraftUpdate"];
 export type ValidationReportResponse = ClientOutputMap["ValidationReport"];
 export type TaskResponse = ClientOutputMap["Task"];
 export type RunListResponse = ClientOutputMap["Page<Run>"];
+export type RunRequestsResponse = ClientOutputMap["RunRequests"];
+export type GroupsResponse = ClientOutputMap["Groups"];
+export type RunRequestResponse = RunRequestsResponse["requests"][number];
 export type RunResponse = ClientOutputMap["Run"];
 export type RunControlCapabilities = ClientOutputMap["RunControlCapabilities"];
 export type RouteContinuationOffersResponse =
@@ -122,6 +130,21 @@ export type InstallationCapabilities =
 export type InstallationSettings = ClientOutputMap["InstallationSettings"];
 /** The restore that holds the installation, and how far its ordered re-enable has got (#64 E3). */
 export type InstallationRestore = ClientOutputMap["InstallationRestore"];
+export type BackupRun = ClientOutputMap["BackupRun"];
+export type BackupRunPage = ClientOutputMap["Page<BackupRun>"];
+export type BackupStatus = ClientOutputMap["BackupStatus"];
+export type BackupDrill = ClientOutputMap["BackupDrill"];
+export type BackupDrillPage = ClientOutputMap["Page<BackupDrill>"];
+export type BackupSchedule = ClientOutputMap["BackupSchedule"];
+export type BackupPointInTime = ClientOutputMap["BackupPointInTime"];
+export type BackupOffsite = ClientOutputMap["BackupOffsite"];
+export type BackupSchedulePut = ClientInputMap["BackupSchedulePut"];
+export type BackupOffsitePut = ClientInputMap["BackupOffsitePut"];
+export type BackupPointInTimePut = ClientInputMap["BackupPointInTimePut"];
+export type BackupOffsiteVerification =
+  ClientOutputMap["BackupOffsiteVerification"];
+export type BackupRunnerCredentialIssued =
+  ClientOutputMap["BackupRunnerCredentialIssued"];
 /** Which release runs, the one kept to go back to, and the last update that did not go through (#59). */
 export type InstallationUpdateStatus =
   ClientOutputMap["InstallationUpdateStatus"];
@@ -199,6 +222,9 @@ export type IntegrationResourceUpdate =
 export type ConnectionCheck = ClientOutputMap["ConnectionCheck"];
 export type IntegrationAuthAttemptCreated =
   ClientOutputMap["IntegrationAuthAttemptCreated"];
+export type MySlackLink = ClientOutputMap["MySlackLink"];
+export type MySlackLinkAttemptCreated =
+  ClientOutputMap["MySlackLinkAttemptCreated"];
 export type AuditEventPage = ClientOutputMap["Page<AuditEvent>"];
 export type AuditEventItem = AuditEventPage["items"][number];
 export type AuditEventsQuery = ClientInputMap["AuditQuery"];
@@ -285,12 +311,18 @@ export type TicketRoutingRulesReplace =
   ClientInputMap["TicketRoutingRulesReplace"];
 export type WorkerResponse = ClientOutputMap["WorkerHost"];
 export type DispatchBlockersResponse = ClientOutputMap["DispatchBlockers"];
+export type MachineModelListResponse = ClientOutputMap["Page<MachineModel>"];
 export type WorkerEnrollmentListResponse =
   ClientOutputMap["Page<WorkerEnrollmentSummary>"];
 export type WorkerEnrollmentResponse = ClientOutputMap["WorkerEnrollment"];
 export type EnrollmentStatus = ClientOutputMap["EnrollmentStatus"];
 export type WorkerComponentListResponse =
   ClientOutputMap["Page<WorkerComponent>"];
+export type WorkerAttemptListResponse =
+  ClientOutputMap["Page<WorkerAttemptRead>"];
+export type WorkerAttemptResponse = WorkerAttemptListResponse["items"][number];
+export type WorkerAttemptState =
+  ClientInputMap["WorkerAttemptListQuery"]["state"];
 export type WorkerProviderBindingListResponse =
   ClientOutputMap["Page<WorkerProviderBinding>"];
 export type WorkerProviderAuthAttemptResponse =
@@ -301,6 +333,8 @@ export type WorkerProviderBindingResponse =
   ClientOutputMap["WorkerProviderBinding"];
 export type WorkerProviderBindingCreate =
   ClientInputMap["WorkerProviderBindingCreate"];
+export type ModelProviderAccountListResponse =
+  ClientOutputMap["Page<ModelProviderAccount>"];
 export type ProviderRouteListResponse = ClientOutputMap["Page<ProviderRoute>"];
 export type ProviderRouteResponse = ClientOutputMap["ProviderRoute"];
 export type RouteHealthResponse = ClientOutputMap["RouteHealth"];
@@ -393,6 +427,20 @@ export type SkillListResponse = ClientOutputMap["Page<Skill>"];
 export type SkillScope = SkillResponse["scope"];
 /** One revision of a skill, draft, published or retired, with its file manifest. */
 export type SkillVersionResponse = ClientOutputMap["SkillVersion"];
+export type SkillCreate = ClientInputMap["SkillCreate"];
+export type SkillSourceCreate = ClientInputMap["SkillSourceCreate"];
+export type SkillImport = ClientInputMap["SkillImport"];
+export type SkillImportResult = ClientOutputMap["SkillImportResult"];
+export type SkillImportRun = ClientOutputMap["Run"];
+export type SkillSourceCheck = ClientOutputMap["SkillSourceUpdateCheck"];
+export type SkillDraftResponse = ClientOutputMap["SkillDraft"];
+export type SkillDraftFileResponse = ClientOutputMap["SkillDraftFile"];
+export type SkillDraftCheckResponse = ClientOutputMap["SkillDraftCheck"];
+export type SkillDraftUpdate = Omit<ClientInputMap["SkillDraftUpdate"], "id">;
+export type SkillDraftFileSave = Omit<
+  ClientInputMap["SkillDraftFileSave"],
+  "id"
+>;
 export type SkillVersionListResponse = ClientOutputMap["Page<SkillVersion>"];
 /** One agent or workflow version that names a skill, and which of its versions. */
 export type SkillUsageListResponse = ClientOutputMap["Page<SkillUsage>"];
@@ -1356,6 +1404,13 @@ export type BakeryApiClient = {
       readonly signal?: AbortSignal;
     }) => Promise<ApiResult<WorkerResponse>>;
   };
+  readonly modelProviderAccounts: {
+    readonly list: (options: {
+      readonly organizationId: string;
+      readonly cursor?: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<ModelProviderAccountListResponse>>;
+  };
   /** The models work may be sent to (`/v1/provider-routes`). The server lists them for the whole organization. */
   readonly providerRoutes: {
     readonly list: (options: {
@@ -1393,6 +1448,33 @@ export type BakeryApiClient = {
       readonly id: string;
       readonly signal?: AbortSignal;
     }) => Promise<ApiResult<DispatchBlockersResponse>>;
+    readonly models: (options: {
+      readonly organizationId: string;
+      readonly id: string;
+      readonly cursor?: string;
+      readonly limit?: number;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<MachineModelListResponse>>;
+  };
+  readonly workerLinkRequests: {
+    readonly find: (options: {
+      readonly organizationId: string;
+      readonly userCode: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<WorkerLinkRequestResponse>>;
+    readonly approve: (options: {
+      readonly organizationId: string;
+      readonly id: string;
+      readonly input: WorkerLinkRequestApprove;
+      readonly idempotencyKey?: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<WorkerLinkRequestResponse>>;
+    readonly decline: (options: {
+      readonly organizationId: string;
+      readonly id: string;
+      readonly idempotencyKey?: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<WorkerLinkRequestResponse>>;
   };
   readonly workerEnrollments: {
     readonly list: (options: {
@@ -1429,6 +1511,16 @@ export type BakeryApiClient = {
       readonly limit?: number;
       readonly signal?: AbortSignal;
     }) => Promise<ApiResult<WorkerComponentListResponse>>;
+  };
+  readonly workerAttempts: {
+    readonly list: (options: {
+      readonly organizationId: string;
+      readonly id: string;
+      readonly state: WorkerAttemptState;
+      readonly cursor?: string;
+      readonly limit?: number;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<WorkerAttemptListResponse>>;
   };
   readonly workerProviderBindings: {
     readonly list: (options: {
@@ -1608,6 +1700,59 @@ export type BakeryApiClient = {
       readonly signal?: AbortSignal;
     }) => Promise<ApiResult<InstallationRestore>>;
   };
+  readonly backups: {
+    readonly status: (
+      signal?: AbortSignal,
+    ) => Promise<ApiResult<BackupStatus>>;
+    readonly list: (options: {
+      readonly cursor?: string;
+      readonly limit?: number;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<BackupRunPage>>;
+    readonly drills: (options: {
+      readonly cursor?: string;
+      readonly limit?: number;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<BackupDrillPage>>;
+    readonly start: (options: {
+      readonly idempotencyKey: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<BackupRun>>;
+    readonly schedule: (
+      signal?: AbortSignal,
+    ) => Promise<ApiResult<BackupSchedule>>;
+    readonly pointInTime: (
+      signal?: AbortSignal,
+    ) => Promise<ApiResult<BackupPointInTime>>;
+    readonly offsite: (
+      signal?: AbortSignal,
+    ) => Promise<ApiResult<BackupOffsite>>;
+    readonly issueRunnerCredential: (
+      signal?: AbortSignal,
+    ) => Promise<ApiResult<BackupRunnerCredentialIssued>>;
+    readonly putSchedule: (options: {
+      readonly input: BackupSchedulePut;
+      readonly version?: number;
+      readonly idempotencyKey: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<BackupSchedule>>;
+    readonly putOffsite: (options: {
+      readonly input: BackupOffsitePut;
+      readonly version?: number;
+      readonly idempotencyKey: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<BackupOffsite>>;
+    readonly putPointInTime: (options: {
+      readonly input: BackupPointInTimePut;
+      readonly version?: number;
+      readonly idempotencyKey: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<BackupPointInTime>>;
+    readonly verifyOffsite: (options: {
+      readonly idempotencyKey: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<BackupOffsiteVerification>>;
+  };
   readonly installationUpdates: {
     /** `GET /v1/installation/updates/status`: the running release, the kept one and the last failure; administrators only. */
     readonly status: (
@@ -1733,6 +1878,12 @@ export type BakeryApiClient = {
       readonly idempotencyKey: string;
       readonly signal?: AbortSignal;
     }) => Promise<ApiResult<IntegrationConnection>>;
+    readonly remove: (options: {
+      readonly organizationId: string;
+      readonly id: string;
+      readonly version: number;
+      readonly idempotencyKey: string;
+    }) => Promise<ApiResult<IntegrationConnection>>;
     /** `POST /v1/integration-connections/:id/checks`: the provider health probe. */
     readonly check: (options: {
       readonly organizationId: string;
@@ -1767,6 +1918,7 @@ export type BakeryApiClient = {
      * session storage only.
      */
     readonly create: (options: {
+      readonly provider?: "github" | "slack";
       readonly organizationId: string;
       readonly idempotencyKey: string;
       /** Refresh this connection's access instead of adding a new one. */
@@ -1775,6 +1927,18 @@ export type BakeryApiClient = {
       readonly returnPath?: string;
       readonly signal?: AbortSignal;
     }) => Promise<ApiResult<IntegrationAuthAttemptCreated>>;
+  };
+  readonly mySlackLink: {
+    readonly get: (
+      organizationId: string,
+      signal?: AbortSignal,
+    ) => Promise<ApiResult<MySlackLink>>;
+    readonly start: (
+      organizationId: string,
+    ) => Promise<ApiResult<MySlackLinkAttemptCreated>>;
+    readonly unlink: (
+      organizationId: string,
+    ) => Promise<ApiResult<MySlackLink>>;
   };
   readonly browserSessions: {
     readonly list: (
@@ -1843,6 +2007,12 @@ export type BakeryApiClient = {
     readonly idempotencyKey?: string;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<NotificationMarkAllReadResponse>>;
+  readonly undoMarkAllNotificationsRead: (options: {
+    readonly organizationId: string;
+    readonly batchId: string;
+    readonly idempotencyKey?: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<NotificationUndoMarkAllReadResponse>>;
   readonly createTask: (options: {
     readonly organizationId: string;
     readonly input: TaskCreate;
@@ -1879,6 +2049,28 @@ export type BakeryApiClient = {
     readonly limit?: number;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<RunListResponse>>;
+  readonly listGroups: (options: {
+    readonly organizationId: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<GroupsResponse>>;
+  readonly listRunRequests: (options: {
+    readonly organizationId: string;
+    readonly runId: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<RunRequestsResponse>>;
+  readonly listMyRunRequests: (options: {
+    readonly organizationId: string;
+    readonly runId: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<RunRequestsResponse>>;
+  readonly restartRunStep: (options: {
+    readonly organizationId: string;
+    readonly runId: string;
+    readonly stepKey: string;
+    readonly note?: string;
+    readonly idempotencyKey?: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<unknown>>;
   readonly controlRun: (options: {
     readonly organizationId: string;
     readonly runId: string;
@@ -2045,7 +2237,7 @@ export type BakeryApiClient = {
     readonly tries: number;
     readonly idempotencyKey: string;
     readonly signal?: AbortSignal;
-  }) => Promise<ApiResult<null>>;
+  }) => Promise<ApiResult<{ readonly addedTries: number }>>;
   /** Settles an unknown attempt by reading GitHub; it never sends a second merge. */
   readonly reconcileMergeAttempts: (options: {
     readonly organizationId: string;
@@ -2169,6 +2361,124 @@ export type BakeryApiClient = {
     readonly idempotencyKey?: string;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<SkillResponse>>;
+  readonly listSkillSources: (options: {
+    readonly organizationId: string;
+    readonly cursor?: string;
+    readonly limit?: number;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<ClientOutputMap["Page<SkillSource>"]>>;
+  readonly createSkillSource: (options: {
+    readonly organizationId: string;
+    readonly input: SkillSourceCreate;
+    readonly idempotencyKey?: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<SkillSource>>;
+  readonly importSkill: (options: {
+    readonly organizationId: string;
+    readonly input: SkillImport;
+    readonly idempotencyKey?: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<SkillImportRun>>;
+  readonly getSkillImport: (options: {
+    readonly organizationId: string;
+    readonly id: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<SkillImportResult>>;
+  readonly checkSkillSource: (options: {
+    readonly organizationId: string;
+    readonly id: string;
+    readonly idempotencyKey: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<SkillSourceCheck>>;
+  readonly takeSkillSourceUpdate: (options: {
+    readonly organizationId: string;
+    readonly id: string;
+    readonly revision: string;
+    readonly version: number;
+    readonly idempotencyKey: string;
+  }) => Promise<ApiResult<SkillImportRun>>;
+  readonly setSkillActiveVersion: (options: {
+    readonly organizationId: string;
+    readonly id: string;
+    readonly versionId: string;
+    readonly version: number;
+    readonly idempotencyKey: string;
+  }) => Promise<ApiResult<SkillResponse>>;
+  readonly createSkill: (options: {
+    readonly organizationId: string;
+    readonly input: SkillCreate;
+    readonly idempotencyKey?: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<SkillResponse>>;
+  readonly openSkillDraft: (options: {
+    readonly organizationId: string;
+    readonly id: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<SkillDraftResponse>>;
+  readonly getSkillDraft: (options: {
+    readonly organizationId: string;
+    readonly id: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<SkillDraftResponse>>;
+  readonly getSkillDraftFile: (options: {
+    readonly organizationId: string;
+    readonly id: string;
+    readonly fileId: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<SkillDraftFileResponse>>;
+  readonly updateSkillDraft: (options: {
+    readonly organizationId: string;
+    readonly id: string;
+    readonly input: SkillDraftUpdate;
+    readonly version: number;
+    readonly idempotencyKey?: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<SkillDraftResponse>>;
+  readonly saveSkillDraftFile: (options: {
+    readonly organizationId: string;
+    readonly id: string;
+    readonly input: SkillDraftFileSave;
+    readonly version: number;
+    readonly idempotencyKey?: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<SkillDraftResponse>>;
+  readonly renameSkillDraftFile: (options: {
+    readonly organizationId: string;
+    readonly id: string;
+    readonly path: string;
+    readonly newPath: string;
+    readonly version: number;
+    readonly idempotencyKey?: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<SkillDraftResponse>>;
+  readonly deleteSkillDraftFile: (options: {
+    readonly organizationId: string;
+    readonly id: string;
+    readonly fileId: string;
+    readonly version: number;
+    readonly idempotencyKey?: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<SkillDraftResponse>>;
+  readonly discardSkillDraft: (options: {
+    readonly organizationId: string;
+    readonly id: string;
+    readonly version: number;
+    readonly idempotencyKey?: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<void>>;
+  readonly checkSkillDraft: (options: {
+    readonly organizationId: string;
+    readonly id: string;
+    readonly idempotencyKey?: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<SkillDraftCheckResponse>>;
+  readonly publishSkillDraft: (options: {
+    readonly organizationId: string;
+    readonly id: string;
+    readonly version: number;
+    readonly idempotencyKey?: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<SkillVersionResponse>>;
   readonly copySkill: (options: {
     readonly organizationId: string;
     readonly id: string;
@@ -3673,6 +3983,17 @@ export function createBakeryApiClient({
         );
       },
     },
+    modelProviderAccounts: {
+      list(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["modelProviderAccounts.list"]({
+              cursor: options.cursor,
+            }, { signal: options.signal }),
+        );
+      },
+    },
     providerRoutes: {
       list(options) {
         return workerResult(
@@ -3726,6 +4047,52 @@ export function createBakeryApiClient({
           options.organizationId,
           (scoped) =>
             scoped.actions["machines.dispatchBlockers"]({ id: options.id }, {
+              signal: options.signal,
+            }),
+        );
+      },
+      models(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["machines.models"]({
+              id: options.id,
+              cursor: options.cursor,
+              limit: options.limit,
+            }, { signal: options.signal }),
+        );
+      },
+    },
+    workerLinkRequests: {
+      find(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["workerLinkRequests.find"](
+              { userCode: options.userCode },
+              { signal: options.signal },
+            ),
+        );
+      },
+      approve(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["workerLinkRequests.approve"](
+              { id: options.id, ...options.input },
+              {
+                idempotencyKey: options.idempotencyKey,
+                signal: options.signal,
+              },
+            ),
+        );
+      },
+      decline(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["workerLinkRequests.decline"]({ id: options.id }, {
+              idempotencyKey: options.idempotencyKey,
               signal: options.signal,
             }),
         );
@@ -3785,6 +4152,20 @@ export function createBakeryApiClient({
           (scoped) =>
             scoped.actions["workerComponents.list"]({
               id: options.id,
+              cursor: options.cursor,
+              limit: options.limit,
+            }, { signal: options.signal }),
+        );
+      },
+    },
+    workerAttempts: {
+      list(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["workerAttempts.list"]({
+              id: options.id,
+              state: options.state,
               cursor: options.cursor,
               limit: options.limit,
             }, { signal: options.signal }),
@@ -4891,6 +5272,165 @@ export function createBakeryApiClient({
       },
     },
 
+    backups: {
+      async status(signal) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["backups.status"]({}, { signal }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async list(options) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["backups.list"]({
+              ...(options.cursor === undefined
+                ? {}
+                : { cursor: options.cursor }),
+              ...(options.limit === undefined ? {} : { limit: options.limit }),
+            }, { signal: options.signal }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async drills(options) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["backups.drills.list"]({
+              ...(options.cursor === undefined
+                ? {}
+                : { cursor: options.cursor }),
+              ...(options.limit === undefined ? {} : { limit: options.limit }),
+            }, { signal: options.signal }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async start(options) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["backups.start"]({}, {
+              idempotencyKey: options.idempotencyKey,
+              signal: options.signal,
+            }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async schedule(signal) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["backupSchedule.get"]({}, { signal }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async pointInTime(signal) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["backupPointInTime.get"]({}, { signal }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async offsite(signal) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["backupOffsite.get"]({}, { signal }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async issueRunnerCredential(signal) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["backupRunnerCredential.issue"]({}, {
+              signal,
+            }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async putSchedule(options) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["backupSchedule.put"](options.input, {
+              ...(options.version === undefined
+                ? {}
+                : { ifMatch: versionEtag(options.version) }),
+              idempotencyKey: options.idempotencyKey,
+              signal: options.signal,
+            }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async putOffsite(options) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["backupOffsite.put"](options.input, {
+              ...(options.version === undefined
+                ? {}
+                : { ifMatch: versionEtag(options.version) }),
+              idempotencyKey: options.idempotencyKey,
+              signal: options.signal,
+            }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async putPointInTime(options) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["backupPointInTime.put"](options.input, {
+              ...(options.version === undefined
+                ? {}
+                : { ifMatch: versionEtag(options.version) }),
+              idempotencyKey: options.idempotencyKey,
+              signal: options.signal,
+            }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async verifyOffsite(options) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["backupOffsite.verify"]({}, {
+              idempotencyKey: options.idempotencyKey,
+              signal: options.signal,
+            }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+    },
+
     installationUpdates: {
       async status(signal) {
         try {
@@ -5156,6 +5696,21 @@ export function createBakeryApiClient({
           return failed(error);
         }
       },
+      async remove(options) {
+        try {
+          return {
+            ok: true,
+            data: await scoped(options.organizationId).actions[
+              "integrationConnections.remove"
+            ]({ id: options.id }, {
+              ifMatch: versionEtag(options.version),
+              idempotencyKey: options.idempotencyKey,
+            }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
       async check(options) {
         try {
           return {
@@ -5218,7 +5773,7 @@ export function createBakeryApiClient({
             data: await scoped(options.organizationId).actions[
               "integrationAuthAttempts.create"
             ]({
-              provider: "github",
+              provider: options.provider ?? "github",
               ...(options.reconnectConnectionId === undefined
                 ? {}
                 : { reconnectConnectionId: options.reconnectConnectionId }),
@@ -5229,6 +5784,48 @@ export function createBakeryApiClient({
               idempotencyKey: options.idempotencyKey,
               signal: options.signal,
             }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+    },
+
+    mySlackLink: {
+      async get(organizationId, signal) {
+        try {
+          return {
+            ok: true,
+            data: await scoped(organizationId).actions["mySlackLink.get"](
+              {},
+              { signal },
+            ),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+
+      async start(organizationId) {
+        try {
+          return {
+            ok: true,
+            data: await scoped(organizationId).actions[
+              "mySlackLinkAttempts.create"
+            ]({}),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+
+      async unlink(organizationId) {
+        try {
+          return {
+            ok: true,
+            data: await scoped(organizationId).actions["mySlackLink.delete"](
+              {},
+            ),
           };
         } catch (error) {
           return failed(error);
@@ -6258,6 +6855,26 @@ export function createBakeryApiClient({
       }
     },
 
+    async undoMarkAllNotificationsRead(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["notifications.undoMarkAllRead"](
+          { batchId: options.batchId },
+          {
+            signal: options.signal,
+            ...(options.idempotencyKey === undefined
+              ? {}
+              : { idempotencyKey: options.idempotencyKey }),
+          },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
     async listRuns(options) {
       organizationId = options.organizationId;
       try {
@@ -6428,6 +7045,73 @@ export function createBakeryApiClient({
         ) {
           throw new ApiTransportError("protocol", 201);
         }
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async listGroups(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["groups.list"]({}, {
+          signal: options.signal,
+        });
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async listRunRequests(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["runRequests.list"](
+          { id: options.runId },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async listMyRunRequests(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["runRequests.mine"](
+          { id: options.runId },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async restartRunStep(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["runSteps.takeOver"](
+          {
+            id: options.runId,
+            stepKey: options.stepKey,
+            mode: "restart",
+            ...(options.note === undefined ? {} : { note: options.note }),
+          },
+          {
+            idempotencyKey: options.idempotencyKey,
+            signal: options.signal,
+          },
+        );
         return { ok: true, data };
       } catch (error) {
         return failed(error);
@@ -6684,11 +7368,11 @@ export function createBakeryApiClient({
     async allowMoreRepairTries(options) {
       organizationId = options.organizationId;
       try {
-        await client.actions["runRepairAllowances.create"](
+        const data = await client.actions["runRepairAllowances.create"](
           { id: options.runId, tries: options.tries },
           { idempotencyKey: options.idempotencyKey, signal: options.signal },
         );
-        return { ok: true, data: null };
+        return { ok: true, data };
       } catch (error) {
         return failed(error);
       } finally {
@@ -7160,6 +7844,312 @@ export function createBakeryApiClient({
         if (data.id !== options.id) {
           throw new ApiTransportError("protocol", 200);
         }
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async listSkillSources(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["skillSources.list"](
+          { cursor: options.cursor, limit: options.limit },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async createSkillSource(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["skillSources.create"](
+          options.input,
+          { idempotencyKey: options.idempotencyKey, signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async importSkill(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["skills.import"](
+          options.input,
+          { idempotencyKey: options.idempotencyKey, signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async getSkillImport(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["skillImports.get"](
+          { id: options.id },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async checkSkillSource(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["skills.sourceUpdate"](
+          { id: options.id },
+          { idempotencyKey: options.idempotencyKey, signal: options.signal },
+        );
+        if (data.skillId !== options.id) {
+          throw new ApiTransportError("protocol", 200);
+        }
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async takeSkillSourceUpdate(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["skills.takeSourceUpdate"](
+          { id: options.id, revision: options.revision },
+          {
+            ifMatch: versionEtag(options.version),
+            idempotencyKey: options.idempotencyKey,
+          },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async setSkillActiveVersion(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["skills.setActiveVersion"](
+          { id: options.id, versionId: options.versionId },
+          {
+            ifMatch: versionEtag(options.version),
+            idempotencyKey: options.idempotencyKey,
+          },
+        );
+        if (data.id !== options.id) {
+          throw new ApiTransportError("protocol", 200);
+        }
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async createSkill(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["skills.create"](
+          options.input,
+          { idempotencyKey: options.idempotencyKey, signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async openSkillDraft(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["skillDrafts.open"](
+          { id: options.id },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async getSkillDraft(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["skillDrafts.get"](
+          { id: options.id },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async getSkillDraftFile(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["skillDraftFiles.get"](
+          { id: options.id, fileId: options.fileId },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async updateSkillDraft(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["skillDrafts.update"](
+          { id: options.id, ...options.input },
+          {
+            ifMatch: versionEtag(options.version),
+            idempotencyKey: options.idempotencyKey,
+            signal: options.signal,
+          },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async saveSkillDraftFile(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["skillDraftFiles.save"](
+          { id: options.id, ...options.input },
+          {
+            ifMatch: versionEtag(options.version),
+            idempotencyKey: options.idempotencyKey,
+            signal: options.signal,
+          },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async renameSkillDraftFile(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["skillDraftFiles.rename"](
+          { id: options.id, path: options.path, newPath: options.newPath },
+          {
+            ifMatch: versionEtag(options.version),
+            idempotencyKey: options.idempotencyKey,
+            signal: options.signal,
+          },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async deleteSkillDraftFile(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["skillDraftFiles.delete"](
+          { id: options.id, fileId: options.fileId },
+          {
+            ifMatch: versionEtag(options.version),
+            idempotencyKey: options.idempotencyKey,
+            signal: options.signal,
+          },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async discardSkillDraft(options) {
+      organizationId = options.organizationId;
+      try {
+        await client.actions["skillDrafts.discard"](
+          { id: options.id },
+          {
+            ifMatch: versionEtag(options.version),
+            idempotencyKey: options.idempotencyKey,
+            signal: options.signal,
+          },
+        );
+        return { ok: true, data: undefined };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async checkSkillDraft(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["skillDrafts.check"](
+          { id: options.id },
+          { idempotencyKey: options.idempotencyKey, signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async publishSkillDraft(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["skillDrafts.publish"](
+          { id: options.id },
+          {
+            ifMatch: versionEtag(options.version),
+            idempotencyKey: options.idempotencyKey,
+            signal: options.signal,
+          },
+        );
         return { ok: true, data };
       } catch (error) {
         return failed(error);

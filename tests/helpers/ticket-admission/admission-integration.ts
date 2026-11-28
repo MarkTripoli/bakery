@@ -167,18 +167,12 @@ Deno.test("issue 82 admission AC1: six mixed origins for one issue converge on o
     assertEquals((await fx.counts(sourceId)).tasks, 1);
   }));
 
-Deno.test("issue 82 admission AC1: a source with no application is refused, and two concurrent attempts store nothing", () =>
+Deno.test("issue 409 S5: a source with no repository passes repository readiness; a preset that needs one still waits", () =>
   withTicketFixture(async (fx) => {
-    // 0206 lets a source carry no application (a provider that verifies a
-    // webhook with a shared secret). Readiness works for such a source, but a
-    // task names an application and cannot omit one, so admission is refused
-    // with a reason instead of failing inside task creation. The concurrency
-    // half matters because a refused path must write nothing even when two
-    // attempts race - the alternative would be a request row admitted under a
-    // task that cannot exist.
     const sourceId = await fx.insertSource({
       policy: automaticPolicy(fx),
       applicationId: null,
+      repositoryId: null,
     });
     fx.reader.setIssue({ number: 11, labels: [EXECUTE_LABEL] });
     fx.reader.setLabelApplied(11, EXECUTE_LABEL, { appliedAt: AFTER_SINCE });
@@ -190,15 +184,24 @@ Deno.test("issue 82 admission AC1: a source with no application is refused, and 
       fx.admit(sourceId, { number: 11, origin: "poll", deps }),
     ]);
     for (const attempt of attempts) {
-      assertEquals(attempt.status, "rejected");
-      const reason = attempt.status === "rejected"
-        ? (attempt.reason as { code?: string; params?: { reason?: string } })
-        : null;
-      assertEquals(reason?.code, "PRECONDITION_FAILED");
-      assertEquals(reason?.params?.reason, "source_application_required");
+      assertEquals(attempt.status, "fulfilled");
+      const value = attempt.status === "fulfilled" ? attempt.value : null;
+      assertEquals(value?.kind, "unadmitted");
+      const checks = value?.report?.checks ?? [];
+      assertEquals(
+        checks.find((check) => check.id === "repository_ready")?.status,
+        "pass",
+      );
+      assertEquals(
+        checks.filter((check) => check.status === "wait").map((check) => [
+          check.id,
+          check.reason,
+        ]),
+        [["preset_ready", "preset_setup_required"]],
+      );
     }
     const counts = await fx.counts(sourceId);
-    assertEquals(counts.requests, 0, "a refused admission stores no request");
+    assertEquals(counts.requests, 0);
     assertEquals(counts.tasks, 0);
     assertEquals(counts.links, 0);
   }));
@@ -948,6 +951,52 @@ Deno.test("issue 82 admission: a human plan approval leaves a start request wait
     assertEquals(result.request?.workflowRunId, null);
     const task = await taskOf(fx, result.request!.taskId);
     assertEquals(task.approval_policy, { plan: "human_approval" });
+    assertEquals((await fx.counts(sourceId)).runs, 0);
+  }));
+
+Deno.test("issue 60 admission: a start that asks for plan approval waits with no run under an automatic policy, and one that does not starts its run", () =>
+  withTicketFixture(async (fx) => {
+    const sourceId = await fx.insertSource({ policy: fx.policy() });
+    fx.reader.setIssue({ number: 72, labels: [EXECUTE_LABEL] });
+    const waiting = await fx.admit(sourceId, {
+      number: 72,
+      intent: "start",
+      requirePlanApproval: true,
+    });
+    assertEquals(waiting.kind, "admitted");
+    assertEquals(waiting.request?.disposition, "waiting");
+    assertEquals(waiting.request?.workflowRunId, null);
+    const waitingTask = await taskOf(fx, waiting.request!.taskId);
+    assertEquals(waitingTask.approval_policy, { plan: "human_approval" });
+    assertEquals((await fx.counts(sourceId)).runs, 0);
+
+    fx.reader.setIssue({ number: 73, labels: [EXECUTE_LABEL] });
+    const started = await fx.admit(sourceId, {
+      number: 73,
+      intent: "start",
+      requirePlanApproval: false,
+    });
+    assertEquals(started.kind, "admitted");
+    assertEquals(started.request?.disposition, "admitted");
+    assert(started.request?.workflowRunId);
+    const startedTask = await taskOf(fx, started.request!.taskId);
+    assertEquals(startedTask.approval_policy, { plan: "automatic" });
+    assertEquals((await fx.counts(sourceId)).runs, 1);
+  }));
+
+Deno.test("issue 60 admission: declining plan approval never removes one the source policy requires", () =>
+  withTicketFixture(async (fx) => {
+    const sourceId = await fx.insertSource({
+      policy: fx.policy({ approval: "human_approval" }),
+    });
+    fx.reader.setIssue({ number: 74, labels: [EXECUTE_LABEL] });
+    const result = await fx.admit(sourceId, {
+      number: 74,
+      intent: "start",
+      requirePlanApproval: false,
+    });
+    assertEquals(result.request?.disposition, "waiting");
+    assertEquals(result.request?.workflowRunId, null);
     assertEquals((await fx.counts(sourceId)).runs, 0);
   }));
 

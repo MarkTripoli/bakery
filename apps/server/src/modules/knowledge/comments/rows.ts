@@ -11,6 +11,7 @@ export type CommentRow = {
   readonly artifact_version_id: string;
   readonly parent_comment_id: string | null;
   readonly author_id: string;
+  readonly author_name: string | null;
   readonly body: string;
   readonly anchor: unknown;
   readonly status: string | null;
@@ -34,6 +35,8 @@ export type CommentVersion = AnchorVersion & {
 };
 export const commentColumns =
   `c.id,c.artifact_version_id,c.parent_comment_id,c.author_id,
+  (select left(nullif(btrim(author.display_name), ''), 200) from bakery.principals author
+    where author.id = c.author_id) as author_name,
   case when c.deleted_at is null then c.body else '' end as body,
   c.anchor,c.status,c.resolved_by,c.resolved_at,c.deleted_at,c.deleted_by,c.created_at,c.updated_at,c.row_version,
   to_char(c.created_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as cursor_created_at`;
@@ -43,6 +46,7 @@ export function toComment(row: CommentRow) {
     id: row.id,
     artifactVersionId: row.artifact_version_id,
     authorId: row.author_id,
+    authorName: row.author_name,
     body: row.deleted_at === null ? row.body : null,
     anchor: row.anchor === null ? null : redactCommentAnchor(
       contractSchemas.CommentAnchor.parse(row.anchor),

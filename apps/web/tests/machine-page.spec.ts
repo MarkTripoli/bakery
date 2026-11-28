@@ -28,6 +28,7 @@ type Facts = {
   readinessReason: string | null;
   failedCheckIds: string[];
   version: number;
+  unsettledAttemptCount?: number;
 };
 
 type Fixture = {
@@ -40,10 +41,15 @@ type Fixture = {
   repairs: Request[];
   /** What a read of the re-pair setup says. */
   repairState: "pending" | "consumed" | "expired";
+  pendingRepair: boolean;
+  cancels: number;
   /** The next update is refused with this status. */
   refuseWith: number | null;
   /** The machine's system and processor. */
   system: { os: string; architecture: string };
+  components?: Record<string, unknown>[];
+  checks?: Record<string, unknown>[];
+  retirement?: Record<string, unknown> | null;
 };
 
 function fixture(
@@ -68,6 +74,8 @@ function fixture(
     revokes: [],
     repairs: [],
     repairState: "pending",
+    pendingRepair: false,
+    cancels: 0,
     refuseWith: null,
     // The server stores x86_64 as x64: that is what a real machine carries.
     system: { os: "linux", architecture: "x64" },
@@ -114,12 +122,33 @@ async function open(
         inventoryRevision: 1,
       }));
     }
+    if (path.endsWith("/components")) {
+      return route.fulfill(
+        json({ items: f.components ?? [], nextCursor: null }),
+      );
+    }
     return route.fulfill(json({ items: [], nextCursor: null }));
   });
   await page.route(
     (url) => url.pathname === `/v1/workers/${MACHINE_ID}/enrollments`,
     (route) => {
       f.repairs.push(route.request());
+      if (f.pendingRepair) {
+        return route.fulfill({
+          status: 409,
+          contentType: "application/problem+json",
+          body: JSON.stringify({
+            type: "https://bakery.example/problems/x",
+            title: "x",
+            status: 409,
+            code: "STATE_CONFLICT",
+            retryable: false,
+            detail: "A repair code is already pending.",
+            requestId: "00000000-0000-4000-8000-00000000f002",
+            traceId: "00000000000000000000000000000002",
+          }),
+        });
+      }
       return route.fulfill(json({
         enrollmentId: REPAIR_ID,
         enrollmentToken: REPAIR_CODE,
@@ -131,9 +160,48 @@ async function open(
     },
   );
   await page.route(
-    (url) => url.pathname === `/v1/worker-enrollments/${REPAIR_ID}`,
+    (url) => url.pathname === "/v1/worker-enrollments",
     (route) =>
       route.fulfill(json({
+        items: f.pendingRepair
+          ? [{
+            enrollmentId: REPAIR_ID,
+            state: "pending",
+            name: "fixture-host",
+            os: "linux",
+            architecture: "x64",
+            capabilities: ["git", "claude"],
+            slots: 2,
+            expiresAt: new Date(Date.now() + 10 * 60_000).toISOString(),
+            consumedAt: null,
+            canceledAt: null,
+            workerHostId: null,
+            replacementOfId: null,
+            targetWorkerHostId: MACHINE_ID,
+            version: 1,
+          }]
+          : [],
+        nextCursor: null,
+      })),
+  );
+  await page.route(
+    (url) => url.pathname === `/v1/worker-enrollments/${REPAIR_ID}`,
+    (route) => {
+      if (route.request().method() === "PATCH") {
+        f.pendingRepair = false;
+        f.cancels += 1;
+        return route.fulfill(json({
+          enrollmentId: REPAIR_ID,
+          organizationId: MOCK_ORGANIZATION_ID,
+          state: "canceled",
+          expiresAt: new Date(Date.now() + 10 * 60_000).toISOString(),
+          workerHostId: null,
+          worker: null,
+          version: 2,
+          snapshotCursor: null,
+        }));
+      }
+      return route.fulfill(json({
         enrollmentId: REPAIR_ID,
         organizationId: MOCK_ORGANIZATION_ID,
         state: f.repairState,
@@ -142,7 +210,8 @@ async function open(
         worker: null,
         version: 1,
         snapshotCursor: null,
-      })),
+      }));
+    },
   );
   await page.route(
     (url) => url.pathname === `/v1/workers/${MACHINE_ID}/revocations`,
@@ -202,6 +271,8 @@ async function open(
 
 function worker(f: Fixture) {
   return {
+    ...(f.checks ? { checks: f.checks } : {}),
+    ...(f.retirement === undefined ? {} : { retirement: f.retirement }),
     id: MACHINE_ID,
     principalId: "00000000-0000-4000-8000-0000000000a2",
     name: "fixture-host",
@@ -216,7 +287,11 @@ function worker(f: Fixture) {
     readiness: f.facts.readiness,
     readinessReason: f.facts.readinessReason,
     failedCheckIds: f.facts.failedCheckIds,
+    ...(f.facts.unsettledAttemptCount === undefined
+      ? {}
+      : { unsettledAttemptCount: f.facts.unsettledAttemptCount }),
     lastHeartbeatAt: "2026-01-01T00:00:00.000Z",
+    activeAttemptCount: 0,
     credentialGeneration: 1,
     archivedAt: null,
     cleanup: { state: "not_requested", requestedAt: null, confirmedAt: null },
@@ -227,6 +302,124 @@ function worker(f: Fixture) {
 }
 
 const banner = (page: Page) => page.getByTestId("machine-problem-banner");
+const openChecks = async (page: Page) => {
+  await page.getByRole("tab", { name: "Checks and software" }).click();
+  await expect(page).toHaveURL(/\/machines\/[^/]+\/checks/);
+};
+
+test.describe("machine page: states", () => {
+  test("offline keeps the last data, says when it was read and disables changes", async ({ page, context }) => {
+    await open(page, fixture());
+    await expect(page.getByTestId("machine-about")).toBeVisible();
+    await context.setOffline(true);
+    await expect(page.getByText(/You are offline\. Last updated /))
+      .toBeVisible();
+    for (const mode of ["Taking work", "Paused", "Finish and stop"]) {
+      await expect(page.getByRole("radio", { name: mode })).toBeDisabled();
+    }
+    await expect(
+      page.getByRole("button", { name: "Retire this machine" }).first(),
+    ).toBeDisabled();
+    await expect(page.getByTestId("machine-about")).toBeVisible();
+    await shot(page, "machine-page-offline-last-updated");
+  });
+
+  test("a retire dialog left open cannot act offline", async ({ page, context }) => {
+    await open(page, fixture());
+    await page.getByRole("button", { name: "Retire this machine" }).first()
+      .click();
+    const dialog = page.getByRole("alertdialog");
+    await expect(dialog.getByRole("button", { name: "Retire now" }))
+      .toBeEnabled();
+    await expect(dialog).not.toContainText("You are offline.");
+    await context.setOffline(true);
+    await expect(dialog).toContainText("You are offline.");
+    for (const name of ["Retire now", "Finish and stop instead"]) {
+      await expect(dialog.getByRole("button", { name })).toBeDisabled();
+    }
+    await expect(dialog.getByRole("button", { name: "Cancel" }))
+      .toBeEnabled();
+    await shot(page, "machine-page-retire-offline", [], { windowOnly: true });
+  });
+
+  test("offline still opens the checks", async ({ page, context }) => {
+    await open(
+      page,
+      fixture(
+        {
+          readiness: "needs_attention",
+          readinessReason: "check_failed",
+          failedCheckIds: ["capability:git"],
+        },
+        {
+          blockedCapabilities: ["git"],
+          failedChecks: [{ checkId: "capability:git", reason: "git missing" }],
+        },
+      ),
+    );
+    await expect(banner(page)).toContainText("1 check failed.");
+    await context.setOffline(true);
+    await expect(page.getByText(/You are offline\. Last updated /))
+      .toBeVisible();
+    await expect(banner(page).getByRole("button", { name: "See the checks" }))
+      .toBeEnabled();
+  });
+
+  test("loading shows placeholder rows, not a banner", async ({ page }) => {
+    let release = () => {};
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await open(page, fixture());
+    await expect(page.getByTestId("machine-about")).toBeVisible();
+    await page.route(
+      (url) => url.pathname === `/v1/workers/${MACHINE_ID}`,
+      async (route) => {
+        await held;
+        await route.fallback();
+      },
+    );
+    await page.reload();
+    const loading = page.getByRole("status", { name: "Loading machine data…" });
+    await expect(loading).toBeVisible();
+    await expect(loading.locator("[data-ui-component=skeleton]"))
+      .toHaveCount(3);
+    await expect(page.getByTestId("machine-detail-page"))
+      .not.toContainText(MACHINE_ID);
+    await shot(page, "machine-page-loading");
+    release();
+    await expect(loading).toHaveCount(0);
+  });
+
+  test("a long check reason is clamped and can be shown whole", async ({ page }) => {
+    const reason = Array.from(
+      { length: 40 },
+      (_, line) => `line ${line + 1}: git exited with a long explanation`,
+    ).join("\n");
+    await open(
+      page,
+      fixture(
+        {
+          readiness: "needs_attention",
+          readinessReason: "check_failed",
+          failedCheckIds: ["capability:git"],
+        },
+        {
+          blockedCapabilities: ["git"],
+          failedChecks: [{ checkId: "capability:git", reason }],
+        },
+      ),
+    );
+    await openChecks(page);
+    const more = page.getByRole("button", { name: "Show more" });
+    await expect(more).toBeVisible();
+    await shot(page, "machine-page-check-reason-clamped");
+    await more.click();
+    await expect(page.getByRole("button", { name: "Show less" }))
+      .toBeVisible();
+    await expect(page.getByTestId("machine-checks")).toContainText("line 40:");
+  });
+});
 
 test.describe("machine page: the one banner", () => {
   const cases: readonly {
@@ -240,7 +433,7 @@ test.describe("machine page: the one banner", () => {
     {
       name: "offline",
       facts: { connectivity: "offline" },
-      title: "Offline. Bakery cannot reach it.",
+      title: "Bakery cannot reach it.",
       body: "Check that the machine is on and the Bakery worker is running.",
       fix: null,
       tone: "warning",
@@ -248,7 +441,7 @@ test.describe("machine page: the one banner", () => {
     {
       name: "not responding",
       facts: { connectivity: "stale" },
-      title: "Not responding. It has stopped answering Bakery.",
+      title: "It has stopped answering Bakery.",
       body: "Work is not sent to it until it answers again.",
       fix: null,
       tone: "warning",
@@ -257,7 +450,7 @@ test.describe("machine page: the one banner", () => {
       // Someone chose it: nothing is wrong, so it is information, not amber.
       name: "paused",
       facts: { status: "offline", desiredMode: "paused" },
-      title: "Paused. It takes no new work until someone resumes it.",
+      title: "It takes no new work until someone resumes it.",
       body: "It keeps the work it has.",
       fix: "Take work again",
       tone: "information",
@@ -265,7 +458,7 @@ test.describe("machine page: the one banner", () => {
     {
       name: "finishing up",
       facts: { status: "draining", desiredMode: "draining" },
-      title: "Finishing its current work. It takes no new work.",
+      title: "It takes no new work and stops once its current work is done.",
       body: null,
       fix: "Take work again",
       tone: "information",
@@ -273,7 +466,7 @@ test.describe("machine page: the one banner", () => {
     {
       name: "retired",
       facts: { status: "revoked", desiredMode: "revoked" },
-      title: "Retired. It no longer takes work.",
+      title: "It no longer takes work.",
       body: "Set it up again to use it.",
       fix: "Set up again",
       tone: "information",
@@ -309,8 +502,10 @@ test.describe("machine page: the one banner", () => {
   test("a machine with nothing wrong has no banner and says so about its checks", async ({ page }) => {
     await open(page, fixture());
     const detail = page.getByTestId("machine-detail-page");
+    await openChecks(page);
     await expect(detail.getByText("No failed checks reported.")).toBeVisible();
     await expect(banner(page)).toHaveCount(0);
+    await page.getByRole("tab", { name: "Overview" }).click();
     // One section about the machine, one line each: no section per fact.
     const about = page.getByTestId("machine-about");
     await expect(about.getByRole("heading", { name: "About this machine" }))
@@ -353,6 +548,76 @@ test.describe("machine page: the one banner", () => {
     expect(axe.violations.map((v) => v.id)).toEqual([]);
   });
 
+  test("Checks and software lists what is installed and whether an update is available", async ({ page }) => {
+    const component = (
+      componentKey: string,
+      kind: string,
+      actualVersion: string,
+      installOwner: string,
+      availableVersion: string | null = null,
+    ) => ({
+      id: crypto.randomUUID(),
+      componentKey,
+      paymentMethods: ["subscription"],
+      kind,
+      actualVersion,
+      actualDigest: null,
+      installOwner,
+      adapterVersion: "1",
+      availableVersion,
+      channel: null,
+      observedAt: "2026-01-01T00:00:00.000Z",
+      maintenanceSupport: null,
+    });
+    await open(
+      page,
+      fixture({}, {
+        components: [
+          component("harness.claude", "harness", "1.2.0", "external", "1.3.0"),
+          component("worker-supervisor", "worker", "3.0.0", "bakery", "3.0.0"),
+          component("git", "toolchain", "2.40.0", "external"),
+        ],
+      }),
+    );
+    await openChecks(page);
+    const software = page.getByTestId("machine-software");
+    await expect(software.getByRole("heading", { name: "Software" }))
+      .toBeVisible();
+    await expect(software).toContainText(
+      "This page does not install updates.",
+    );
+    const phone = (page.viewportSize()?.width ?? 1440) < 600;
+    const table = software.getByRole("table");
+    if (phone) {
+      await expect(table).toHaveCount(0);
+      const clipped = await software.getByRole("listitem").evaluateAll((
+        items,
+      ) => items.filter((item) => item.scrollWidth > item.clientWidth).length);
+      expect(clipped).toBe(0);
+    } else {
+      await expect(table.getByRole("columnheader")).toHaveText([
+        "Software",
+        "Kind",
+        "Version",
+        "Installed by",
+        "Update",
+      ]);
+    }
+    const rowOf = (text: string) =>
+      phone
+        ? software.getByRole("listitem").filter({ hasText: text })
+        : table.getByRole("row").filter({ hasText: text });
+    const claude = rowOf("Claude Code");
+    await expect(claude).toContainText("Coding agent");
+    await expect(claude).toContainText("Already on the machine");
+    await expect(claude).toContainText("1.3.0 is available");
+    await expect(rowOf("worker-supervisor")).toContainText("Up to date");
+    await expect(rowOf("git")).toContainText("Not reported");
+    await expect(software.getByRole("button")).toHaveCount(0);
+    await expect(page.getByTestId("machine-about")).toHaveCount(0);
+    await shot(page, "machine-page-software");
+  });
+
   test("failed checks: what stops the machine, what stops only some work, and the machine's own reason", async ({ page }) => {
     await open(
       page,
@@ -382,9 +647,13 @@ test.describe("machine page: the one banner", () => {
       "This machine cannot take any work until this is fixed.",
     );
     await expect(banner(page).getByRole("button")).toHaveText("See the checks");
-    // The button says it: the banner does not also say "see the checks".
     await expect(banner(page)).not.toContainText("See the checks below.");
+    await banner(page).getByRole("button").click();
+    await expect(page).toHaveURL(/\/machines\/[^/]+\/checks/);
     const checks = page.getByTestId("machine-checks");
+    await expect(
+      checks.getByRole("heading", { name: "Checks", exact: true }),
+    ).toBeFocused();
     // Each failed check is marked on its own row.
     await expect(checks.getByText("Failed", { exact: true })).toHaveCount(3);
     await expect(checks.getByRole("heading", { name: "This machine" }))
@@ -433,10 +702,154 @@ test.describe("machine page: the one banner", () => {
     await expect(banner(page)).toContainText(
       "Only work that needs git is affected. Other work continues.",
     );
+    await openChecks(page);
     await expect(page.getByTestId("machine-checks")).toContainText(
       "The coding agent cannot make a working copy of a repository.",
     );
   });
+});
+
+test.describe("machine page: every check and who retired it", () => {
+  const observed = "2026-11-27T15:30:00.000Z";
+  const check = (
+    checkId: string,
+    result: "pass" | "fail" | "unknown" | "not_applicable",
+    reason: string | null = null,
+    componentKey: string | null = null,
+  ) => ({ checkId, componentKey, result, reason, observedAt: observed });
+
+  test("each check has its result, when it ran and what to do", async ({ page }) => {
+    await open(
+      page,
+      fixture({
+        readiness: "needs_attention",
+        readinessReason: "check_failed",
+        failedCheckIds: ["disk_threshold"],
+      }, {
+        allBlocked: true,
+        failedChecks: [{ checkId: "disk_threshold", reason: "2% free" }],
+        checks: [
+          check("disk_threshold", "fail", "2% free"),
+          check("supervisor_health", "pass"),
+          check("capability:git", "unknown"),
+          check("capability:model", "pass", null, "harness.claude"),
+          check("capability:reviewer", "not_applicable"),
+        ],
+      }),
+    );
+    await openChecks(page);
+    const checks = page.getByTestId("machine-checks");
+    for (
+      const word of [
+        "Passed",
+        "Failed",
+        "Could not be checked",
+        "Does not apply",
+        "Model access (Claude Code)",
+        "Bakery could not run this check. Check again in a moment.",
+        "The machine is low on disk space.",
+        "2% free",
+      ]
+    ) await expect(checks).toContainText(word);
+    await expect(checks).toContainText("Nov 27, 2026");
+    await expect(checks).not.toContainText("No failed checks reported.");
+    await expect(checks).not.toContainText(
+      "The worker is not running properly.",
+    );
+    if (test.info().project.name === "desktop") {
+      for (const column of ["Check", "Result", "Checked", "What to do"]) {
+        await expect(
+          checks.getByRole("columnheader", { name: column, exact: true })
+            .first(),
+        ).toBeVisible();
+      }
+    }
+    await shot(page, "machine-page-checks-table");
+  });
+
+  test("checks that all pass say there are no failures", async ({ page }) => {
+    await open(
+      page,
+      fixture({}, { checks: [check("disk_threshold", "pass")] }),
+    );
+    await openChecks(page);
+    const checks = page.getByTestId("machine-checks");
+    await expect(checks).toContainText("No failed checks reported.");
+    await expect(checks).toContainText("Free disk space");
+    await expect(checks).toContainText("Passed");
+  });
+
+  test("an offline machine's old results are out of date, not unrunnable", async ({ page }) => {
+    await open(
+      page,
+      fixture({ connectivity: "offline" }, {
+        checks: [
+          check("disk_threshold", "unknown"),
+          check("capability:git", "unknown"),
+        ],
+      }),
+    );
+    await openChecks(page);
+    const checks = page.getByTestId("machine-checks");
+    await expect(checks.getByText("Out of date", { exact: true }))
+      .toHaveCount(2);
+    await expect(checks).toContainText(
+      "This result is out of date. It is checked again when the machine is back.",
+    );
+    await expect(checks).not.toContainText("Bakery could not run this check");
+    await expect(checks).not.toContainText("No failed checks reported.");
+    await shot(page, "machine-page-checks-out-of-date");
+  });
+
+  test("the banner and the tab count failed checks apart from ones that did not run", async ({ page }) => {
+    await open(
+      page,
+      fixture({
+        readiness: "needs_attention",
+        readinessReason: "check_failed",
+        failedCheckIds: ["disk_threshold", "supervisor_health"],
+      }, {
+        allBlocked: true,
+        failedChecks: [
+          { checkId: "disk_threshold", reason: "2% free" },
+          { checkId: "supervisor_health", reason: null },
+        ],
+        checks: [
+          check("disk_threshold", "fail", "2% free"),
+          check("supervisor_health", "unknown"),
+        ],
+      }),
+    );
+    await expect(banner(page)).toContainText(
+      "1 check failed and 1 could not be run.",
+    );
+    await expect(page.getByRole("tab", { name: /Checks and software/ }))
+      .toContainText("1 failed");
+    await openChecks(page);
+    const checks = page.getByTestId("machine-checks");
+    await expect(checks.getByText("Failed", { exact: true })).toHaveCount(1);
+    await expect(checks.getByText("Could not be checked", { exact: true }))
+      .toHaveCount(1);
+    await shot(page, "machine-page-checks-mixed-count");
+  });
+
+  for (
+    const [name, line] of [
+      ["Riley Chen", "Retired by Riley Chen on Nov 27, 2026"],
+      [null, "Retired on Nov 27, 2026"],
+    ] as const
+  ) {
+    test(`a retired machine says ${line.slice(0, 10)}${name ? " who" : " when only"}`, async ({ page }) => {
+      await open(
+        page,
+        fixture({ status: "revoked", desiredMode: "revoked" }, {
+          retirement: { principalId: null, name, at: observed },
+        }),
+      );
+      await expect(page.getByTestId("machine-detail-page")).toContainText(line);
+      if (name) await shot(page, "machine-page-retired-by");
+    });
+  }
 });
 
 test.describe("machine page: mode and Retire", () => {
@@ -448,13 +861,15 @@ test.describe("machine page: mode and Retire", () => {
       .toBeChecked();
     // The control shows the server's state, so it changes when the update returns.
     await mode.getByRole("radio", { name: "Paused" }).click({ force: true });
-    await expect(mode.getByText("Paused. It keeps the work it has."))
-      .toBeVisible();
+    await expect(banner(page)).toContainText("It keeps the work it has.");
+    await expect(mode.getByRole("status")).toHaveCount(0);
     expect(f.patches).toHaveLength(1);
     expect(f.patches[0]!.postDataJSON()).toEqual({ status: "offline" });
     expect(f.patches[0]!.headers()["if-match"]).toBe('"v1"');
     expect(f.patches[0]!.headers()["idempotency-key"]).toBeTruthy();
-    await expect(banner(page)).toContainText("Paused.");
+    await expect(banner(page)).toContainText(
+      "It takes no new work until someone resumes it.",
+    );
     await shot(page, "machine-page-mode");
     await banner(page).getByRole("button", { name: "Take work again" }).click();
     await expect(banner(page)).toHaveCount(0);
@@ -497,23 +912,54 @@ test.describe("machine page: mode and Retire", () => {
     );
     // The one thing a person fears: what happens to what is running on it.
     await expect(dialog).toContainText(
-      "Tasks running on it are not stopped or moved, and it can no longer report on them. To let them finish first, choose Finish and stop, and retire the machine when it has no work.",
+      'If it is running tasks, retiring now cuts them off. Bakery marks each one "Lost contact" when its time runs out.',
     );
-    await shot(page, "machine-page-retire");
+    await expect(dialog).toContainText(
+      "To let them finish first, choose Finish and stop.",
+    );
+    await expect(dialog.getByRole("button")).toHaveText([
+      "Cancel",
+      "Finish and stop instead",
+      "Retire now",
+    ]);
+    await shot(page, "machine-page-retire", [], { windowOnly: true });
     // Cancelling retires nothing.
     await dialog.getByRole("button", { name: "Cancel" }).click();
     expect(f.revokes).toHaveLength(0);
     await page.getByRole("button", { name: "Retire this machine" }).first()
       .click();
-    await page.getByRole("alertdialog").getByRole("button", { name: "Retire" })
-      .click();
+    await page.getByRole("alertdialog").getByRole("button", {
+      name: "Retire now",
+    }).click();
     await expect(banner(page)).toContainText(
-      "Retired. It no longer takes work.",
+      "It no longer takes work.",
     );
     expect(f.revokes).toHaveLength(1);
     expect(f.revokes[0]!.headers()["idempotency-key"]).toBeTruthy();
     await expect(page.getByTestId("machine-mode")).toHaveCount(0);
     await expect(page.getByTestId("machine-retire")).toHaveCount(0);
+  });
+
+  test("Finish and stop instead sets the mode, closes the dialog and retires nothing", async ({ page }) => {
+    const f = fixture();
+    await open(page, f);
+    await page.getByRole("button", { name: "Retire this machine" }).first()
+      .click();
+    await page.getByRole("alertdialog").getByRole("button", {
+      name: "Finish and stop instead",
+    }).click();
+    await expect(page.getByRole("alertdialog")).toHaveCount(0);
+    await expect(banner(page)).toContainText(
+      "It takes no new work and stops once its current work is done.",
+    );
+    await expect(banner(page)).toBeInViewport();
+    await expect(banner(page)).toBeFocused();
+    await expect(page.getByTestId("machine-mode").getByRole("status"))
+      .toHaveCount(0);
+    expect(f.patches).toHaveLength(1);
+    expect(f.patches[0]!.postDataJSON()).toEqual({ status: "draining" });
+    expect(f.revokes).toHaveLength(0);
+    await shot(page, "machine-page-finish-instead", [], { windowOnly: true });
   });
 
   test("a retired machine has one action, Set up again, which re-pairs the same machine in the wizard's words", async ({ page }) => {
@@ -531,49 +977,167 @@ test.describe("machine page: mode and Retire", () => {
       setup.getByRole("heading", { name: "Set up fixture-host again" }),
     )
       .toBeVisible();
-    await expect(setup.getByText(REPAIR_CODE)).toBeVisible();
-    // Linux on x86_64 is a supported system, so its steps carry no warning.
-    await expect(setup.getByText("is not a supported system yet"))
+    await expect(setup.locator("[data-ui-component=codeBlock]")).toContainText(
+      "link --server http://127.0.0.1 --code REPA-IR01",
+    );
+    await expect(setup).toContainText("Paste it in a terminal on the machine.");
+    await expect(setup).toContainText("Works once, for 10 minutes");
+    await expect(setup.getByTestId("machine-add-status")).toHaveText(
+      "Waiting for the machine · this page updates by itself",
+    );
+    await expect(setup.getByText(REPAIR_CODE)).toHaveCount(0);
+    await expect(banner(page).getByRole("button", { name: "Set up again" }))
       .toHaveCount(0);
-    await expect(
-      setup.getByText(
-        "The Bakery worker is the program that runs agents on this machine.",
-      ),
-    ).toBeVisible();
-    await expect(setup).toContainText("BAKERY_WORKER_NAME=fixture-host");
-    await expect(setup).toContainText("BAKERY_CLAUDE_HARNESS=1");
-    await expect(
-      setup.getByRole("status").filter({
-        hasText: "Waiting for the machine to connect…",
-      }),
-    ).toBeVisible();
-    // The old panel's words are gone.
     await expect(page.getByText(/setup key|worker host|Run the worker/i))
       .toHaveCount(0);
-    // The banner that started it stays above the instructions.
     const bannerBox = await banner(page).boundingBox();
     const setupBox = await setup.boundingBox();
     expect(bannerBox!.y).toBeLessThan(setupBox!.y);
     await shot(page, "machine-page-set-up-again");
-    // It connects: the page says so.
+    await page.clock.fastForward(2 * 60_000 + 1_000);
+    await expect(setup.getByTestId("machine-add-status")).toHaveText(
+      "Still waiting. If the terminal shows an error, it says what to do.",
+    );
+    await setup.getByRole("button", { name: "Set up by hand instead" }).click();
+    await expect(setup.getByText(REPAIR_CODE)).toBeVisible();
+    await expect(setup.locator("[data-ui-component=codeBlock]").first())
+      .not.toContainText("link --server");
+    await expect(setup).toContainText("BAKERY_WORKER_NAME=fixture-host");
+    await expect(setup).toContainText("BAKERY_CLAUDE_HARNESS=1");
+    await expect(setup.getByText("Waiting for the machine to connect…"))
+      .toHaveCount(0);
+    await expect(setup.getByText("is not a supported system yet"))
+      .toHaveCount(0);
+    expect(f.repairs).toHaveLength(1);
+    await shot(page, "machine-page-set-up-by-hand");
     f.repairState = "consumed";
-    // The page asks again on a timer that backs off from 5 to 30 seconds, so
-    // move its clock until it has asked, instead of waiting a wall-clock budget.
     await expect(async () => {
       await page.clock.fastForward(30_000);
-      await expect(page.getByText("fixture-host is connected.")).toBeVisible({
+      await expect(page.getByTestId("machine-repair")).toHaveCount(0, {
         timeout: 2_000,
       });
     }).toPass();
   });
 
-  test("a machine with a banner has no header badge: the banner is its status", async ({ page }) => {
+  test("Set up again with a code still pending replaces it with a new command", async ({ page }) => {
+    const f = fixture({ status: "revoked", desiredMode: "revoked" }, {
+      pendingRepair: true,
+    });
+    await open(page, f);
+    await banner(page).getByRole("button", { name: "Set up again" }).click();
+    await expect(
+      page.getByTestId("machine-repair").locator(
+        "[data-ui-component=codeBlock]",
+      ),
+    ).toBeVisible();
+    expect(f.cancels).toBe(1);
+    expect(f.repairs).toHaveLength(2);
+    await expect(page.getByText("Bakery could not start the setup."))
+      .toHaveCount(0);
+  });
+
+  test("a command that expired unused is taken away and offers a new one", async ({ page, context }) => {
+    const f = fixture({ status: "revoked", desiredMode: "revoked" });
+    await page.clock.install();
+    await open(page, f);
+    await banner(page).getByRole("button", { name: "Set up again" }).click();
+    const setup = page.getByTestId("machine-repair");
+    await expect(setup.locator("[data-ui-component=codeBlock]")).toBeVisible();
+    f.repairState = "expired";
+    await expect(async () => {
+      await page.clock.fastForward(30_000);
+      await expect(setup).toContainText(
+        "This command expired before it was used.",
+        { timeout: 2_000 },
+      );
+    }).toPass();
+    await expect(setup.locator("[data-ui-component=codeBlock]")).toHaveCount(0);
+    await shot(page, "machine-page-set-up-expired");
+    f.repairState = "pending";
+    await context.setOffline(true);
+    await expect(setup.getByRole("button", { name: "Get a new command" }))
+      .toBeDisabled();
+    await context.setOffline(false);
+    await setup.getByRole("button", { name: "Get a new command" }).click();
+    await expect.poll(() => f.repairs.length).toBe(2);
+  });
+
+  test("a machine with a banner keeps its status word in the header", async ({ page }) => {
     await open(page, fixture({ status: "offline", connectivity: "offline" }));
     await expect(banner(page)).toBeVisible();
     const badge = page.getByTestId("machine-detail-page").locator(
       '[data-ui-component="badge"]',
     );
-    await expect(badge.filter({ hasText: /^Offline$/ })).toHaveCount(0);
+    await expect(badge.filter({ hasText: /^Offline$/ })).toHaveCount(1);
+  });
+
+  for (
+    const [name, facts, words] of [
+      [
+        "finishing with work",
+        {
+          desiredMode: "draining",
+          status: "draining",
+          unsettledAttemptCount: 2,
+        },
+        "It finishes 2 tasks, then takes nothing new.",
+      ],
+      [
+        "finished",
+        {
+          desiredMode: "draining",
+          status: "draining",
+          unsettledAttemptCount: 0,
+        },
+        "It has no work left. You can retire it.",
+      ],
+      [
+        "paused with work",
+        { desiredMode: "paused", status: "offline", unsettledAttemptCount: 1 },
+        "1 task continues.",
+      ],
+    ] as const
+  ) {
+    test(`a machine ${name} counts its tasks in the banner`, async ({ page }) => {
+      await open(page, fixture(facts));
+      await expect(banner(page)).toContainText(words);
+      await shot(page, `machine-page-${name.replaceAll(" ", "-")}`);
+    });
+  }
+
+  for (const unsettled of [0, 2]) {
+    test(`retiring a finishing machine with ${unsettled} tasks does not offer to finish`, async ({ page }) => {
+      await open(
+        page,
+        fixture({
+          desiredMode: "draining",
+          status: "draining",
+          unsettledAttemptCount: unsettled,
+        }),
+      );
+      await page.getByRole("button", { name: "Retire this machine" }).first()
+        .click();
+      const dialog = page.getByRole("alertdialog");
+      await expect(dialog).toContainText("Retire fixture-host?");
+      await expect(dialog).not.toContainText("choose Finish and stop");
+      await expect(dialog.getByRole("button")).toHaveText([
+        "Cancel",
+        "Retire now",
+      ]);
+      await shot(page, `machine-page-retire-finishing-${unsettled}`, [], {
+        windowOnly: true,
+      });
+    });
+  }
+
+  test("retiring a machine with unfinished tasks says they are cut off", async ({ page }) => {
+    await open(page, fixture({ unsettledAttemptCount: 2 }));
+    await page.getByRole("button", { name: "Retire this machine" }).first()
+      .click();
+    await expect(page.getByRole("alertdialog")).toContainText(
+      'It is running 2 tasks. Retiring now cuts them off, and Bakery marks each one "Lost contact" when its time runs out.',
+    );
+    await shot(page, "machine-page-retire-running", [], { windowOnly: true });
   });
 
   test("a retired machine shows its header, one banner and About, with no empty Checks or Coding agents", async ({ page }) => {
@@ -583,13 +1147,13 @@ test.describe("machine page: mode and Retire", () => {
     await open(page, f);
     const detail = page.getByTestId("machine-detail-page");
     await expect(banner(page)).toContainText(
-      "Retired. It no longer takes work.",
+      "It no longer takes work.",
     );
     await expect(
       detail.locator('[data-ui-component="badge"]').filter({
         hasText: /^Retired$/,
       }),
-    ).toHaveCount(0);
+    ).toHaveCount(1);
     await expect(page.getByTestId("machine-about")).toBeVisible();
     await expect(page.getByTestId("machine-checks")).toHaveCount(0);
     await expect(page.getByTestId("machine-agents")).toHaveCount(0);
@@ -626,8 +1190,9 @@ test.describe("machine page: mode and Retire", () => {
     await open(page, f);
     await banner(page).getByRole("button", { name: "Set up again" }).click();
     const setup = page.getByTestId("machine-repair");
-    await expect(setup.getByText(REPAIR_CODE)).toBeVisible();
-    await expect(setup).toContainText("BAKERY_WORKER_NAME=fixture-host");
+    await expect(setup.locator("[data-ui-component=codeBlock]")).toContainText(
+      "link --server",
+    );
     await expect(setup.getByText("is not a supported system yet"))
       .toHaveCount(0);
   });
@@ -686,7 +1251,9 @@ test.describe("machine page: mode and Retire", () => {
       fixture({ status: "offline", desiredMode: "paused" }),
       "developer",
     );
-    await expect(banner(page)).toContainText("Paused.");
+    await expect(banner(page)).toContainText(
+      "It takes no new work until someone resumes it.",
+    );
     // The fix changes the machine, so it is for administrators.
     await expect(banner(page).getByRole("button")).toHaveCount(0);
     await expect(page.getByTestId("machine-mode")).toHaveCount(0);

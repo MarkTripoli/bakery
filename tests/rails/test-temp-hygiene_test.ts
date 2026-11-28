@@ -410,17 +410,16 @@ for (const signal of ["SIGTERM", "SIGINT"] as const) {
         stderr: "piped",
       }).spawn();
       const output = runner.output();
-      // The fixture says it is running by writing its pid into the lane root.
+      const readyPid = async (entry: string): Promise<number> => {
+        const text = await Deno.readTextFile(`${base}/${entry}/ready`)
+          .catch(() => "");
+        return /^[1-9][0-9]*$/.test(text) ? Number(text) : 0;
+      };
       const ready = async () => {
         for (let attempt = 0; attempt < 300; attempt += 1) {
           for (const entry of entriesOf(base)) {
-            try {
-              return Number(
-                await Deno.readTextFile(`${base}/${entry}/ready`),
-              );
-            } catch {
-              // Not there yet.
-            }
+            const found = await readyPid(entry);
+            if (found > 0) return found;
           }
           await new Promise((resolve) => setTimeout(resolve, 200));
         }

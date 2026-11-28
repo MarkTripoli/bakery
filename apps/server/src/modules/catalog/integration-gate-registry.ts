@@ -41,6 +41,15 @@ const PROVIDER_MANIFESTS = Object.freeze(
   PROVIDERS.providers.map((provider) => provider.manifest),
 );
 
+export const deployedProviderGates = Object.freeze(
+  PROVIDERS.providers.flatMap((provider) =>
+    provider.impl.gate === undefined ? [] : [provider.impl.gate]
+  ),
+);
+const PROVIDER_GATE_IDS = new Set(
+  deployedProviderGates.map((gate) => gate.manifest.id),
+);
+
 /** Gate ids that the registry deploys, in registry order. */
 const REGISTERED_GATE_IDS: readonly string[] = Object.freeze(
   PROVIDER_IDENTITIES.map((identity) => identity.gateId),
@@ -85,7 +94,10 @@ export function deployedIntegrationsDefects(): string[] {
   // too: a gate id claimed by a definition and by a provider package would be two
   // providers answering one route, and the first would win silently.
   for (const manifest of PROVIDER_MANIFESTS) {
-    if (DEFINITIONS.some((d) => d.manifest.id === manifest.integrationId)) {
+    if (
+      DEFINITIONS.some((d) => d.manifest.id === manifest.integrationId) &&
+      !PROVIDER_GATE_IDS.has(manifest.integrationId)
+    ) {
       defects.push(
         `Both a definition and the provider package ${manifest.slug} answer ${manifest.integrationId}; the gate would route to only one of them.`,
       );

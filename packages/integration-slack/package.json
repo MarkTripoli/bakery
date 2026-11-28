@@ -1,0 +1,13 @@
+{
+  "name": "@bakery/integration-slack",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./manifest": "./src/manifest.ts",
+    "./server": "./src/server/mod.ts",
+    "./web": "./src/web/mod.ts"
+  },
+  "dependencies": {
+    "@bakery/integration-sdk": "workspace:*"
+  }
+}

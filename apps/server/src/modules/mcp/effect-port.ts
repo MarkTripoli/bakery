@@ -1,11 +1,18 @@
 import { StandardError } from "@bakery/contracts/http";
+import { z } from "zod";
+import { canonicalJson } from "../../platform/canonical-json.ts";
+import { type McpAsyncForm, parseMcpAsyncForm } from "./async-form.ts";
 import { type PgDatabase, withPgTransaction } from "../../platform/database.ts";
 import type {
   McpEffectPort,
   McpWriteClass,
   McpWriteResult,
 } from "../effects/mcp.ts";
-import type { ExternalEffectRow } from "../effects/schema.ts";
+import {
+  type EffectFailureCode,
+  type ExternalEffectRow,
+  MAX_EFFECT_JSON_BYTES,
+} from "../effects/schema.ts";
 import { invokeMcpTool, type McpInvokeDeps } from "./invoke.ts";
 import { McpToolCallError, type McpToolCallFailure } from "./tool-transport.ts";
 
@@ -35,13 +42,82 @@ type Facts = Readonly<{
   allowedOperations: readonly string[];
   /** Null when the Admin never classified the tool: it runs at most once. */
   classified: (Classification & { digest: string }) | null;
-  /** The classification names a read or something else that is not a write. */
   notAWrite: boolean;
+  asyncForm: McpAsyncForm | null;
 }>;
+
+export const AsyncPollResultSchema = z.discriminatedUnion("state", [
+  z.strictObject({
+    state: z.literal("pending").describe(
+      "The operation exists and has not ended.",
+    ),
+  }).describe("A poll answer for an operation still running."),
+  z.strictObject({
+    state: z.literal("not_found").describe(
+      "The server knows no operation under the key yet.",
+    ),
+  }).describe("A poll answer before the submitted operation is visible."),
+  z.strictObject({
+    state: z.literal("succeeded").describe("The operation ended and worked."),
+    result: z.unknown().describe(
+      "What the operation produced, published as the step's result.",
+    ).optional().describe(
+      "What the operation produced, published as the step's result.",
+    ),
+  }).describe("A poll answer for an operation that ended well."),
+  z.strictObject({
+    state: z.literal("failed").describe("The operation ended and failed."),
+  }).describe("A poll answer for an operation that ended in failure."),
+  z.strictObject({
+    state: z.literal("canceled").describe(
+      "The operation was canceled on the server.",
+    ),
+  }).describe("A poll answer for an operation the server canceled."),
+]).describe(
+  "The answer a poll tool of an asynchronous write gives, in the shape Bakery requires.",
+);
+
+type PollVerdict =
+  | Readonly<{ status: "confirmed"; result: unknown }>
+  | Readonly<{ status: "unconfirmed" }>
+  | Readonly<{ status: "failed"; failureCode: EffectFailureCode }>;
+
+export function pollVerdict(answer: unknown): PollVerdict {
+  const parsed = AsyncPollResultSchema.safeParse(answer);
+  if (!parsed.success) {
+    return { status: "failed", failureCode: "async_poll_invalid" };
+  }
+  switch (parsed.data.state) {
+    case "pending":
+    case "not_found":
+      return { status: "unconfirmed" };
+    case "failed":
+      return { status: "failed", failureCode: "async_poll_failed" };
+    case "canceled":
+      return { status: "failed", failureCode: "async_poll_canceled" };
+    case "succeeded": {
+      const result = parsed.data.result ?? null;
+      return new TextEncoder().encode(canonicalJson(result)).length >
+          MAX_EFFECT_JSON_BYTES
+        ? { status: "failed", failureCode: "async_poll_invalid" }
+        : { status: "confirmed", result };
+    }
+  }
+}
+
+function operationKeyOf(
+  effect: ExternalEffectRow,
+  form: McpAsyncForm,
+): string | null {
+  const value = (effect.safeArguments as Record<string, unknown> | null)
+    ?.[form.effectKeyArgument];
+  return typeof value === "string" && value.length > 0 ? value : null;
+}
 
 const WRITE_CLASSES: readonly string[] = [
   "write_idempotent",
   "write_reconcilable",
+  "write_async",
   "write_opaque",
 ];
 
@@ -129,11 +205,13 @@ export function createMcpEffectPort(
         workflow_version_id: string | null;
         binding_digest: string | null;
         allowed_operations: unknown;
+        async_form: unknown;
       }>(
         `select regexp_replace(rs.step_key, '@[0-9]+', '', 'g') as step_key,
                 wr.workflow_version_id,
                 cb.mcp_snapshot_digest as binding_digest,
-                cb.allowed_operations
+                cb.allowed_operations,
+                cb.mcp_async_form as async_form
            from bakery.run_steps rs
            join bakery.workflow_runs wr
              on wr.organization_id = rs.organization_id and wr.id = rs.run_id
@@ -181,12 +259,59 @@ export function createMcpEffectPort(
             : null,
         notAWrite: found !== undefined &&
           !WRITE_CLASSES.includes(found.effect_class),
+        asyncForm: parseMcpAsyncForm(row.async_form),
       };
     });
   }
 
   const classOf = (facts: Facts): McpWriteClass =>
-    facts.classified?.effectClass ?? "write_opaque";
+    facts.asyncForm !== null
+      ? "write_async"
+      : facts.classified?.effectClass ?? "write_opaque";
+
+  const asyncFormDrifted = (facts: Facts): boolean =>
+    (facts.asyncForm !== null) !==
+      (facts.classified?.effectClass === "write_async");
+
+  async function pinnedInputSchema(
+    effect: ExternalEffectRow,
+    toolName: string,
+  ): Promise<unknown> {
+    return await withPgTransaction(deps.database, async (tx) => {
+      const snapshot = await tx.query<{ manifest: unknown }>(
+        `select manifest from bakery.mcp_capability_snapshots
+          where organization_id = $1 and connection_id = $2 and digest = $3
+          limit 1`,
+        [
+          effect.organizationId,
+          effect.mcpConnectionId,
+          effect.adapterManifestDigest,
+        ],
+      );
+      const tools = (snapshot.rows[0]?.manifest as
+        | { tools?: { name?: unknown; inputSchema?: unknown }[] }
+        | null)?.tools ?? [];
+      return tools.find((tool) => tool.name === toolName)?.inputSchema;
+    });
+  }
+
+  async function poll(
+    effect: ExternalEffectRow,
+    facts: Facts,
+    form: McpAsyncForm,
+    signal: AbortSignal,
+  ): Promise<PollVerdict> {
+    const key = operationKeyOf(effect, form);
+    if (key === null || !facts.allowedOperations.includes(form.pollTool)) {
+      return { status: "unconfirmed" };
+    }
+    const schema = await pinnedInputSchema(effect, form.pollTool);
+    const answer = await send(effect, facts, form.pollTool, {
+      ...argumentsForRead(effect.safeArguments, schema),
+      [form.effectKeyArgument]: key,
+    }, signal);
+    return pollVerdict(answer.output);
+  }
 
   async function send(
     effect: ExternalEffectRow,
@@ -224,7 +349,12 @@ export function createMcpEffectPort(
         effect.safeArguments as Record<string, unknown>,
         signal,
       );
-      return { kind: "done", output: sent.output };
+      const key = facts.asyncForm === null
+        ? null
+        : operationKeyOf(effect, facts.asyncForm);
+      return key === null
+        ? { kind: "done", output: sent.output }
+        : { kind: "accepted", operationKey: key };
     } catch (error) {
       return mcpWriteFailure(error);
     }
@@ -241,6 +371,7 @@ export function createMcpEffectPort(
       if (
         facts.bindingDigest !== effect.adapterManifestDigest ||
         facts.notAWrite ||
+        asyncFormDrifted(facts) ||
         (facts.classified !== null &&
           facts.classified.digest !== effect.adapterManifestDigest)
       ) return { ok: false, failureCode: "adapter_changed" };
@@ -252,6 +383,9 @@ export function createMcpEffectPort(
       if (facts === null) return { status: "unconfirmed" };
       const effectClass = classOf(facts);
       if (effectClass === "write_opaque") return { status: "unconfirmed" };
+      if (facts.asyncForm !== null) {
+        return await poll(effect, facts, facts.asyncForm, signal);
+      }
       if (effectClass === "write_idempotent") {
         // Sending an idempotent write again under its effect key is how it is
         // proven: the server answers the same, and does the work once.
@@ -262,22 +396,7 @@ export function createMcpEffectPort(
       }
       const pairedRead = facts.classified?.pairedRead ?? null;
       if (pairedRead === null) return { status: "unconfirmed" };
-      const schema = await withPgTransaction(deps.database, async (tx) => {
-        const snapshot = await tx.query<{ manifest: unknown }>(
-          `select manifest from bakery.mcp_capability_snapshots
-            where organization_id = $1 and connection_id = $2 and digest = $3
-            limit 1`,
-          [
-            effect.organizationId,
-            effect.mcpConnectionId,
-            effect.adapterManifestDigest,
-          ],
-        );
-        const tools = (snapshot.rows[0]?.manifest as
-          | { tools?: { name?: unknown; inputSchema?: unknown }[] }
-          | null)?.tools ?? [];
-        return tools.find((tool) => tool.name === pairedRead)?.inputSchema;
-      });
+      const schema = await pinnedInputSchema(effect, pairedRead);
       // A read is safe to repeat; it is the only thing sent here.
       const answer = await send(
         effect,

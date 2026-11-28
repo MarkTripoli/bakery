@@ -11,7 +11,9 @@ export type ArtifactEvidence = {
   readonly base: string;
   readonly head: string;
   readonly digest: string;
-  readonly taskAction: { readonly label: string; readonly onClick: () => void };
+  readonly taskAction?:
+    | { readonly label: string; readonly onClick: () => void }
+    | undefined;
   readonly details: {
     readonly label: string;
     readonly content: ReactNode;
@@ -70,6 +72,14 @@ export function ArtifactRetrievalView(props: ArtifactRetrievalViewProps) {
     if (props.comments.linkedCommentId) setCommentsOpen(true);
   }, [props.comments.linkedCommentId]);
   const evidence = props.evidence;
+  const commits = [
+    evidence.base === "" ? "" : `${evidence.baseLabel} ${evidence.base}`,
+    evidence.head === "" ? "" : `${evidence.headLabel} ${evidence.head}`,
+  ].filter(Boolean).join("  →  ");
+  const identity = [
+    commits,
+    evidence.digest === "" ? "" : `sha256 ${evidence.digest}`,
+  ].filter(Boolean).join("\n");
   return (
     <>
       <ShellActiveNavigation id="work" />
@@ -82,7 +92,9 @@ export function ArtifactRetrievalView(props: ArtifactRetrievalViewProps) {
             <UI.Text variant="caption">
               {props.artifactLabel} · {props.kind.toUpperCase()}
             </UI.Text>
-            <UI.Badge>{props.revision}</UI.Badge>
+            {props.revision === ""
+              ? null
+              : <UI.Badge>{props.revision}</UI.Badge>}
           </UI.Inline>
         }
         description={props.description}
@@ -123,17 +135,19 @@ export function ArtifactRetrievalView(props: ArtifactRetrievalViewProps) {
             <UI.Heading rank={2} level="subsection">
               {evidence.title}
             </UI.Heading>
-            <UI.Text variant="caption">{evidence.context}</UI.Text>
-            <UI.CodeBlock
-              code={`${evidence.baseLabel} ${evidence.base}  →  ${evidence.headLabel} ${evidence.head}\nsha256 ${evidence.digest}`}
-            />
+            {evidence.context === ""
+              ? null
+              : <UI.Text variant="caption">{evidence.context}</UI.Text>}
+            {identity === "" ? null : <UI.CodeBlock code={identity} />}
             <UI.Inline>
-              <UI.Button
-                variant="outline"
-                onClick={evidence.taskAction.onClick}
-              >
-                {evidence.taskAction.label}
-              </UI.Button>
+              {evidence.taskAction === undefined ? null : (
+                <UI.Button
+                  variant="outline"
+                  onClick={evidence.taskAction.onClick}
+                >
+                  {evidence.taskAction.label}
+                </UI.Button>
+              )}
               <UI.Button
                 id="artifact-revision-details-toggle"
                 data-testid="artifact-retrieval-details-toggle"
@@ -156,7 +170,7 @@ export function ArtifactRetrievalView(props: ArtifactRetrievalViewProps) {
           </>
         }
         aside={props.aside}
-        comments={!isPhone
+        comments={!isPhone || props.discussion === null
           ? props.discussion
           : commentsOpen
           ? (

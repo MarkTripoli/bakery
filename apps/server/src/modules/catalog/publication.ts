@@ -11,6 +11,7 @@ import { assertMayAuthorSkill, type SkillScope } from "./skill-scope-guard.ts";
 import type { SkillFileStoreOperations } from "./storage.ts";
 import { SkillFileStoreError } from "./storage.ts";
 import {
+  compareByCodeUnitPath,
   type LocalSkillVersionInput,
   SkillUploadInvalid,
   skillUploadIssues,
@@ -630,6 +631,7 @@ async function assertReservedFiles(
       order by path`,
     [preparation.organizationId, preparation.identity.versionId],
   );
+  const stored = [...result.rows].sort(compareByCodeUnitPath);
   const expected = preparation.validated.files.map((file, index) => ({
     path: file.path,
     media_type: file.mediaType,
@@ -637,10 +639,80 @@ async function assertReservedFiles(
     size_bytes: file.sizeBytes,
     sha256: file.sha256,
     is_executable: file.isExecutable,
-  })).sort((left, right) => left.path.localeCompare(right.path));
-  if (canonicalJson(result.rows) !== canonicalJson(expected)) {
+  })).sort(compareByCodeUnitPath);
+  if (canonicalJson(stored) !== canonicalJson(expected)) {
     throw new StandardError({ code: "SKILL_CONTENT_INTEGRITY_FAILED" });
   }
+}
+
+async function activateSkillVersion(
+  transaction: PgTransactionClient,
+  options: Readonly<{
+    organizationId: string;
+    principalId: string;
+    skillId: string;
+    versionId: string;
+    onlyWhenInactive: boolean;
+    operation: string;
+    requestId: string;
+    traceId: string;
+  }>,
+): Promise<number | null> {
+  const result = await transaction.query<{ version: number }>(
+    `update bakery.skills
+        set active_version_id = $3, updated_at = now(), version = version + 1
+      where organization_id = $1 and id = $2
+        and (not $4::boolean or active_version_id is distinct from $3)
+      returning version`,
+    [
+      options.organizationId,
+      options.skillId,
+      options.versionId,
+      options.onlyWhenInactive,
+    ],
+  );
+  const row = result.rows[0];
+  if (!row) return null;
+  await appendAudit(transaction, {
+    organizationId: options.organizationId,
+    principalId: options.principalId,
+    operation: options.operation,
+    resourceType: "skill_version",
+    resourceId: options.versionId,
+    requestId: options.requestId,
+    traceId: options.traceId,
+  });
+  return row.version;
+}
+
+export async function reactivatePublishedSkillVersion(
+  transaction: PgTransactionClient,
+  options: Readonly<{
+    organizationId: string;
+    principalId: string;
+    skillId: string;
+    versionId: string;
+    operation: string;
+    requestId: string;
+    traceId: string;
+  }>,
+): Promise<void> {
+  const reactivated = await activateSkillVersion(transaction, {
+    ...options,
+    onlyWhenInactive: true,
+  });
+  if (reactivated === null) return;
+  await appendDomainEvent(transaction, {
+    organizationId: options.organizationId,
+    eventType: "skills.updated",
+    aggregateId: options.skillId,
+    aggregateVersion: reactivated,
+    payload: {
+      resourceId: options.skillId,
+      resourceVersion: reactivated,
+    },
+    traceId: options.traceId,
+  });
 }
 
 /** Finalizes shared local or reserved remote publication under live authority. */
@@ -692,7 +764,18 @@ export async function finalizeSkillVersionPublication(options: {
     [organizationId, validated.skillId, validated.revision],
   );
   const replay = assertRevisionAvailable(final.rows[0], preparation);
-  if (replay?.status === "published") return replay;
+  if (replay?.status === "published") {
+    await reactivatePublishedSkillVersion(transaction, {
+      organizationId,
+      principalId,
+      skillId: validated.skillId,
+      versionId: replay.id,
+      operation: options.operation,
+      requestId: options.requestId,
+      traceId: options.traceId,
+    });
+    return replay;
+  }
 
   let row: SkillVersionRow;
   if (replay?.status === "draft") {
@@ -758,25 +841,19 @@ export async function finalizeSkillVersionPublication(options: {
     await insertSkillFiles(transaction, preparation, insertedRow.id);
     row = insertedRow;
   }
-  const active = await transaction.query<{ id: string }>(
-    `update bakery.skills
-        set active_version_id = $3, updated_at = now(), version = version + 1
-      where organization_id = $1 and id = $2
-      returning id`,
-    [organizationId, validated.skillId, row.id],
-  );
-  if (active.rows.length !== 1) {
-    throw new StandardError({ code: "PRECONDITION_FAILED" });
-  }
-  await appendAudit(transaction, {
+  const active = await activateSkillVersion(transaction, {
     organizationId,
     principalId,
+    skillId: validated.skillId,
+    versionId: row.id,
+    onlyWhenInactive: false,
     operation: options.operation,
-    resourceType: "skill_version",
-    resourceId: row.id,
     requestId: options.requestId,
     traceId: options.traceId,
   });
+  if (active === null) {
+    throw new StandardError({ code: "PRECONDITION_FAILED" });
+  }
   await appendDomainEvent(transaction, {
     organizationId,
     eventType: "skill.version_created",

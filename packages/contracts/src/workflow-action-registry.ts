@@ -13,6 +13,7 @@ export const WORKFLOW_ACTION_NAMES = Object.freeze(
     "coordination.split",
     "delivery.candidate_evidence",
     "delivery.prepare",
+    "delivery.openPullRequest",
     "delivery.merge",
     "delivery.deploy",
     "delivery.health",
@@ -213,6 +214,18 @@ export const WORKFLOW_ACTION_METADATA = Object.freeze(
         faults: ["DEPENDENCY_UNAVAILABLE"],
       },
       effectPolicy: "external_prepare",
+    }),
+    "delivery.openPullRequest": metadata({
+      input: "OpenPullRequestInput",
+      output: "PullRequest",
+      capabilities: ["delivery"],
+      cancel: "cooperative",
+      retry: {
+        maxAttempts: 1,
+        backoff: "0s",
+        faults: ["DEPENDENCY_UNAVAILABLE"],
+      },
+      effectPolicy: "external_effect_keyed",
     }),
     "delivery.merge": metadata({
       input: "MergeInput",
@@ -453,6 +466,22 @@ export const HOST_CAPABILITY_SUBSTITUTES: Readonly<
 
 /** The worker host capability a Claude harness worker advertises (#436). */
 export const TOOL_GATEWAY_CAPABILITY = "tool-gateway" as const;
+
+const CLAUDE_HOST_CAPABILITIES: ReadonlySet<string> = new Set([
+  "claude",
+  "claude-code",
+]);
+
+export function hostAllowedCapabilities(
+  allowed: readonly string[],
+): readonly string[] {
+  return allowed.some((capability) =>
+      CLAUDE_HOST_CAPABILITIES.has(capability)
+    ) &&
+      !allowed.includes(TOOL_GATEWAY_CAPABILITY)
+    ? [...allowed, TOOL_GATEWAY_CAPABILITY]
+    : allowed;
+}
 
 /**
  * A host's capabilities with every action capability its substitutes meet

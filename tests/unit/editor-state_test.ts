@@ -10,6 +10,8 @@ import {
   freeStepId,
   isDirty,
 } from "../../apps/web/src/pages/library/editor-state.ts";
+import { PICKER_STEPS } from "../../apps/web/src/pages/library/workflow-state.ts";
+import { LANE_ID } from "../../packages/contracts/src/workflow-compiler/passes/shape.ts";
 
 const step = (id: string, uses = "task.brief"): EditorStep => ({
   id,
@@ -137,8 +139,8 @@ Deno.test("a new change after an undo drops what could have been redone", () => 
 });
 
 Deno.test("a step added to a list that already uses its id gets a free one", () => {
-  const state = editorStateOf([step("step"), step("step-2")]);
-  assertEquals(freeStepId(state, "step"), "step-3");
+  const state = editorStateOf([step("step"), step("step_2")]);
+  assertEquals(freeStepId(state, "step"), "step_3");
   assertEquals(freeStepId(state, "review"), "review");
 });
 
@@ -338,4 +340,120 @@ Deno.test("a branch, a repeat and a group the editor holds untouched are saved e
     skills: [],
   }));
   assertEquals(JSON.stringify(definitionOf(spec, held)), JSON.stringify(spec));
+});
+
+Deno.test("a loop's numbers are written into its own repeat node and undone (#419)", () => {
+  const spec = {
+    steps: [
+      { kind: "action", id: "brief", uses: "task.brief" },
+      {
+        kind: "repeat",
+        id: "fix",
+        max: 4,
+        seed: { form: "literal", value: null },
+        until: { kind: "literal", value: false },
+        steps: [],
+      },
+    ],
+  };
+  const state = apply(editorStateOf(START), {
+    kind: "loop",
+    path: ["steps", 1],
+    min: 2,
+    max: 4,
+    allow: 3,
+  });
+  const written = definitionOf(spec, START, state.loops) as {
+    steps: Record<string, unknown>[];
+  };
+  assertEquals(written.steps[1].min, 2);
+  assertEquals(written.steps[1].max, 4);
+  assertEquals(written.steps[1].allow, 3);
+  assertEquals(spec.steps[1], {
+    kind: "repeat",
+    id: "fix",
+    max: 4,
+    seed: { form: "literal", value: null },
+    until: { kind: "literal", value: false },
+    steps: [],
+  });
+  const undone = editorReducer(state, { kind: "undo" });
+  assertEquals(undone.loops, []);
+  const cleared = apply(state, {
+    kind: "loop",
+    path: ["steps", 1],
+    min: null,
+    max: 5,
+    allow: null,
+  });
+  const clearedSpec = definitionOf(spec, START, cleared.loops) as {
+    steps: Record<string, unknown>[];
+  };
+  assertEquals(clearedSpec.steps[1].max, 5);
+  assertEquals("min" in clearedSpec.steps[1], false);
+  assertEquals("allow" in clearedSpec.steps[1], false);
+});
+
+Deno.test("asking for the same loop numbers again records no undo step", () => {
+  const state = apply(editorStateOf(START), {
+    kind: "loop",
+    path: ["steps", 1],
+    min: null,
+    max: 3,
+    allow: null,
+  });
+  const again = editorReducer(state, {
+    kind: "loop",
+    path: ["steps", 1],
+    min: null,
+    max: 3,
+    allow: null,
+  });
+  assertEquals(again, state);
+  assertEquals(again.past.length, 1);
+});
+
+Deno.test("every step the picker adds gets an ID the compiler accepts, twice over", () => {
+  for (const uses of PICKER_STEPS) {
+    const first = freeStepId(editorStateOf([]), uses);
+    const second = freeStepId(editorStateOf([step(first, uses)]), uses);
+    assert(LANE_ID.test(first), first);
+    assert(LANE_ID.test(second), second);
+    assert(first !== second);
+  }
+});
+
+Deno.test("a loop written as repeat: keeps its numbers inside repeat", () => {
+  const spec = {
+    steps: [{ id: "again", max: 4, repeat: { max: 3, steps: [] } }],
+  };
+  const written = definitionOf(spec, [step("again", "")], [
+    { path: ["steps", 0], min: 2, max: 5, allow: 3 },
+  ]);
+  assertEquals(written.steps, [
+    { id: "again", repeat: { max: 5, min: 2, allow: 3, steps: [] } },
+  ]);
+});
+
+Deno.test("a loop inside an authored block is found and written", () => {
+  const spec = {
+    steps: [{
+      id: "outer",
+      repeat: {
+        max: 2,
+        steps: [{ id: "pick", branch: { then: [{ kind: "repeat", max: 3 }] } }],
+      },
+    }],
+  };
+  const written = definitionOf(spec, [step("outer", "")], [
+    {
+      path: ["steps", 0, "steps", 0, "then", 0],
+      min: null,
+      max: 6,
+      allow: null,
+    },
+  ]) as { steps: { repeat: { steps: { branch: { then: unknown[] } }[] } }[] };
+  assertEquals(written.steps[0]!.repeat.steps[0]!.branch.then, [
+    { kind: "repeat", max: 6 },
+  ]);
 });

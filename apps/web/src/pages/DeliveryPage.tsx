@@ -1,7 +1,10 @@
 import { useMemo, useState } from "react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { useNavigate, useSearch } from "@tanstack/react-router";
+import { formatDate } from "@bakery/i18n";
 import { useBakeryApi } from "../api/context.tsx";
+import { useConnectivity } from "../app/connectivity.ts";
+import { useI18n } from "../i18n/I18nProvider.tsx";
 import type { MetricsQuery } from "../api/client.ts";
 import {
   effectiveAccessQueryOptions,
@@ -24,6 +27,7 @@ import {
   openFigure,
   recordRow,
   SHOW_METRIC,
+  sizeAndQualityOf,
 } from "../screens/delivery/delivery-display.ts";
 import {
   deliveryWindow,
@@ -43,6 +47,7 @@ const SHOW = "show";
 const MISSING = "missing";
 
 const RECORDS_PAGE = 50;
+const CHART_DAILY_MAX_MS = 90 * 86_400_000;
 
 /**
  * `/delivery`: what was delivered and how long it took.
@@ -56,6 +61,8 @@ export function DeliveryPage() {
   const scope = useProtectedScope();
   const navigate = useNavigate();
   const search = useSearch({ strict: false }) as Record<string, unknown>;
+  const connectivity = useConnectivity();
+  const { locale, timeZone } = useI18n();
 
   const period = isDeliveryPeriod(search[PERIOD]) ? search[PERIOD] : "last30";
   const repositoryId = typeof search[REPOSITORY] === "string"
@@ -77,8 +84,8 @@ export function DeliveryPage() {
     () => deliveryWindow(period, now, custom),
     [period, now, custom.from, custom.to],
   );
-  const tooLong = deliveryWindowTooLong(window) ||
-    window.from.getTime() > window.to.getTime();
+  const rangeReversed = window.from.getTime() > window.to.getTime();
+  const tooLong = deliveryWindowTooLong(window) || rangeReversed;
   const base = {
     from: window.from.toISOString(),
     to: window.to.toISOString(),
@@ -86,17 +93,30 @@ export function DeliveryPage() {
     ...(repositoryId === null ? {} : { repositoryId }),
   };
   const enabled = !tooLong;
-  const merged = useSeries("prs.merged", base, enabled);
-  const closed = useSeries("prs.closedUnmerged", base, enabled);
-  const open = useSeries("prs.openAtCutoff", base, enabled);
-  const tasks = useSeries("tasks.leadTimeHours", base, enabled);
-  const lines = useSeries("prs.changedLines", base, enabled);
+  const metric = SHOW_METRIC[show ?? "merged"];
+  const chartMetric = show === null || show === "merged"
+    ? "prs.merged"
+    : metric;
+  const merged = useSeries("prs.merged", base, enabled, "figure");
+  const closed = useSeries("prs.closedUnmerged", base, enabled, "figure");
+  const open = useSeries("prs.openAtCutoff", base, enabled, "figure");
+  const tasks = useSeries("tasks.leadTimeHours", base, enabled, "figure");
+  const lines = useSeries("prs.changedLines", base, enabled, "figure");
+  const chartResolution = window.to.getTime() - window.from.getTime() >
+      CHART_DAILY_MAX_MS
+    ? "week" as const
+    : "day" as const;
+  const chart = useSeries(
+    chartMetric,
+    { ...base, resolution: chartResolution },
+    enabled,
+    "chart",
+  );
   const repositories = useQuery(
     repositoriesListQueryOptions(api, scope, { limit: 100 }),
   );
   const access = useQuery(effectiveAccessQueryOptions(api, scope));
 
-  const metric = SHOW_METRIC[show ?? "merged"];
   const sources = useInfiniteQuery({
     ...metricSourcesQueryOptions(api, scope, {
       metric,
@@ -172,6 +192,16 @@ export function DeliveryPage() {
             to: formatDay(new Date(window.to.getTime() - 1)),
           }
           : custom}
+        chart={{
+          status: chart.isError
+            ? "error"
+            : chart.isPending
+            ? "loading"
+            : "ready",
+          points: chart.data?.points ?? [],
+          resolution: chartResolution,
+          to: chart.data?.to ?? base.to,
+        }}
         figures={{
           merged: mergedCount,
           tasks: tasksCount,
@@ -179,14 +209,18 @@ export function DeliveryPage() {
           closed: countFigure(closed.data),
         }}
         freshness={state === "ready" || state === "emptyPeriod"
-          ? freshnessOf({
-            merged: merged.data,
-            lines: lines.data,
-            tasks: tasks.data,
-          })
+          ? freshnessOf({ merged: merged.data, tasks: tasks.data })
           : null}
         hiddenCount={hiddenCount}
+        lastUpdated={merged.dataUpdatedAt > 0
+          ? formatDate(new Date(merged.dataUpdatedAt), locale, {
+            timeStyle: "short",
+            timeZone,
+          })
+          : null}
         leadTime={leadTimeOf(tasks.data)}
+        offline={connectivity === "offline" || connectivity === "reconnecting"}
+        quality={sizeAndQualityOf(lines.data)}
         missingOnly={missingOnly}
         onCustomChange={(range) =>
           write({ [FROM]: range.from, [TO]: range.to })}
@@ -205,18 +239,22 @@ export function DeliveryPage() {
           })}
         onRefresh={() => {
           for (const query of queries) void query.refetch();
+          void chart.refetch();
         }}
         onRepositoryChange={(id) => write({ [REPOSITORY]: id ?? undefined })}
         onRetry={() => {
           for (const query of queries) void query.refetch();
         }}
         onRetryRecords={() => void sources.refetch()}
+        onRetryChart={() => void chart.refetch()}
         onShow={(next) =>
           write({ [SHOW]: next ?? undefined, [MISSING]: undefined })}
+        onShowUncounted={() => write({ [SHOW]: "lines", [MISSING]: "1" })}
         onShowLast30Days={() =>
           write({ [PERIOD]: "last30", [FROM]: undefined, [TO]: undefined })}
         period={period}
         periodTooLong={tooLong}
+        rangeReversed={rangeReversed}
         reconnectHref={INSTALLATION_INTEGRATIONS_PATH}
         records={{
           status: rowsStatus,
@@ -225,6 +263,8 @@ export function DeliveryPage() {
           loadingMore: sources.isFetchingNextPage,
           revision: {
             merged: lines.data,
+            opened: chart.data,
+            lines: lines.data,
             tasks: tasks.data,
             open: open.data,
             closed: closed.data,
@@ -244,7 +284,7 @@ export function DeliveryPage() {
 type SeriesBase = {
   readonly from: string;
   readonly to: string;
-  readonly resolution: "day";
+  readonly resolution: NonNullable<MetricsQuery["resolution"]>;
   readonly repositoryId?: string;
 };
 
@@ -253,11 +293,15 @@ function useSeries(
   metric: MetricsQuery["metric"],
   base: SeriesBase,
   enabled: boolean,
+  purpose: "figure" | "chart",
 ) {
   const api = useBakeryApi();
   const scope = useProtectedScope();
+  const options = metricSeriesQueryOptions(api, scope, { ...base, metric });
   return useQuery({
-    ...metricSeriesQueryOptions(api, scope, { ...base, metric }),
+    ...options,
+    queryKey: [...options.queryKey, purpose],
+    retry: purpose === "chart" ? false : undefined,
     enabled: enabled && scope.organizationId !== null,
   });
 }

@@ -92,6 +92,7 @@ export function QuestionAnswer(
   return (
     <UI.QuestionCard
       data-question-id={id}
+      tabIndex={-1}
       layout={layout}
       eyebrow={layout === "pane"
         ? t("tasks.conversation.question.heading")

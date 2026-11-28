@@ -6,15 +6,13 @@
  * request, run, merge-entry and usage rows it reads in production. Only the two
  * ports are faked (start and cancel) so each case can say exactly what the
  * supervisor asked for and as whom.
- *
- * Two kinds of row are too heavy to seed honestly (a merge entry needs a pull
- * request and a review cycle, a usage record needs an attempt and a worker). They
- * are inserted by `insertWithoutForeignKeys` as the owner with foreign keys off,
- * and only the columns the supervisor reads are meaningful. That shortcut is test
- * only and is named so a reader sees it.
  */
 import { assert, assertEquals, assertRejects } from "@std/assert";
-import type { PgDatabase } from "../../packages/persistence/src/postgres.ts";
+import {
+  closePgDatabase,
+  openPgDatabase,
+} from "../../apps/server/src/platform/database.ts";
+import { readTestDatabaseConfig } from "../../packages/config/src/env.ts";
 import {
   createBatchesListHandler,
   createBatchHandler,
@@ -71,6 +69,7 @@ function withBatches<T>(
 }
 
 type BatchInit = {
+  presetId?: string;
   startedBy?: string;
   maxIssues?: number;
   maxHours?: number;
@@ -86,13 +85,14 @@ async function insertBatch(
   const id = crypto.randomUUID();
   await fx.runtime.query(
     `insert into bakery.batches (
-       id, organization_id, repository_id, started_by, max_issues, max_hours,
-       max_spend_usd, continue_mode, state
-     ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+       id, organization_id, repository_id, preset_id, started_by, max_issues,
+       max_hours, max_spend_usd, continue_mode, state
+     ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
     [
       id,
       fx.organizationId,
       fx.repositoryId,
+      init.presetId ?? "fixed-coding",
       init.startedBy ?? fx.adminId,
       init.maxIssues ?? 2,
       init.maxHours ?? 8,
@@ -139,7 +139,11 @@ async function issueRows(fx: TicketFixture, batchId: string) {
 /** A start port that admits the next numbered issue through the real admission. */
 function admittingPorts(fx: TicketFixture, sourceId: string) {
   const calls = {
-    start: [] as { startedBy: string; batchId: string }[],
+    start: [] as {
+      startedBy: string;
+      batchId: string;
+      presetId: string | null;
+    }[],
     cancel: [] as { startedBy: string; ticketRequestId: string }[],
   };
   let next = 1;
@@ -149,6 +153,7 @@ function admittingPorts(fx: TicketFixture, sourceId: string) {
       calls.start.push({
         startedBy: input.startedBy,
         batchId: input.batchId,
+        presetId: input.presetId,
       });
       const number = next++;
       fx.reader.setIssue({ number, labels: [EXECUTE_LABEL] });
@@ -193,17 +198,15 @@ async function runOf(fx: TicketFixture, ticketRequestId: string) {
   return runId;
 }
 
-/**
- * TEST ONLY. Inserts one row as the owner with foreign keys off, giving every
- * required column a dummy of its type unless the caller names it. Used for the
- * rows the supervisor only reads a few columns of.
- */
 async function insertWithoutForeignKeys(
-  database: PgDatabase,
   table: string,
   values: Record<string, unknown>,
 ): Promise<void> {
-  const client = await database.connect();
+  const superuser = openPgDatabase(
+    readTestDatabaseConfig(Deno.env.toObject(), { requireAdmin: true })
+      .adminDatabaseUrl,
+  );
+  const client = await superuser.connect();
   try {
     await client.query("begin");
     await client.query("set local session_replication_role = replica");
@@ -243,6 +246,7 @@ async function insertWithoutForeignKeys(
     throw error;
   } finally {
     client.release();
+    await closePgDatabase(superuser);
   }
 }
 
@@ -271,7 +275,7 @@ function dummyOf(dataType: string): unknown {
 }
 
 async function mergeIssue(fx: TicketFixture, runId: string): Promise<void> {
-  await insertWithoutForeignKeys(fx.owner, "merge_entries", {
+  await insertWithoutForeignKeys("merge_entries", {
     organization_id: fx.organizationId,
     run_id: runId,
     status: "merged",
@@ -343,6 +347,7 @@ Deno.test("batches: a tick starts one issue as the starter, waits while it runs,
     await superviseBatches(fx.runtime, ports);
     assertEquals(calls.start.length, 1);
     assertEquals(calls.start[0].startedBy, fx.adminId);
+    assertEquals(calls.start[0].presetId, "fixed-coding");
     let issues = await issueRows(fx, batchId);
     assertEquals(issues.map((issue) => issue.state), ["started"]);
     const firstRequest = issues[0].ticket_request_id!;
@@ -375,6 +380,32 @@ Deno.test("batches: a tick starts one issue as the starter, waits while it runs,
     assertEquals(ended.finish_reason, "issues_reached");
     assert(ended.finished_at !== null, "a finished batch records when");
     assertEquals(calls.start.length, 2, "nothing starts after the limit");
+  }));
+
+Deno.test("batches: a workflow that cannot start pauses the batch with its own reason and nothing is asked after it", () =>
+  withBatches(async (fx) => {
+    await fx.insertSource({ policy: automaticPolicy(fx) });
+    seedLabeler(fx);
+    const batchId = await insertBatch(fx, { maxIssues: 3 });
+    let asked = 0;
+    const ports: BatchPorts = {
+      startNext: () => {
+        asked++;
+        return Promise.resolve({
+          started: false,
+          pause: "workflow_cannot_start",
+        });
+      },
+      cancelRun: () => Promise.resolve(),
+    };
+
+    await superviseBatches(fx.runtime, ports);
+    const paused = await batchRow(fx, batchId);
+    assertEquals(paused.state, "paused");
+    assertEquals(paused.pause_reason, "workflow_cannot_start");
+
+    await superviseBatches(fx.runtime, ports);
+    assertEquals(asked, 1, "a paused batch asks nothing more");
   }));
 
 Deno.test("batches: a failed or cancelled issue ends the batch with that reason and starts nothing more", () =>
@@ -518,7 +549,7 @@ Deno.test("batches: spend is derived from the issues' usage, and reaching the li
     const [issue] = await issueRows(fx, batchId);
     const runId = await runOf(fx, issue.ticket_request_id!);
 
-    await insertWithoutForeignKeys(fx.owner, "usage_records", {
+    await insertWithoutForeignKeys("usage_records", {
       organization_id: fx.organizationId,
       run_id: runId,
       cost_usd: "10.000000",
@@ -655,6 +686,7 @@ Deno.test("batches: every way a run can end is an end, and a run waiting on its 
         ["canceled", "cancelled"],
         ["failed", "failed"],
         ["blocked", "failed"],
+        ["needs_human", "failed"],
       ] as const
     ) {
       await setRunStatus(fx, runId, status);
@@ -679,7 +711,7 @@ Deno.test("batches: every way a run can end is an end, and a run waiting on its 
         where request.organization_id = $1 and request.id = $2`,
       [fx.organizationId, requestId],
     );
-    await insertWithoutForeignKeys(fx.owner, "pull_requests", {
+    await insertWithoutForeignKeys("pull_requests", {
       organization_id: fx.organizationId,
       task_id: task.rows[0].task_id,
       status: "open",
@@ -698,7 +730,7 @@ Deno.test("batches: every way a run can end is an end, and a run waiting on its 
     );
 
     // A merge in flight is not an end either; a cancelled one is, and a merged one is a merge.
-    await insertWithoutForeignKeys(fx.owner, "merge_entries", {
+    await insertWithoutForeignKeys("merge_entries", {
       organization_id: fx.organizationId,
       run_id: runId,
       status: "queued",
@@ -1023,6 +1055,7 @@ Deno.test("batches: the smallest spend is the preset's minimum, and a start belo
     const create = (maxSpendUsd: string) =>
       createBatchHandler({ budget: presetBudgetPolicy })(actionContext(fx), {
         repositoryId: fx.repositoryId,
+        presetId: "fixed-coding",
         maxIssues: 2,
         maxHours: 8,
         maxSpendUsd,
@@ -1046,6 +1079,14 @@ Deno.test("batches: the smallest spend is the preset's minimum, and a start belo
     );
     const accepted = await create(smallest);
     assertEquals(accepted.state, "running");
+    assertEquals(accepted.presetId, "fixed-coding");
+    assertEquals(
+      (await fx.owner.query<{ preset_id: string }>(
+        "select preset_id from bakery.batches where id = $1",
+        [accepted.id],
+      )).rows[0].preset_id,
+      "fixed-coding",
+    );
   }));
 
 Deno.test("batches: the list filters by state, keeps its cursor to that filter, and each issue names its ticket", () =>
@@ -1140,7 +1181,7 @@ Deno.test("batches: a batch says what the issue being worked on waits for, and c
 
     // An approval put to one named person on this issue's task.
     const questionId = crypto.randomUUID();
-    await insertWithoutForeignKeys(fx.owner, "questions", {
+    await insertWithoutForeignKeys("questions", {
       id: questionId,
       organization_id: fx.organizationId,
       task_id: taskId,
@@ -1174,7 +1215,7 @@ Deno.test("batches: a batch says what the issue being worked on waits for, and c
     // does not exist for this viewer: the next one they may see is shown instead.
     assertEquals(await readAs(undefined), null);
     const privateId = crypto.randomUUID();
-    await insertWithoutForeignKeys(fx.owner, "questions", {
+    await insertWithoutForeignKeys("questions", {
       id: privateId,
       organization_id: fx.organizationId,
       task_id: taskId,
@@ -1237,7 +1278,7 @@ async function openQuestion(
   over: Record<string, unknown> = {},
 ) {
   const id = crypto.randomUUID();
-  await insertWithoutForeignKeys(fx.owner, "questions", {
+  await insertWithoutForeignKeys("questions", {
     id,
     organization_id: fx.organizationId,
     task_id: taskId,

@@ -1,4 +1,7 @@
 import { pluginBrokerRelayRoute } from "./plugin-broker-relay.ts";
+import { listMachineModels } from "./machine-models-read.ts";
+import type { RequestEmailSend } from "../work/request-email.ts";
+import type { RequestSlackDependencies } from "../work/request-slack.ts";
 import type { OrganizationBlobStore } from "../catalog/storage-port.ts";
 import { pluginJobFilesRoute } from "./plugin-job-files.ts";
 import { type Context, Hono } from "hono";
@@ -96,9 +99,11 @@ import {
 } from "./shared.ts";
 import { createExecutionRunControlApp } from "./control.ts";
 import { createAttemptReadApp } from "./attempt-read.ts";
+import { listMachineAttempts } from "./machine-attempt-read.ts";
 import { createSessionRoutes } from "./session-routes.ts";
 import { createOutputReadApp } from "./output-read.ts";
 import { secretIdentityToolRoute } from "./secret-identity.ts";
+import { workerModelKeyRoute } from "./model-key.ts";
 import type { ExecutionRouteOptions } from "./shared.ts";
 import type { SkillSourceAdapter } from "../catalog/source-adapters.ts";
 import type { SkillImportProcessHooks } from "../catalog/import-workflow.ts";
@@ -109,6 +114,7 @@ import {
 } from "../catalog/worker-reads.ts";
 import { WORKER_SKILL_READ_HEADERS } from "@bakery/contracts/worker-skill-read";
 import type { TicketLabelWriter } from "../work/ticket-labels.ts";
+import type { TicketStatusWriter } from "../work/ticket-statuses.ts";
 import type { TicketNoteWriter } from "../work/ticket-notes.ts";
 
 export type ExecutionRoutesOptions = ExecutionRouteOptions & {
@@ -122,12 +128,15 @@ export type ExecutionRoutesOptions = ExecutionRouteOptions & {
   integrations?: IntegrationsBackgroundDependencies;
   /** Writes Bakery's status note on a ticket; the ticket poll keeps it current. Absent: the poll writes none. */
   ticketNoteWriter?: TicketNoteWriter;
-  /** Changes Bakery's progress labels; see `ticket-labels.ts`. */
   ticketLabelWriter?: TicketLabelWriter;
+  ticketStatusWriter?: TicketStatusWriter;
   /** Settles the steps a pack owns (delivery today); absent, they fail with a stable code. */
   engineSteps?: EngineStepRunner;
   storageLocalRoot?: string;
   storageBlobStore?: OrganizationBlobStore;
+  allowPlainLoopbackEmail?: boolean;
+  emailSend?: RequestEmailSend;
+  requestSlackGate?: Omit<RequestSlackDependencies, "publicBaseUrl">;
   /** Validated artifact preview origin; absent fails previews closed. */
   artifactPreviewOrigin?: string;
   /** Artifact registry shared with the MCP catalog tools. */
@@ -240,9 +249,22 @@ export function createExecutionRoutes(
       integrations: options.integrations,
       ticketNoteWriter: options.ticketNoteWriter,
       ticketLabelWriter: options.ticketLabelWriter,
+      ticketStatusWriter: options.ticketStatusWriter,
       engineSteps: options.engineSteps,
       storageLocalRoot: options.storageLocalRoot,
       storageBlobStore: options.storageBlobStore,
+      requestEmail: {
+        publicBaseUrl: options.publicBaseUrl,
+        secretsKey: options.secretsKey,
+        allowPlainLoopback: options.allowPlainLoopbackEmail,
+        send: options.emailSend,
+      },
+      ...(options.requestSlackGate === undefined ? {} : {
+        requestSlack: {
+          ...options.requestSlackGate,
+          publicBaseUrl: options.publicBaseUrl,
+        },
+      }),
     });
     app.all("/api/inngest", inngest);
     app.all("/api/inngest/*", inngest);
@@ -319,6 +341,14 @@ export function createExecutionRoutes(
   app.get(
     "/v1/workers",
     routeHandler(options, (context) => listWorkers(context, options)),
+  );
+  app.get(
+    "/v1/workers/:id/attempts",
+    routeHandler(options, (context) => listMachineAttempts(context, options)),
+  );
+  app.get(
+    "/v1/workers/:id/models",
+    routeHandler(options, (context) => listMachineModels(context, options)),
   );
   app.get(
     "/v1/workers/:id/dispatch-blockers",
@@ -449,6 +479,13 @@ export function createExecutionRoutes(
   app.get(
     "/v1/worker/attempts/:id/context",
     workerRouteHandler(options, (context) => inputReadRoute(context, options)),
+  );
+  app.get(
+    "/v1/worker/attempts/:id/model-key",
+    workerRouteHandler(
+      options,
+      (context) => workerModelKeyRoute(context, options),
+    ),
   );
   app.post(
     "/v1/worker/attempts/:id/output-bindings/close",

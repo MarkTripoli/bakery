@@ -1,7 +1,15 @@
 import * as UI from "@bakery/ui";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
 import { ACTION_LINES } from "./workflow-state.ts";
+
+import {
+  ApprovalPanelBody,
+  type ApprovalPanelProps,
+} from "./ApprovalPanel.tsx";
+import { NotifyPanelBody, type NotifyPanelProps } from "./NotifyPanel.tsx";
+import { StartPanelBody, type StartPanelProps } from "./StartPanel.tsx";
+import { TaskPanelBody, type TaskPanelProps } from "./TaskPanel.tsx";
 
 /**
  * The panel beside the diagram (#67, slice 1): what the person selected, and
@@ -76,9 +84,26 @@ export type StepSkills =
   | { readonly kind: "failed"; readonly onRetry: () => void }
   | { readonly kind: "ready"; readonly rows: readonly StepSkillRow[] };
 
+export type LoopValues = {
+  readonly min: number | null;
+  readonly max: number;
+  readonly allow: number | null;
+};
+
 /** What the panel is showing. */
 export type PanelTarget =
-  | { readonly kind: "start" }
+  | { readonly kind: "start"; readonly starts: StartPanelProps }
+  | {
+    readonly kind: "loop";
+    readonly at: string;
+    readonly name: string;
+    readonly fix: boolean;
+    readonly values: LoopValues;
+    readonly cap: number;
+    readonly help?: string | undefined;
+    readonly onCommit: (values: LoopValues) => void;
+    readonly onPending: (pending: boolean) => void;
+  }
   | {
     readonly kind: "codeOnly";
     readonly name: string;
@@ -102,6 +127,9 @@ export type PanelTarget =
     readonly code: string | undefined;
     readonly problem: string | undefined;
     readonly agentFromSetup?: boolean;
+    readonly approval?: ApprovalPanelProps | undefined;
+    readonly notify?: NotifyPanelProps | undefined;
+    readonly task?: TaskPanelProps | undefined;
     /** The skills the step names (#431). */
     readonly skills: StepSkills;
     /** The picker that attaches a skill; null when the page cannot edit. */
@@ -114,10 +142,38 @@ export type PanelTarget =
     readonly onRemove: () => void;
   };
 
+function MoveButton(
+  { atEnd, label, locked, onMove, reason }: {
+    readonly atEnd: boolean;
+    readonly label: string;
+    readonly locked: boolean;
+    readonly onMove: () => void;
+    readonly reason: string;
+  },
+) {
+  const blocked = atEnd && !locked;
+  return (
+    <UI.Tooltip
+      align="start"
+      content={blocked ? reason : ""}
+      variant="description"
+    >
+      <UI.Button
+        aria-disabled={blocked || undefined}
+        disabled={locked}
+        onClick={blocked ? undefined : onMove}
+        variant="secondary"
+      >
+        {label}
+      </UI.Button>
+    </UI.Tooltip>
+  );
+}
+
 export function StepPanel(
   { target, onViewAsCode }: {
     readonly target: PanelTarget;
-    readonly onViewAsCode: () => void;
+    readonly onViewAsCode: (() => void) | null;
   },
 ) {
   const { translate } = useI18n();
@@ -131,14 +187,22 @@ export function StepPanel(
         variant="column"
         header={
           <UI.Text variant="strong">
-            {translate("library.editor.howItStarts" as never)}
+            {translate("library.editor.start.title")}
           </UI.Text>
         }
       >
-        <UI.Text>
-          {translate("library.editor.startsByHand" as never)}
-        </UI.Text>
+        <StartPanelBody {...target.starts} />
       </UI.InspectorPanel>
+    );
+  }
+
+  if (target.kind === "loop") {
+    return (
+      <LoopPanel
+        key={target.at}
+        onViewAsCode={onViewAsCode}
+        target={target}
+      />
     );
   }
 
@@ -149,11 +213,13 @@ export function StepPanel(
         label={label}
         variant="column"
         header={<UI.Text variant="strong">{target.name}</UI.Text>}
-        footer={
-          <UI.Button variant="secondary" onClick={onViewAsCode}>
-            {translate("library.editor.viewAsCode" as never)}
-          </UI.Button>
-        }
+        {...(onViewAsCode === null ? {} : {
+          footer: (
+            <UI.Button variant="secondary" onClick={onViewAsCode}>
+              {translate("library.editor.viewAsCode" as never)}
+            </UI.Button>
+          ),
+        })}
       >
         <UI.Stack gap="compact">
           {target.skills === undefined || target.skills.kind === "hidden"
@@ -186,31 +252,36 @@ export function StepPanel(
     );
   }
 
-  const lineKey = ACTION_LINES[target.uses];
+  const lineKey = target.approval !== undefined
+    ? "library.editor.ask.panelLine"
+    : target.notify !== undefined
+    ? "library.editor.notify.panelLine"
+    : ACTION_LINES[target.uses];
   const line = lineKey === undefined ? undefined : translate(lineKey as never);
 
+  const locked = target.disabled && !target.deletable;
   return (
     <UI.InspectorPanel
       id="editor-step-panel"
       label={label}
       variant="column"
       header={<UI.Text variant="strong">{target.name}</UI.Text>}
-      footer={
+      footer={locked ? undefined : (
         <UI.Inline gap="compact">
-          <UI.Button
-            variant="secondary"
-            disabled={target.disabled || !target.canMoveUp}
-            onClick={target.onMoveUp}
-          >
-            {translate("library.editor.panel.moveUp" as never)}
-          </UI.Button>
-          <UI.Button
-            variant="secondary"
-            disabled={target.disabled || !target.canMoveDown}
-            onClick={target.onMoveDown}
-          >
-            {translate("library.editor.panel.moveDown" as never)}
-          </UI.Button>
+          <MoveButton
+            atEnd={!target.canMoveUp}
+            label={translate("library.editor.panel.moveUp" as never)}
+            locked={target.disabled}
+            onMove={target.onMoveUp}
+            reason={translate("library.editor.panel.firstAlready")}
+          />
+          <MoveButton
+            atEnd={!target.canMoveDown}
+            label={translate("library.editor.panel.moveDown" as never)}
+            locked={target.disabled}
+            onMove={target.onMoveDown}
+            reason={translate("library.editor.panel.lastAlready")}
+          />
           <UI.Button
             variant="destructive"
             // A step Bakery cannot read is exactly the one a person must be
@@ -222,9 +293,16 @@ export function StepPanel(
             {translate("library.editor.panel.remove" as never)}
           </UI.Button>
         </UI.Inline>
-      }
+      )}
     >
       <UI.Stack gap="compact">
+        {locked
+          ? (
+            <UI.Text>
+              {translate("library.editor.panel.codeOnly")}
+            </UI.Text>
+          )
+          : null}
         {line === undefined ? null : <UI.Text>{line}</UI.Text>}
         {target.agentFromSetup === true
           ? (
@@ -247,9 +325,177 @@ export function StepPanel(
             })}
           </UI.Text>
         )}
+        {target.notify === undefined
+          ? null
+          : <NotifyPanelBody key={target.notify.stepId} {...target.notify} />}
+        {target.task === undefined
+          ? null
+          : <TaskPanelBody key={target.task.stepId} {...target.task} />}
+        {target.approval === undefined ? null : (
+          <ApprovalPanelBody
+            key={target.approval.stepId}
+            {...target.approval}
+          />
+        )}
         {target.skills.kind === "hidden"
           ? null
           : <Skills attach={target.attach} skills={target.skills} />}
+      </UI.Stack>
+    </UI.InspectorPanel>
+  );
+}
+
+type LoopField = "min" | "max" | "allow";
+
+const wholeNumber = (text: string): number | null => {
+  const trimmed = text.trim();
+  return /^[0-9]{1,3}$/.test(trimmed) ? Number(trimmed) : null;
+};
+
+type LoopDraft = Record<LoopField, string>;
+type LoopProblem = { readonly field: LoopField; readonly error: string };
+
+function loopProblem(
+  draft: LoopDraft,
+  cap: number,
+  t: (key: string, values?: Record<string, string | number>) => string,
+): LoopProblem | null {
+  const max = wholeNumber(draft.max);
+  if (max === null || max < 1 || max > cap) {
+    return { field: "max", error: t("mostInvalid", { cap }) };
+  }
+  const minTyped = draft.min.trim();
+  const min = minTyped === "" ? null : wholeNumber(draft.min);
+  if (min !== null && min > max) {
+    return { field: "min", error: t("fewestAboveMost", { max }) };
+  }
+  const allowTyped = draft.allow.trim();
+  const allow = allowTyped === "" ? null : wholeNumber(draft.allow);
+  const low = min ?? 1;
+  const high = Math.max(low, max - 1);
+  if (allow !== null && (allow < low || allow > high)) {
+    return { field: "allow", error: t("askRange", { low, high }) };
+  }
+  return null;
+}
+
+const LOOP_PAUSE_MS = 400;
+
+function LoopPanel(
+  { target, onViewAsCode }: {
+    readonly target: Extract<PanelTarget, { readonly kind: "loop" }>;
+    readonly onViewAsCode: (() => void) | null;
+  },
+) {
+  const { translate } = useI18n();
+  const t = (key: string, values?: Record<string, string | number>) =>
+    translate(`library.editor.loop.${key}` as never, values as never);
+  const asDraft = (values: LoopValues): LoopDraft => ({
+    min: values.min === null ? "" : String(values.min),
+    max: String(values.max),
+    allow: values.allow === null ? "" : String(values.allow),
+  });
+  const committed =
+    `${target.values.min}/${target.values.max}/${target.values.allow}`;
+  const [draft, setDraft] = useState<LoopDraft>(asDraft(target.values));
+  const [shown, setShown] = useState<LoopProblem | null>(null);
+  const [seen, setSeen] = useState(committed);
+  if (seen !== committed) {
+    setSeen(committed);
+    setDraft(asDraft(target.values));
+    setShown(null);
+  }
+  const typed = (): LoopValues => ({
+    min: draft.min.trim() === "" ? null : wholeNumber(draft.min),
+    max: wholeNumber(draft.max) as number,
+    allow: draft.allow.trim() === "" ? null : wholeNumber(draft.allow),
+  });
+  const commit = () => {
+    const problem = loopProblem(draft, target.cap, t);
+    setShown(problem);
+    if (problem === null) target.onCommit(typed());
+  };
+  useEffect(() => {
+    if (loopProblem(draft, target.cap, t) !== null) return;
+    const next = typed();
+    if (`${next.min}/${next.max}/${next.allow}` === committed) return;
+    target.onPending(true);
+    const timer = setTimeout(() => {
+      target.onPending(false);
+      target.onCommit(next);
+    }, LOOP_PAUSE_MS);
+    return () => {
+      clearTimeout(timer);
+      target.onPending(false);
+    };
+  }, [draft]);
+  const hintFor = (field: LoopField): string => {
+    if (field === "min") {
+      if (draft.min.trim() !== "") {
+        return t(target.fix ? "fewestSet" : "fewestSetRepeat");
+      }
+      return t(target.fix ? "fewestEmpty" : "fewestEmptyRepeat");
+    }
+    if (field === "max") {
+      return target.cap < 8
+        ? t("mostHintCapped", { cap: target.cap })
+        : t("mostHint", { cap: target.cap });
+    }
+    return t("askHint");
+  };
+  const fields: readonly { field: LoopField; label: string }[] = [
+    { field: "min", label: t("fewest") },
+    { field: "max", label: t("most") },
+    { field: "allow", label: t("ask") },
+  ];
+  return (
+    <UI.InspectorPanel
+      id="editor-step-panel"
+      label={translate("library.editor.panel.label" as never)}
+      variant="column"
+      header={<UI.Text variant="strong">{target.name}</UI.Text>}
+      {...(onViewAsCode === null ? {} : {
+        footer: (
+          <UI.Button variant="secondary" onClick={onViewAsCode}>
+            {translate("library.editor.viewAsCode" as never)}
+          </UI.Button>
+        ),
+      })}
+    >
+      <UI.Stack gap="compact">
+        {target.help === undefined ? null : <UI.Text>{target.help}</UI.Text>}
+        {fields.map(({ field, label }) => (
+          <UI.Field
+            key={field}
+            error={shown?.field === field ? shown.error : undefined}
+            hint={hintFor(field)}
+            htmlFor={`loop-${field}`}
+            label={label}
+          >
+            <UI.TextInput
+              autoComplete="off"
+              id={`loop-${field}`}
+              inputMode="numeric"
+              max={field === "max" ? target.cap : undefined}
+              min={1}
+              name={field}
+              onBlur={commit}
+              onChange={(value) => {
+                setDraft((held) => ({ ...held, [field]: value }));
+                if (shown?.field === field) setShown(null);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  commit();
+                }
+              }}
+              type="number"
+              value={draft[field]}
+            />
+          </UI.Field>
+        ))}
+        <UI.Text variant="muted">{t("codeUntil")}</UI.Text>
       </UI.Stack>
     </UI.InspectorPanel>
   );

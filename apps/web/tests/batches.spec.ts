@@ -143,7 +143,7 @@ for (
       await expect(page.locator(`[data-batch-id="${batchId(1)}"]`))
         .toContainText("acme/extra-129");
       await page.goto(`/issues/batches/new?repository=${last}`);
-      await expect(page.getByRole("combobox")).toHaveValue(last);
+      await expect(page.getByLabel("Repository")).toHaveValue(last);
       await expect(page.getByRole("option", { name: "acme/extra-129" }))
         .toHaveCount(1);
     });
@@ -171,8 +171,9 @@ for (
         page.getByRole("heading", { name: "Start a batch", level: 1 }),
       )
         .toBeVisible();
-      await expect(page.getByRole("combobox"))
-        .toHaveValue(WEB.id);
+      await expect(page.getByLabel("Repository")).toHaveValue(WEB.id);
+      await expect(page.getByLabel("Workflow for every issue in this batch"))
+        .toHaveValue("");
       await expect(page.getByLabel("Issues merged")).toHaveValue("5");
       await expect(page.getByLabel("Time")).toHaveValue("8");
       await expect(page.getByLabel("Spend")).toHaveValue("");
@@ -181,13 +182,31 @@ for (
       await expect(page.getByRole("radio", { name: "Ask me first" }))
         .not.toBeChecked();
       const plan = page.getByTestId("batch-plan");
-      await expect(plan).toContainText("or once … is spent");
-      await expect(plan).toContainText("… after each merge");
+      await expect(plan).toContainText(
+        "Stop starting new issues after 5 are merged or after 8 hours.",
+      );
+      await expect(plan).toContainText("Choose what happens after each merge.");
+      await expect(plan).not.toContainText("…");
+      await expect(plan).toContainText(
+        "Each issue runs the workflow you choose.",
+      );
       await page.getByLabel("Spend").fill("40");
       await page.getByRole("radio", { name: "Carry on by itself" }).check();
-      await expect(plan).toContainText("or once $40 is spent");
+      await expect(plan).toContainText(
+        "Stop starting new issues after 5 are merged, after 8 hours, or once $40 is spent.",
+      );
       await expect(plan).toContainText("Carry on by itself after each merge.");
-      await expect(plan).toContainText("5 are merged");
+      await page.getByLabel("Issues merged").fill("");
+      await expect(plan).toContainText(
+        "Stop starting new issues after 8 hours or once $40 is spent.",
+      );
+      await page.getByLabel("Time").fill("");
+      await expect(plan).toContainText(
+        "Stop starting new issues once $40 is spent.",
+      );
+      await page.getByLabel("Spend").fill("");
+      await expect(plan).toContainText("Choose when the batch stops.");
+      await expect(plan).not.toContainText("…");
       await still(page, "batch-new");
     });
 
@@ -278,7 +297,9 @@ for (
     });
 
     test("a spend below the smallest is named under Spend and nothing is sent", async ({ page }) => {
-      const { seen } = await batchesFixture(page);
+      const { seen } = await batchesFixture(page, {
+        workflows: { [WEB.id]: "fixed-coding" },
+      });
       await page.goto(`/issues/batches/new?repository=${WEB.id}`);
       await expect(page.getByTestId("batch-startable")).toBeVisible();
       await page.getByLabel("Spend").fill("10");
@@ -303,6 +324,7 @@ for (
 
     test("an amount the server refuses as too low is named under Spend", async ({ page }) => {
       await batchesFixture(page, {
+        workflows: { [WEB.id]: "fixed-coding" },
         create: "spendLow",
         startable: { smallestSpendUsd: null, smallestAfterRefusal: "12.5000" },
       });
@@ -348,6 +370,19 @@ for (
       await page.getByLabel("Time").fill("0");
       await page.getByRole("button", { name: "Start batch" }).click();
       await expect(page.getByText("Choose a repository.")).toBeVisible();
+      await expect(page.getByTestId("batch-plan")).toContainText(
+        "Work through ready issues one at a time.",
+      );
+      await expect(page.getByTestId("batch-plan")).not.toContainText("…");
+      const plan = page.getByTestId("batch-plan");
+      await expect(plan).not.toContainText(
+        "Each issue runs the workflow you choose.",
+      );
+      await expect(plan).not.toContainText(
+        "Choose what happens after each merge.",
+      );
+      await expect(plan).toContainText("Choose when the batch stops.");
+      await expect(page.getByText("Choose a workflow first.")).toBeVisible();
       await expect(page.getByText("Use a number from 1 to 20.")).toBeVisible();
       await expect(page.getByText("Use 1 to 24 hours.")).toBeVisible();
       await expect(page.getByText("Use an amount above 0, up to $4,000."))
@@ -361,15 +396,16 @@ for (
     test("starting a batch sends the limits and the choice and opens the new batch's page", async ({ page }) => {
       const { seen } = await batchesFixture(page);
       await page.goto("/issues/batches/new");
-      await page.getByRole("combobox").selectOption(
-        STOREFRONT.id,
-      );
+      await page.getByLabel("Repository").selectOption(STOREFRONT.id);
+      await page.getByLabel("Workflow for every issue in this batch")
+        .selectOption("fixed-coding-reviewed");
       await page.getByLabel("Spend").fill("$40");
       await page.getByRole("radio", { name: "Ask me first" }).check();
       await page.getByRole("button", { name: "Start batch" }).click();
       await expect(page).toHaveURL(/\/issues\/batches\/[0-9a-f-]{36}$/);
       expect(seen.created).toEqual([{
         repositoryId: STOREFRONT.id,
+        presetId: "fixed-coding-reviewed",
         maxIssues: 5,
         maxHours: 8,
         maxSpendUsd: "40.00",
@@ -380,8 +416,116 @@ for (
       );
     });
 
+    test("a repository with a workflow set has it chosen for the person, and a different choice applies to this batch only", async ({ page }) => {
+      const { seen } = await batchesFixture(page, {
+        workflows: { [STOREFRONT.id]: "fixed-coding-reviewed" },
+      });
+      await page.goto(`/issues/batches/new?repository=${STOREFRONT.id}`);
+      const field = page.getByLabel("Workflow for every issue in this batch");
+      await expect(field).toHaveValue("fixed-coding-reviewed");
+      const section = page.getByTestId("batch-workflow-choice");
+      await expect(section).toContainText(
+        "acme/storefront is set to this workflow; a different choice applies to this batch only.",
+      );
+      const plan = page.getByTestId("batch-plan");
+      await expect(plan).toContainText(
+        "Each issue runs Coding with independent review.",
+      );
+      await still(page, "batch-new-workflow-set");
+      await field.selectOption("fixed-coding");
+      await expect(plan).toContainText("Each issue runs Fixed coding.");
+      await page.getByLabel("Spend").fill("40");
+      await page.getByRole("radio", { name: "Carry on by itself" }).check();
+      await page.getByRole("button", { name: "Start batch" }).click();
+      await expect(page).toHaveURL(/\/issues\/batches\/[0-9a-f-]{36}$/);
+      expect(seen.created.map((body) => body.presetId)).toEqual([
+        "fixed-coding",
+      ]);
+    });
+
+    test("Start batch with nothing chosen asks for a workflow under its field, focuses it and sends nothing", async ({ page }) => {
+      const { seen } = await batchesFixture(page);
+      await page.goto(`/issues/batches/new?repository=${WEB.id}`);
+      await expect(page.getByTestId("batch-workflow-choice")).toContainText(
+        "acme/web has none set, so people choose one each time they start work.",
+      );
+      await page.getByLabel("Spend").fill("40");
+      await page.getByRole("radio", { name: "Carry on by itself" }).check();
+      await page.getByRole("button", { name: "Start batch" }).click();
+      await expect(page.getByText("Choose a workflow first.")).toBeVisible();
+      await expect(
+        page.getByLabel("Workflow for every issue in this batch"),
+      ).toBeFocused();
+      expect(seen.created).toEqual([]);
+      await still(page, "batch-new-workflow-unset-error");
+    });
+
+    test("a workflow that cannot start here says so under its field, is not sent, and a press focuses the notice", async ({ page }) => {
+      const { seen } = await batchesFixture(page, {
+        workflows: { [WEB.id]: "fixed-coding" },
+        presetAvailability: {
+          "fixed-coding": {
+            status: "setup_required",
+            reasons: ["no_active_profile"],
+          },
+        },
+      });
+      await page.goto(`/issues/batches/new?repository=${WEB.id}`);
+      const notice = page.locator("#batch-workflow-setup");
+      await expect(notice).toContainText("This workflow cannot start here yet");
+      await expect(notice.locator("[data-reason='no_active_profile']"))
+        .toBeVisible();
+      await expect(notice.getByRole("listitem")).toHaveCount(0);
+      await page.getByLabel("Spend").fill("40");
+      await page.getByRole("radio", { name: "Carry on by itself" }).check();
+      await still(page, "batch-new-workflow-cannot-start");
+      await page.getByRole("button", { name: "Start batch" }).click();
+      await expect(notice).toBeFocused();
+      await still(page, "batch-new-workflow-cannot-start-focused");
+      expect(seen.created).toEqual([]);
+      await page.getByLabel("Workflow for every issue in this batch")
+        .selectOption("fixed-coding-reviewed");
+      await expect(notice).toHaveCount(0);
+    });
+
+    test("a batch's page names its workflow, and a batch paused because it can no longer start says what to do", async ({ page }) => {
+      await batchesFixture(page, {
+        batches: [
+          batch({ id: batchId(1), presetId: "fixed-coding-reviewed" }),
+          batch({
+            id: batchId(2),
+            repositoryId: STOREFRONT.id,
+            presetId: "fixed-coding",
+            state: "paused",
+            pauseReason: "workflow_cannot_start",
+          }),
+        ],
+      });
+      await page.goto(`/issues/batches/${batchId(1)}`);
+      await expect(page.getByTestId("batch-workflow")).toHaveText(
+        "Workflow: Coding with independent review",
+      );
+      await expect(
+        page.getByTestId("batch-workflow").getByRole("link", {
+          name: "Coding with independent review",
+        }),
+      ).toHaveAttribute("href", "/library/built-in/fixed-coding-reviewed");
+      await still(page, "batch-workflow-link");
+      await page.goto(`/issues/batches/${batchId(2)}`);
+      await expect(banner(page)).toContainText(
+        "Paused: Fixed coding can no longer start in acme/storefront",
+      );
+      await expect(banner(page)).toContainText(
+        "Stop this batch and start a new one with another workflow.",
+      );
+      await still(page, "batch-paused-workflow");
+    });
+
     test("a repository with a batch already running says so and opens it", async ({ page }) => {
-      await batchesFixture(page, { create: "alreadyRunning" });
+      await batchesFixture(page, {
+        workflows: { [WEB.id]: "fixed-coding" },
+        create: "alreadyRunning",
+      });
       await page.goto(`/issues/batches/new?repository=${WEB.id}`);
       await page.getByLabel("Spend").fill("40");
       await page.getByRole("radio", { name: "Carry on by itself" }).check();
@@ -409,7 +553,10 @@ for (
       ] as const
     ) {
       test(`a repository that ${name} is named under the Repository field`, async ({ page }) => {
-        await batchesFixture(page, { create });
+        await batchesFixture(page, {
+          workflows: { [WEB.id]: "fixed-coding" },
+          create,
+        });
         await page.goto(`/issues/batches/new?repository=${WEB.id}`);
         await page.getByLabel("Spend").fill("40");
         await page.getByRole("radio", { name: "Carry on by itself" }).check();

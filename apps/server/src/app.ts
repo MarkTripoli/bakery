@@ -1,5 +1,6 @@
 import type { ExecutionTelemetry } from "./modules/execution/telemetry.ts";
 import { createDeliveryStepRunner } from "./modules/delivery/delivery-steps.ts";
+import { createOpenPullRequestStepRunner } from "./modules/delivery/open-pull-request-step.ts";
 import { createToolCallStepRunner } from "./modules/tool-call/tool-call-step.ts";
 import { createPostgresMcpPinnedStatePort } from "./modules/mcp/postgres.ts";
 import { createRemoteMcpToolTransport } from "./modules/mcp/tool-transport.ts";
@@ -54,8 +55,6 @@ import {
   TICKET_CREATE_ACTION,
   TICKET_LABEL_REMOVE_ACTION,
   TICKET_LABELS_ADD_ACTION,
-  TICKET_NOTE_ACTION,
-  TICKET_NOTE_UPDATE_ACTION,
 } from "./modules/catalog/integration-providers/github.ts";
 import { createGateRemoteTicketCreator } from "./modules/integrations/ticket-create.ts";
 import { createGateSender } from "./modules/integrations/ticket-gate.ts";
@@ -63,6 +62,8 @@ import { createGateTicketLabelWriter } from "./modules/integrations/ticket-label
 import { createGateTicketNoteWriter } from "./modules/integrations/ticket-notes.ts";
 import type { RemoteTicketCreator } from "./modules/work/ticket-create.ts";
 import type { TicketLabelWriter } from "./modules/work/ticket-labels.ts";
+import type { TicketStatusWriter } from "./modules/work/ticket-statuses.ts";
+import { createGateTicketStatusWriter } from "./modules/integrations/ticket-statuses.ts";
 import type { TicketNoteWriter } from "./modules/work/ticket-notes.ts";
 import { createPluginInstallRoutes } from "./modules/catalog/plugin-install-routes.ts";
 import { createPluginAuthoringRoutes } from "./modules/workflows/plugin-authoring/routes.ts";
@@ -79,9 +80,11 @@ import {
   type InstallationTokenBroker,
 } from "./modules/integrations/index.ts";
 import { createProviderRequestPort } from "./modules/integrations/credential-port.ts";
+import { PROVIDERS } from "./modules/integrations/registry.ts";
 import { GITHUB_PROVIDER } from "./modules/integrations/registry.ts";
 import { selectTicketSourceReader } from "./modules/work/ticket-reader-selection.ts";
 import { readAppCredentials } from "./modules/integrations/callbacks.ts";
+import type { OAuth2Fetch } from "./modules/integrations/oauth2-connect.ts";
 import { loadSnapshot } from "./modules/catalog/authority-snapshot-postgres.ts";
 import { withPgTransaction } from "./platform/database.ts";
 import { createDesktopCors } from "./platform/desktop-cors.ts";
@@ -91,6 +94,7 @@ import {
   activateDeployedIntegrations,
   createCatalogRoutes,
   deployedIntegrations,
+  deployedProviderGates,
   deployedProviders,
 } from "./modules/catalog/index.ts";
 import {
@@ -257,6 +261,7 @@ export function createApp(options: {
   pluginBrokerOperations?: readonly BrokerOperation[];
   /** GitHub App API port; the fetch client against api.github.com by default. */
   githubAppClient?: GitHubAppClient;
+  oauth2Fetch?: OAuth2Fetch;
   /**
    * The process's installation token broker; tests inject one to drive a
    * reconcile against the same cache the API uses.
@@ -272,6 +277,7 @@ export function createApp(options: {
   ticketCreator?: RemoteTicketCreator;
   /** Changes Bakery's progress labels on a ticket; the integration gate by default, an in-memory one in tests. */
   ticketLabelWriter?: TicketLabelWriter;
+  ticketStatusWriter?: TicketStatusWriter;
   draftIsolation?: DraftIsolation;
   skillFileStore?: SkillFileStoreOperations;
   /**
@@ -332,6 +338,7 @@ export function createApp(options: {
     deployedIntegrations,
     undefined,
     deployedProviders,
+    deployedProviderGates,
   );
   if (!options.config.auth) throw new Error(AuthErrorCode.ConfigRequired);
   const installationSettings = options.installationSettings ??
@@ -367,6 +374,8 @@ export function createApp(options: {
   // store and the sender are created together or not at all.
   const providerRequests = createProviderRequestPort({
     database: options.pgDatabase,
+    secretsKey: options.config.secretsKey,
+    providers: PROVIDERS,
     broker: installationTokenBroker,
     readAppCredentials,
     // The same broker the port mints through, so the counter the broker compares
@@ -383,20 +392,11 @@ export function createApp(options: {
         ),
     },
   });
-  // The composition root names the provider whose comment action writes
-  // the note, as it names the webhook ingress below. The ticket routes and the
-  // background poll share the one writer.
   const ticketNoteWriter = options.ticketNoteWriter ??
     createGateTicketNoteWriter({
       database: options.pgDatabase,
       registry: integrationRegistry,
       providerRequests,
-      noteActions: {
-        github: {
-          create: TICKET_NOTE_ACTION,
-          update: TICKET_NOTE_UPDATE_ACTION,
-        },
-      },
     });
   const ticketGateSend = createGateSender({
     database: options.pgDatabase,
@@ -418,6 +418,8 @@ export function createApp(options: {
         },
       },
     });
+  const ticketStatusWriter = options.ticketStatusWriter ??
+    createGateTicketStatusWriter({ send: ticketGateSend });
   const integrations = {
     github: githubAppClient,
     secretsKey: options.config.secretsKey,
@@ -824,9 +826,13 @@ export function createApp(options: {
       ...(skillFileStore
         ? { storageBlobStore: new ScopedOrganizationBlobStore(skillFileStore) }
         : {}),
+      allowPlainLoopbackEmail: options.config.environment === "test",
+      emailSend: options.emailSend,
+      requestSlackGate: { registry: integrationRegistry, providerRequests },
       integrations,
       ticketNoteWriter,
       ticketLabelWriter,
+      ticketStatusWriter,
       // The engine settles a tool call itself, over the integration door; the
       // delivery steps run only where the install configured a target.
       engineSteps: composeEngineStepRunners([
@@ -848,6 +854,10 @@ export function createApp(options: {
               transport: options.mcpToolTransport ?? httpsMcpTransport(),
             }),
           },
+        }),
+        createOpenPullRequestStepRunner({
+          database: options.pgDatabase,
+          registration: { database: options.pgDatabase, ...integrations },
         }),
         ...(options.config.deliveryTarget
           ? [createDeliveryStepRunner({
@@ -881,7 +891,10 @@ export function createApp(options: {
           runControlRegistry,
           // Asking people from a step (#414): the same run request registry
           // the routes mount, so an agent's ask runs the person's handler.
-          createRunRequestActionRegistry(options.pgDatabase),
+          createRunRequestActionRegistry(
+            options.pgDatabase,
+            options.config.auth.secret,
+          ),
           // Connection drafts (#448 S9b): the same management registry the
           // routes mount, so a draft runs the same handler and guard.
           createMcpActionRegistry(options.pgDatabase, {
@@ -1060,6 +1073,13 @@ export function createApp(options: {
       publicBaseUrl: options.config.publicBaseUrl,
       cursorSecret: options.config.auth.secret,
       merge: { github: githubAppClient, broker: installationTokenBroker },
+      registration: integrations,
+      environmentAddress: (environment) => {
+        const target = options.config.deliveryTarget;
+        return target !== undefined && target.environment === environment
+          ? target.address ?? null
+          : null;
+      },
     }),
   );
   app.route(
@@ -1129,6 +1149,7 @@ export function createApp(options: {
     createRunRequestRoutes({
       database: options.pgDatabase,
       session: tokenSession,
+      cursorSecret: options.config.auth.secret,
     }),
   );
   app.route(
@@ -1161,6 +1182,9 @@ export function createApp(options: {
       // providers instead of re-deriving one.
       integrationRegistry,
       providerRequests,
+      ...(options.oauth2Fetch === undefined
+        ? {}
+        : { oauth2Fetch: options.oauth2Fetch }),
     }),
   );
   app.route(

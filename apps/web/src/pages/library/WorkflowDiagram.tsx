@@ -1,5 +1,6 @@
 import {
   Component,
+  Fragment,
   lazy,
   type ReactNode,
   Suspense,
@@ -32,6 +33,7 @@ import type {
   GroupLabel,
   Tree,
   TreeGroup,
+  TreeLoop,
   TreeNode,
   TreeStep,
 } from "./workflow-tree.ts";
@@ -55,12 +57,16 @@ export type DiagramProps = {
   readonly tree: Tree;
   /** The step or group whose panel is open, by id; `start` for the start card. */
   readonly selectedId: string | null;
+  readonly start?: { readonly title: string; readonly line: string };
   /** The problems the last check reported, by step id. */
   readonly problems: ReadonlyMap<string, string>;
   /** Whether the person may change the workflow at all. */
   readonly canManage: boolean;
   /** Whether slice 1 can add, move and remove steps here. */
   readonly editable: boolean;
+  readonly addAfter?: ReadonlySet<string | null>;
+  readonly addBefore?: ReadonlyMap<string | null, string>;
+  readonly offer?: readonly string[];
   /**
    * Whether this is a read-only page (the workflow page or a built-in), where
    * nothing can be edited at all. "Edited in code" tells a person where to go
@@ -82,6 +88,7 @@ export type DiagramProps = {
    * agent a step runs, and whether that could be read. The editor passes none.
    */
   readonly detail?: (uses: string, id: string) => ReactNode;
+  readonly lines?: ReadonlyMap<string, string>;
   readonly view?: "diagram" | "outline";
 };
 
@@ -92,6 +99,7 @@ const GROUP_LABEL: Readonly<Record<GroupLabel, string>> = {
   repeat: "library.editor.group.repeat",
   fix: "library.editor.group.fixUntilPasses",
   each: "library.editor.group.each",
+  call: "library.editor.group.call",
   wait: "library.editor.group.wait",
 };
 
@@ -100,14 +108,19 @@ const GROUP_ICON: Readonly<Partial<Record<GroupLabel, string>>> = {
   repeat: "refresh",
   fix: "refresh",
   each: "refresh",
+  call: "branch",
   wait: "clock",
 };
 
 export function WorkflowDiagram(
   {
+    addAfter,
+    addBefore,
+    offer,
     canManage,
     detail,
     editable,
+    lines,
     onAdd,
     onPick,
     onPickClose,
@@ -117,6 +130,7 @@ export function WorkflowDiagram(
     problems,
     readOnlyPage = false,
     selectedId,
+    start,
     tree,
     view = "diagram",
   }: DiagramProps,
@@ -143,7 +157,7 @@ export function WorkflowDiagram(
   // down and said nothing about what each step does (#67 UX ruling
   // 6934081003 fix 2, spec in 6900431228).
   const [pickQuery, setPickQuery] = useState("");
-  const offered = PICKER_STEPS.filter((uses) => {
+  const offered = (offer ?? PICKER_STEPS).filter((uses) => {
     const needle = pickQuery.trim().toLowerCase();
     return needle === "" ||
       title(uses).toLowerCase().includes(needle) ||
@@ -186,6 +200,11 @@ export function WorkflowDiagram(
 
   const pickerBody = (
     <UI.Stack gap="compact" data-testid="step-picker">
+      {offer === undefined ? null : (
+        <UI.Text variant="muted">
+          {translate("library.editor.picker.limited")}
+        </UI.Text>
+      )}
       <UI.SearchField
         aria-label={translate("library.editor.picker.search" as never)}
         placeholder={translate("library.editor.picker.search" as never)}
@@ -273,12 +292,16 @@ export function WorkflowDiagram(
 
   const addControl = (afterId: string | null): ReactNode => {
     if (!editable || !canManage) return null;
+    if (addAfter !== undefined && !addAfter.has(afterId)) return null;
     const open = pickerAt !== undefined && pickerAt === afterId;
-    const addLabel = translate("library.editor.addHere" as never, {
-      after: afterId === null
-        ? translate("library.editor.startsHere" as never)
-        : title(treeStepUses(tree, afterId) ?? afterId),
-    });
+    const next = addBefore?.get(afterId);
+    const addLabel = next === undefined
+      ? translate("library.editor.addHere", {
+        after: afterId === null
+          ? translate("library.editor.startsHere")
+          : title(treeStepUses(tree, afterId) ?? afterId),
+      })
+      : translate("library.editor.addBefore", { before: title(next) });
     return (
       <>
         <UI.Popover
@@ -334,7 +357,9 @@ export function WorkflowDiagram(
       problems.get(node.id) !== undefined;
     const codeOnly = node.codeOnly === true && !drawing;
     const glyph = drawing ? "info" : stepGlyph(node);
-    const summary = drawing ? undefined : stepLine(node, translate);
+    const summary = drawing
+      ? undefined
+      : lines?.get(node.id) ?? stepLine(node, translate);
     const extra = drawing ? undefined : detail?.(node.uses, node.id);
     return { codeOnly, drawing, extra, glyph, summary };
   };
@@ -387,8 +412,12 @@ export function WorkflowDiagram(
     <div data-card="start">
       <UI.StepCard
         icon={<UI.IconGlyph name="lightning" size="small" />}
-        title={translate("library.editor.howItStarts" as never)}
-        summary={translate("library.editor.howItStartsLine" as never)}
+        title={start?.title ??
+          translate("library.editor.howItStarts")}
+        summary={start?.line ??
+          translate("library.editor.howItStartsLine")}
+        needsSetup={problems.get("start") !== undefined}
+        needsSetupLabel={translate("library.editor.card.needsSetup")}
         selected={selectedId === "start"}
         controls="editor-step-panel"
         onClick={() => onSelect("start")}
@@ -405,7 +434,35 @@ export function WorkflowDiagram(
       </UI.Tooltip>
     );
 
+  const loopLimit = (loop: TreeLoop): string => {
+    const ask = loop.allow === null
+      ? ""
+      : ` · ${
+        translate("library.editor.group.fixAsk" as never, {
+          from: loop.allow,
+        })
+      }`;
+    if (loop.min !== null && loop.min === loop.max) {
+      return translate("library.editor.group.fixExact" as never, {
+        max: loop.max,
+      }) + ask;
+    }
+    if (loop.min !== null) {
+      return translate("library.editor.group.fixRange" as never, {
+        min: loop.min,
+        max: loop.max,
+      }) + ask;
+    }
+    return translate("library.editor.group.fixLimit" as never, {
+      max: loop.max,
+    }) + ask;
+  };
   const limitOf = (group: TreeGroup): string | undefined => {
+    if (
+      group.loop !== undefined && group.loop.fix === (group.label === "fix")
+    ) {
+      return loopLimit(group.loop);
+    }
     if (group.max === undefined) return undefined;
     if (group.label === "each") {
       return translate("library.editor.group.eachLimit" as never, {
@@ -442,6 +499,10 @@ export function WorkflowDiagram(
       : said;
   };
   const noSteps = translate("library.editor.group.noSteps" as never);
+  const emptyWords = (label: GroupLabel): string =>
+    label === "call"
+      ? translate("library.editor.group.callEmpty" as never)
+      : noSteps;
   const glyphOf = (label: GroupLabel): ReactNode => {
     const name = GROUP_ICON[label];
     return name === undefined
@@ -451,6 +512,10 @@ export function WorkflowDiagram(
 
   const renderBlock = (block: CanvasBlock): ReactNode => {
     switch (block.kind) {
+      case "lane":
+        return block.empty
+          ? <UI.Text variant="muted">{noSteps}</UI.Text>
+          : null;
       case "start":
         return startCard;
       case "step":
@@ -483,17 +548,21 @@ export function WorkflowDiagram(
           <UI.StepGroup
             data-group={group.label}
             codeMark={inCode ? codeMark() : undefined}
-            empty={group.children.length === 0 ? noSteps : undefined}
+            empty={group.children.length === 0
+              ? emptyWords(group.label)
+              : undefined}
             icon={arm ? undefined : glyphOf(group.label)}
             label={wordFor(group.label)}
             limit={limit}
             onSelect={canManage ? () => onSelect(group.id) : undefined}
-            selectLabel={groupName(
-              wordFor(group.label),
-              limit,
-              stepsInside(group.children),
-              inCode,
-            )}
+            selectLabel={group.label === "call"
+              ? wordFor(group.label)
+              : groupName(
+                wordFor(group.label),
+                limit,
+                stepsInside(group.children),
+                inCode,
+              )}
             selected={selectedId === group.id}
             variant={arm ? "arm" : "box"}
           />
@@ -502,7 +571,10 @@ export function WorkflowDiagram(
     }
   };
   const renderAdd = (block: CanvasBlock): ReactNode => {
-    if (block.kind !== "start" && block.kind !== "step") return null;
+    if (
+      block.kind !== "start" && block.kind !== "step" &&
+      addAfter?.has(block.id) !== true
+    ) return null;
     const afterId = block.kind === "start" ? null : block.id;
     const control = addControl(afterId);
     return control === null
@@ -555,12 +627,13 @@ export function WorkflowDiagram(
     const limit = limitOf(node);
     return (
       <UI.OutlineRow
+        add={addBefore?.has(node.id) ? outlineAdd(node.id) : undefined}
         codeMark={inCode ? undefined : codeMark()}
         data-group={node.label}
         icon={glyphOf(node.label)}
         key={node.id}
         onSelect={canManage ? () => onSelect(node.id) : undefined}
-        selectLabel={groupName(
+        selectLabel={node.label === "call" ? wordFor(node.label) : groupName(
           wordFor(node.label),
           limit,
           stepsInside(node.children),
@@ -575,11 +648,38 @@ export function WorkflowDiagram(
             <UI.OutlineList>
               <UI.OutlineRow
                 caption
-                title={<UI.Text variant="muted">{noSteps}</UI.Text>}
+                title={
+                  <UI.Text variant="muted">{emptyWords(node.label)}</UI.Text>
+                }
               />
             </UI.OutlineList>
           )
-          : innerList(node.children)}
+          : node.lanes === undefined
+          ? innerList(node.children)
+          : node.lanes.map((lane, position) => (
+            <Fragment key={position}>
+              <UI.OutlineList>
+                <UI.OutlineRow
+                  caption
+                  title={
+                    <UI.Text variant="muted">
+                      {translate("library.editor.group.lane", {
+                        n: position + 1,
+                      })}
+                    </UI.Text>
+                  }
+                />
+                {lane.length === 0
+                  ? (
+                    <UI.OutlineRow
+                      caption
+                      title={<UI.Text variant="muted">{noSteps}</UI.Text>}
+                    />
+                  )
+                  : outlineRows(lane, true)}
+              </UI.OutlineList>
+            </Fragment>
+          ))}
       </UI.OutlineRow>
     );
   };
@@ -601,6 +701,9 @@ export function WorkflowDiagram(
       ) {
         rows.push(
           <UI.OutlineRow
+            add={addBefore?.has(`if-${node.id}`)
+              ? outlineAdd(`if-${node.id}`)
+              : undefined}
             codeMark={inCode ? undefined : codeMark()}
             data-group="if"
             icon={<UI.IconGlyph name="branch" size="small" />}
@@ -640,8 +743,12 @@ export function WorkflowDiagram(
         icon={<UI.IconGlyph name="lightning" size="small" />}
         onSelect={() => onSelect("start")}
         selected={selectedId === "start"}
-        summary={translate("library.editor.howItStartsLine" as never)}
-        title={translate("library.editor.howItStarts" as never)}
+        needsSetup={problems.get("start") !== undefined}
+        needsSetupLabel={translate("library.editor.card.needsSetup")}
+        summary={start?.line ??
+          translate("library.editor.howItStartsLine")}
+        title={start?.title ??
+          translate("library.editor.howItStarts")}
       />
       {tree.unreadable ? null : outlineRows(drawn.nodes, false)}
     </UI.OutlineList>

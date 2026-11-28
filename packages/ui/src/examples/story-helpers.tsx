@@ -61,6 +61,62 @@ type DialogExampleProps =
     variant?: "destructive" | "security";
   };
 
+export function NestedAlertExample() {
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [alertOpen, setAlertOpen] = useState(false);
+  return (
+    <UI.Stack>
+      <UI.Button
+        data-testid="nested-sheet-trigger"
+        onClick={() => setSheetOpen(true)}
+      >
+        Open details
+      </UI.Button>
+      <UI.Sheet
+        aria-label="Task details"
+        data-testid="nested-sheet"
+        title="Task details"
+        open={sheetOpen}
+        onOpenChange={setSheetOpen}
+        state={sheetOpen ? "open" : "closed"}
+      >
+        <UI.Button
+          data-testid="nested-alert-trigger"
+          onClick={() => setAlertOpen(true)}
+        >
+          Archive
+        </UI.Button>
+        <UI.AlertDialog
+          aria-label="Archive task?"
+          data-testid="nested-alert"
+          title="Archive task?"
+          open={alertOpen}
+          onOpenChange={setAlertOpen}
+          state={alertOpen ? "open" : "closed"}
+          cancelAction={
+            <UI.Button
+              variant="secondary"
+              onClick={() => setAlertOpen(false)}
+            >
+              Cancel
+            </UI.Button>
+          }
+          confirmAction={
+            <UI.Button
+              variant="destructive"
+              onClick={() => setAlertOpen(false)}
+            >
+              Archive
+            </UI.Button>
+          }
+        >
+          You can restore this task later.
+        </UI.AlertDialog>
+      </UI.Sheet>
+    </UI.Stack>
+  );
+}
+
 export function DialogExample(props: DialogExampleProps) {
   const [open, setOpen] = useState(false);
   const [result, setResult] = useState("");

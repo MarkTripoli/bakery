@@ -201,6 +201,7 @@ export function artifactFixtureDetails({ state, version, pinned }: {
     artifact: {
       id: "delivery-notes",
       taskId: "130",
+      taskTitle: "130",
       artifactType: "plan",
       name,
       currentVersionId: state === "empty" ? null : "3",

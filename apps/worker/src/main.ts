@@ -58,6 +58,10 @@ import {
   WorkerShutdownQuiescenceError,
   WorkerSupervisor,
 } from "./supervisor.ts";
+import {
+  forgetModelKeyWhenAttemptEnds,
+  readOncePerAttempt,
+} from "./model-key.ts";
 
 export type WorkerMainOptions = {
   monitoring?: RuntimeMonitoring;
@@ -309,6 +313,10 @@ export async function main(options: WorkerMainOptions = {}): Promise<void> {
     // test executor keeps exactly the actions it declares. The score judge
     // makes its one model call through the configured Claude Code CLI; any
     // other harness leaves it without a transport, so scores are unscored.
+    const modelKeys = readOncePerAttempt((attemptId, proof) =>
+      client.attemptModelKey(attemptId, proof)
+    );
+    const readModelKey = modelKeys.read;
     const executor = options.executor === undefined
       ? createEvaluationExecutor(baseExecutor, {
         readAttemptContext: async (attemptId, proof) => {
@@ -318,6 +326,7 @@ export async function main(options: WorkerMainOptions = {}): Promise<void> {
         judge: codingHarness?.name === "claude"
           ? {
             transport: createClaudeJudgeTransport({
+              readModelKey,
               authSourceDir: config.claudeAuthSourceDir ??
                 join(home!, ".claude"),
               claudeExecutable: codingHarness.executable,
@@ -381,6 +390,7 @@ export async function main(options: WorkerMainOptions = {}): Promise<void> {
         redactionSecrets: config.outputRedactionSecrets,
         authSourceDir: config.claudeAuthSourceDir ?? join(home!, ".claude"),
         readAttemptContext,
+        readModelKey,
         // The design tool is a capability binding (#436): a Paper connection
         // bound to the step, its seat or its agent reaches the session through
         // the tool gateway, so the worker's own capability list no longer
@@ -396,7 +406,10 @@ export async function main(options: WorkerMainOptions = {}): Promise<void> {
                 registration.workerSessionGeneration,
               ),
             };
-        }, { stdioAllowlist: config.mcpStdioAllowlist ?? [] }),
+        }, {
+          stdioAllowlist: config.mcpStdioAllowlist ?? [],
+          sessionServerUrl: config.serverUrl,
+        }),
         inner: checkedExecutor,
       })
       : codingHarness?.name === "pi"
@@ -414,6 +427,7 @@ export async function main(options: WorkerMainOptions = {}): Promise<void> {
         redactionSecrets: config.outputRedactionSecrets,
         capabilities: config.adapterCapabilities,
         readAttemptContext,
+        readModelKey,
         designToolAvailable: designToolAvailableFrom(config.capabilities),
         inner: checkedExecutor,
       })
@@ -429,6 +443,7 @@ export async function main(options: WorkerMainOptions = {}): Promise<void> {
         authSourceDir: config.codexAuthSourceDir ?? join(home!, ".codex"),
         redactionSecrets: config.outputRedactionSecrets,
         readAttemptContext,
+        readModelKey,
         designToolAvailable: designToolAvailableFrom(config.capabilities),
         inner: checkedExecutor,
       })
@@ -451,6 +466,7 @@ export async function main(options: WorkerMainOptions = {}): Promise<void> {
         },
         redactionSecrets: config.outputRedactionSecrets,
         credentialPaths,
+        readModelKey,
       })
       : harnessExecutor;
     // One wrapper around every adapter (#404): the session's operation
@@ -458,9 +474,12 @@ export async function main(options: WorkerMainOptions = {}): Promise<void> {
     // attempt runs, and the child environment is given its path, never the
     // value. Doing it here rather than per adapter is what keeps "does this
     // harness clean up" from being a per-harness question.
-    const sessionAwareExecutor = withSessionCredentialFile(workerExecutor, {
-      stateDir: config.stateDir,
-    });
+    const sessionAwareExecutor = withSessionCredentialFile(
+      forgetModelKeyWhenAttemptEnds(workerExecutor, modelKeys),
+      {
+        stateDir: config.stateDir,
+      },
+    );
     await sessionAwareExecutor.initialize?.();
     const skillMaterializer = new SkillMaterializer(
       new SkillCache(config.stateDir),

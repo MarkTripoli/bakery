@@ -1,4 +1,9 @@
-import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
+import {
+  type InfiniteData,
+  infiniteQueryOptions,
+  type QueryClient,
+  queryOptions,
+} from "@tanstack/react-query";
 import type { MembershipPage } from "./access-client.ts";
 import type {
   AgentDefinitionResponse,
@@ -22,6 +27,12 @@ import type {
   ArtifactSharers,
   ArtifactStorageResponse,
   ArtifactVersionListResponse,
+  BackupDrillPage,
+  BackupOffsite,
+  BackupPointInTime,
+  BackupRunPage,
+  BackupSchedule,
+  BackupStatus,
   BakeryApiClient,
   BatchListResponse,
   BatchResponse,
@@ -49,6 +60,7 @@ import type {
   FileFactPage,
   FileSearchInput,
   FileSearchPage,
+  GroupsResponse,
   HandoffManifestResponse,
   InstallationCapabilities,
   InstallationRestore,
@@ -62,6 +74,7 @@ import type {
   IntegrationConnection,
   IntegrationResource,
   LibraryPage,
+  MachineModelListResponse,
   MemoryEntryResponse,
   MemoryRevisionResponse,
   MentionCandidatePage,
@@ -73,6 +86,8 @@ import type {
   MetricSourcePage,
   MetricSourcesQuery,
   MetricsQuery,
+  ModelProviderAccountListResponse,
+  MySlackLink,
   NotificationCountResponse,
   NotificationCursorQuery,
   NotificationListResponse,
@@ -110,14 +125,18 @@ import type {
   RunControlCapabilities,
   RunListResponse,
   RunPreviewResponse,
+  RunRequestsResponse,
   RunResponse,
   RunStepListResponse,
   SavedDataPage,
   ScimConnection,
+  SkillDraftFileResponse,
+  SkillDraftResponse,
   SkillListResponse,
   SkillResponse,
   SkillScope,
   SkillSource,
+  SkillSourceCheck,
   SkillStorageSettings,
   SkillUsageListResponse,
   SkillUseGrantListResponse,
@@ -147,6 +166,8 @@ import type {
   UsageSummary,
   UserPreferences,
   UserProfile,
+  WorkerAttemptListResponse,
+  WorkerAttemptState,
   WorkerComponentListResponse,
   WorkerEnrollmentListResponse,
   WorkerListResponse,
@@ -299,6 +320,30 @@ export function organizationMembersQueryOptions(
           limit: 100,
           signal,
         }),
+      ),
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
+export function allOrganizationMembersQueryOptions(
+  client: Pick<BakeryApiClient, "access">,
+  scope: ApiScope,
+) {
+  return queryOptions<MembershipPage, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "organizationMemberships.list", {
+      pages: "all",
+    }),
+    queryFn: ({ signal }) =>
+      allPages<MembershipPage>(async (cursor) =>
+        unwrap(
+          await client.access.members.list({
+            organizationId: requireOrganization(scope),
+            cursor,
+            limit: 100,
+            signal,
+          }),
+        )
       ),
     enabled: Boolean(scope.organizationId),
     retry: retryNetworkOnce,
@@ -722,6 +767,33 @@ export function dispatchBlockersQueryOptions(
   });
 }
 
+export function machineModelsQueryOptions(
+  client: Pick<BakeryApiClient, "machines">,
+  scope: ApiScope,
+  machineId: string,
+) {
+  return queryOptions<MachineModelListResponse, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "machines.models", { machineId }),
+    queryFn: async ({ signal }) => {
+      if (!scope.organizationId) {
+        throw { kind: "invalid-response", status: 0 } satisfies ApiFailure;
+      }
+      const page = async (cursor?: string) =>
+        unwrap(
+          await client.machines.models({
+            organizationId: scope.organizationId as string,
+            id: machineId,
+            cursor,
+            limit: 100,
+            signal,
+          }),
+        );
+      return collectMachinePages(await page(), page);
+    },
+    enabled: Boolean(scope.organizationId && machineId),
+  });
+}
+
 /** Every model the organization has, read a page at a time. A machine's own are picked from them by the page. */
 export function providerRoutesListQueryOptions(
   client: Pick<BakeryApiClient, "providerRoutes">,
@@ -778,6 +850,45 @@ export function providerRouteHealthQueryOptions(
   });
 }
 
+export function workerAttemptsQueryOptions(
+  client: Pick<BakeryApiClient, "workerAttempts">,
+  scope: ApiScope,
+  workerId: string,
+  state: WorkerAttemptState,
+  limit = 25,
+) {
+  return infiniteQueryOptions<
+    WorkerAttemptListResponse,
+    ApiFailure,
+    { pages: WorkerAttemptListResponse[]; pageParams: (string | null)[] },
+    ReturnType<typeof protectedQueryKey>,
+    string | null
+  >({
+    queryKey: protectedQueryKey(scope, "workerAttempts.list", {
+      workerId,
+      state,
+      limit,
+    }),
+    initialPageParam: null,
+    getNextPageParam: (last) => last.nextCursor,
+    queryFn: async ({ signal, pageParam }) =>
+      unwrap(
+        await client.workerAttempts.list({
+          organizationId: requireOrganization(scope),
+          id: workerId,
+          state,
+          cursor: pageParam ?? undefined,
+          limit,
+          signal,
+        }),
+      ),
+    enabled: Boolean(scope.organizationId && workerId),
+    retry: retryNetworkOnce,
+    staleTime: 5_000,
+    refetchInterval: 15_000,
+  });
+}
+
 export function workerComponentsListQueryOptions(
   client: Pick<BakeryApiClient, "workerComponents">,
   scope: ApiScope,
@@ -811,6 +922,23 @@ export function workerComponentsListQueryOptions(
     enabled: Boolean(scope.organizationId && workerId),
     retry: retryNetworkOnce,
     refetchInterval: 15_000,
+  });
+}
+
+export function modelProviderAccountsQueryOptions(
+  client: Pick<BakeryApiClient, "modelProviderAccounts">,
+  scope: ApiScope,
+) {
+  return queryOptions<ModelProviderAccountListResponse, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "modelProviderAccounts.list", {}),
+    queryFn: ({ signal }) => {
+      const organizationId = requireOrganization(scope);
+      return readAllPages((cursor) =>
+        client.modelProviderAccounts.list({ organizationId, cursor, signal })
+      );
+    },
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
   });
 }
 
@@ -1028,6 +1156,56 @@ export function notificationsListQueryOptions(
   });
 }
 
+export function notificationsInfiniteQueryOptions(
+  client: Pick<BakeryApiClient, "listNotifications">,
+  scope: ApiScope,
+  input: Readonly<{ filter: NotificationCursorQuery["filter"]; limit: number }>,
+) {
+  return infiniteQueryOptions<
+    NotificationListResponse,
+    ApiFailure,
+    InfiniteData<NotificationListResponse, string | null>,
+    ReturnType<typeof protectedQueryKey>,
+    string | null
+  >({
+    queryKey: protectedQueryKey(scope, "notifications.list", {
+      filter: input.filter,
+      limit: input.limit,
+      accumulating: true,
+    }),
+    initialPageParam: null,
+    queryFn: async ({ pageParam, signal }) => {
+      if (!scope.organizationId) {
+        throw { kind: "invalid-response", status: 0 } satisfies ApiFailure;
+      }
+      return unwrap(
+        await client.listNotifications({
+          organizationId: scope.organizationId,
+          filter: input.filter,
+          limit: input.limit,
+          ...(pageParam === null ? {} : { cursor: pageParam }),
+          signal,
+        }),
+      );
+    },
+    getNextPageParam: (last) => last.nextCursor ?? undefined,
+    retry: retryNetworkOnce,
+  });
+}
+
+export function invalidateNotificationQueries(
+  queryClient: Pick<QueryClient, "invalidateQueries">,
+) {
+  return Promise.all([
+    queryClient.invalidateQueries({
+      predicate: (query) => query.queryKey[3] === "notifications.list",
+    }),
+    queryClient.invalidateQueries({
+      predicate: (query) => query.queryKey[3] === "notifications.count",
+    }),
+  ]);
+}
+
 /**
  * The unread count. Deliberately has no placeholder count: an unknown count is
  * `null` and the bell draws its hollow ring for it, so the badge can never
@@ -1080,6 +1258,97 @@ export function notificationTargetQueryOptions(
     retry: retryNetworkOnce,
     staleTime: 0,
     gcTime: 0,
+  });
+}
+
+export function groupsQueryOptions(
+  client: Pick<BakeryApiClient, "listGroups">,
+  scope: ApiScope,
+) {
+  return queryOptions<GroupsResponse, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "groups.list", {}),
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await client.listGroups({
+          organizationId: requireOrganization(scope),
+          signal,
+        }),
+      ),
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
+export function runRequestsQueryOptions(
+  client: Pick<BakeryApiClient, "listRunRequests">,
+  scope: ApiScope,
+  runId: string,
+) {
+  return queryOptions<RunRequestsResponse, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "runRequests.list", { id: runId }),
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await client.listRunRequests({
+          organizationId: requireOrganization(scope),
+          runId,
+          signal,
+        }),
+      ),
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
+export function myRunRequestsQueryOptions(
+  client: Pick<BakeryApiClient, "listMyRunRequests">,
+  scope: ApiScope,
+  runId: string,
+) {
+  return queryOptions<RunRequestsResponse, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "runRequests.mine", { id: runId }),
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await client.listMyRunRequests({
+          organizationId: requireOrganization(scope),
+          runId,
+          signal,
+        }),
+      ),
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
+const TASK_RUN_PAGES = 10;
+
+export function taskRunIdsQueryOptions(
+  client: Pick<BakeryApiClient, "listRuns">,
+  scope: ApiScope,
+  taskId: string,
+) {
+  return queryOptions<readonly string[], ApiFailure>({
+    queryKey: protectedQueryKey(scope, "runRequests.runs", { taskId }),
+    queryFn: async ({ signal }) => {
+      const ids: string[] = [];
+      let cursor: string | undefined;
+      for (let page = 0; page < TASK_RUN_PAGES; page += 1) {
+        const read = unwrap(
+          await client.listRuns({
+            organizationId: requireOrganization(scope),
+            taskId,
+            cursor,
+            limit: 100,
+            signal,
+          }),
+        );
+        ids.push(...read.items.map((run) => run.id));
+        if (read.nextCursor === null) break;
+        cursor = read.nextCursor;
+      }
+      return ids;
+    },
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
   });
 }
 
@@ -2279,6 +2548,106 @@ export function installationUpdatesQueryOptions(
   });
 }
 
+export function backupStatusQueryOptions(
+  client: Pick<BakeryApiClient, "backups">,
+  scope: ApiScope,
+) {
+  return queryOptions<BackupStatus, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "backups.status", {}),
+    queryFn: async ({ signal }) => unwrap(await client.backups.status(signal)),
+    retry: retryNetworkOnce,
+  });
+}
+
+export function backupRunsQueryOptions(
+  client: Pick<BakeryApiClient, "backups">,
+  scope: ApiScope,
+  limit = 10,
+) {
+  return infiniteQueryOptions<
+    BackupRunPage,
+    ApiFailure,
+    { pages: BackupRunPage[]; pageParams: (string | null)[] },
+    ReturnType<typeof protectedQueryKey>,
+    string | null
+  >({
+    queryKey: protectedQueryKey(scope, "backups.list", { limit }),
+    initialPageParam: null,
+    getNextPageParam: (last) => last.nextCursor,
+    queryFn: async ({ signal, pageParam }) =>
+      unwrap(
+        await client.backups.list({
+          ...(pageParam === null ? {} : { cursor: pageParam }),
+          limit,
+          signal,
+        }),
+      ),
+    retry: retryNetworkOnce,
+  });
+}
+
+export function backupDrillsQueryOptions(
+  client: Pick<BakeryApiClient, "backups">,
+  scope: ApiScope,
+  limit = 5,
+) {
+  return infiniteQueryOptions<
+    BackupDrillPage,
+    ApiFailure,
+    { pages: BackupDrillPage[]; pageParams: (string | null)[] },
+    ReturnType<typeof protectedQueryKey>,
+    string | null
+  >({
+    queryKey: protectedQueryKey(scope, "backups.drills.list", { limit }),
+    initialPageParam: null,
+    getNextPageParam: (last) => last.nextCursor,
+    queryFn: async ({ signal, pageParam }) =>
+      unwrap(
+        await client.backups.drills({
+          ...(pageParam === null ? {} : { cursor: pageParam }),
+          limit,
+          signal,
+        }),
+      ),
+    retry: retryNetworkOnce,
+  });
+}
+
+export function backupScheduleQueryOptions(
+  client: Pick<BakeryApiClient, "backups">,
+  scope: ApiScope,
+) {
+  return queryOptions<BackupSchedule, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "backupSchedule.get", {}),
+    queryFn: async ({ signal }) =>
+      unwrap(await client.backups.schedule(signal)),
+    retry: retryNetworkOnce,
+  });
+}
+
+export function backupPointInTimeQueryOptions(
+  client: Pick<BakeryApiClient, "backups">,
+  scope: ApiScope,
+) {
+  return queryOptions<BackupPointInTime, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "backupPointInTime.get", {}),
+    queryFn: async ({ signal }) =>
+      unwrap(await client.backups.pointInTime(signal)),
+    retry: retryNetworkOnce,
+  });
+}
+
+export function backupOffsiteQueryOptions(
+  client: Pick<BakeryApiClient, "backups">,
+  scope: ApiScope,
+) {
+  return queryOptions<BackupOffsite, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "backupOffsite.get", {}),
+    queryFn: async ({ signal }) => unwrap(await client.backups.offsite(signal)),
+    retry: retryNetworkOnce,
+  });
+}
+
 /** The outside actions held as uncertain, by kind (#59, #64). */
 export function installationUncertainActionsQueryOptions(
   client: Pick<BakeryApiClient, "installationUncertainActions">,
@@ -2750,6 +3119,25 @@ export function effectiveAccessQueryOptions(
   });
 }
 
+export function mySlackLinkQueryOptions(
+  client: Pick<BakeryApiClient, "mySlackLink">,
+  scope: ApiScope,
+) {
+  return queryOptions<MySlackLink, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "mySlackLink.get", {}),
+    queryFn: async ({ signal }) => {
+      if (!scope.organizationId) {
+        throw { kind: "invalid-response", status: 0 } satisfies ApiFailure;
+      }
+      return unwrap(
+        await client.mySlackLink.get(scope.organizationId, signal),
+      );
+    },
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
 export function workflowPresetsQueryOptions(
   client: Pick<BakeryApiClient, "listWorkflowPresets">,
   scope: ApiScope,
@@ -3081,6 +3469,77 @@ export function skillQueryOptions(
   });
 }
 
+export function skillDraftQueryOptions(
+  client: Pick<BakeryApiClient, "getSkillDraft">,
+  scope: ApiScope,
+  id: string,
+) {
+  return queryOptions<SkillDraftResponse, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "skillDrafts.get", { id }),
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await client.getSkillDraft({
+          organizationId: requireOrganization(scope),
+          id,
+          signal,
+        }),
+      ),
+    enabled: Boolean(scope.organizationId) && id !== "",
+    retry: retryNetworkOnce,
+    staleTime: Infinity,
+  });
+}
+
+export function skillDraftFileQueryOptions(
+  client: Pick<BakeryApiClient, "getSkillDraftFile">,
+  scope: ApiScope,
+  id: string,
+  fileId: string,
+) {
+  return queryOptions<SkillDraftFileResponse, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "skillDraftFiles.get", { id, fileId }),
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await client.getSkillDraftFile({
+          organizationId: requireOrganization(scope),
+          id,
+          fileId,
+          signal,
+        }),
+      ),
+    enabled: Boolean(scope.organizationId) && id !== "" && fileId !== "",
+    retry: retryNetworkOnce,
+    staleTime: Infinity,
+  });
+}
+
+export function skillSourceCheckQueryOptions(
+  client: Pick<BakeryApiClient, "checkSkillSource">,
+  scope: ApiScope,
+  id: string,
+  versionId: string,
+) {
+  return queryOptions<SkillSourceCheck, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "skills.sourceUpdate", {
+      id,
+      versionId,
+    }),
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await client.checkSkillSource({
+          organizationId: requireOrganization(scope),
+          id,
+          idempotencyKey: crypto.randomUUID(),
+          signal,
+        }),
+      ),
+    retry: false,
+    staleTime: Number.POSITIVE_INFINITY,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+  });
+}
+
 /** The versions of one skill, a page at a time. */
 export function skillVersionsQueryOptions(
   client: Pick<BakeryApiClient, "listSkillVersions">,
@@ -3179,6 +3638,40 @@ export function skillUseGrantsQueryOptions(
         }),
       ),
     enabled: Boolean(scope.organizationId) && skillId !== "",
+    retry: retryNetworkOnce,
+  });
+}
+
+export function gitSkillSourcesQueryOptions(
+  client: Pick<BakeryApiClient, "listSkillSources">,
+  scope: ApiScope,
+) {
+  return queryOptions<SkillSource[], ApiFailure>({
+    queryKey: protectedQueryKey(scope, "skillSources.git", {}),
+    queryFn: async ({ signal }) => {
+      const items: SkillSource[] = [];
+      let cursor: string | undefined;
+      for (let page = 0; page < LIBRARY_COLLECTION_PAGES; page += 1) {
+        const read = unwrap(
+          await client.listSkillSources({
+            organizationId: requireOrganization(scope),
+            cursor,
+            limit: 100,
+            signal,
+          }),
+        );
+        items.push(
+          ...read.items.filter((source) =>
+            source.sourceType === "git" && source.enabled &&
+            source.license !== null
+          ),
+        );
+        if (!read.nextCursor) break;
+        cursor = read.nextCursor;
+      }
+      return items;
+    },
+    enabled: Boolean(scope.organizationId),
     retry: retryNetworkOnce,
   });
 }
@@ -3456,7 +3949,7 @@ export function runAttemptsQueryOptions(
   });
 }
 
-function requireOrganization(scope: ApiScope): string {
+export function requireOrganization(scope: ApiScope): string {
   if (!scope.organizationId) {
     throw { kind: "invalid-response", status: 0 } satisfies ApiFailure;
   }
@@ -4446,16 +4939,12 @@ export function fileLibraryEntriesQueryOptions(
   });
 }
 
-/**
- * Who can have made a file: the organization's people, workers and service
- * accounts, every page of them, so the Made by filter can choose anyone.
- */
-export function filePeopleQueryOptions(
+export function organizationPeopleQueryOptions(
   client: Pick<BakeryApiClient, "principals">,
   scope: ApiScope,
 ) {
   return queryOptions<PrincipalPage, ApiFailure>({
-    queryKey: protectedQueryKey(scope, "files.people", {}),
+    queryKey: protectedQueryKey(scope, "principals.all", {}),
     queryFn: ({ signal }) => {
       const organizationId = requireOrganization(scope);
       return readAllPages((cursor) =>

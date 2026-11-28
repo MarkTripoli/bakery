@@ -2,8 +2,18 @@ import {
   type ActivatedProviders,
   activateProviders,
   type ProviderManifest,
+  type TicketActionRef,
+  type TicketFamilyAction,
+  type TicketTrigger,
 } from "@bakery/integration-sdk/provider";
+import {
+  TICKET_NOTE_ACTION,
+  TICKET_NOTE_UPDATE_ACTION,
+  TICKET_STATUS_ACTION,
+} from "../catalog/integration-providers/github.ts";
+import type { TicketBlockerRule } from "../work/ticket-source-reader.ts";
 import { linearServerProvider } from "@bakery/integration-linear/server";
+import { slackServerProvider } from "@bakery/integration-slack/server";
 
 /**
  * One manifest owns all three provider identifiers (chapter 09 section 12.4).
@@ -68,6 +78,14 @@ export const GITHUB_PROVIDER_IDENTITY = Object.freeze(
   } as const satisfies ProviderIdentity,
 );
 
+export const SLACK_PROVIDER_IDENTITY = Object.freeze(
+  {
+    gateId: "bakery.slack",
+    slug: "slack",
+    uuid: "f4c75b1b-c525-586e-a4b7-bfabcd153eef",
+  } as const satisfies ProviderIdentity,
+);
+
 /**
  * Every provider this build deploys, one entry each.
  *
@@ -79,6 +97,7 @@ export const PROVIDER_IDENTITIES = Object.freeze(
   [
     GITHUB_PROVIDER_IDENTITY,
     LINEAR_PROVIDER_IDENTITY,
+    SLACK_PROVIDER_IDENTITY,
   ] as const satisfies readonly ProviderIdentity[],
 );
 
@@ -230,6 +249,7 @@ export function providerIdentityDefects(
 export const SERVER_PROVIDERS = Object.freeze(
   [
     linearServerProvider,
+    slackServerProvider,
   ] as const,
 );
 
@@ -258,4 +278,68 @@ export function providerManifestForId(
   return PROVIDERS.providers.find((provider) =>
     provider.manifest.providerUuid === providerId
   )?.manifest;
+}
+
+const TICKET_TRIGGERS: Readonly<Record<string, readonly TicketTrigger[]>> = {
+  [GITHUB_PROVIDER_IDENTITY.slug]: ["label", "status"],
+  [LINEAR_PROVIDER_IDENTITY.slug]: linearServerProvider.manifest
+    .ticketTriggers ?? ["label"],
+};
+
+export function ticketTriggersOf(provider: string): readonly TicketTrigger[] {
+  return Object.hasOwn(TICKET_TRIGGERS, provider)
+    ? TICKET_TRIGGERS[provider]!
+    : ["label"];
+}
+
+export type TicketFamilyActions = Readonly<
+  Partial<Record<TicketFamilyAction, TicketActionRef>>
+>;
+
+const GITHUB_TICKET_FAMILY_ACTIONS: TicketFamilyActions = {
+  "comment.create": TICKET_NOTE_ACTION,
+  "comment.update": TICKET_NOTE_UPDATE_ACTION,
+  "status.set": TICKET_STATUS_ACTION,
+};
+
+export function ticketFamilyActionsFrom(
+  manifests: readonly Pick<ProviderManifest, "slug" | "ticketActions">[],
+  core: Readonly<Record<string, TicketFamilyActions>>,
+): Readonly<Record<string, TicketFamilyActions>> {
+  const declared: Record<string, TicketFamilyActions> = { ...core };
+  for (const manifest of manifests) {
+    if (manifest.ticketActions !== undefined) {
+      declared[manifest.slug] = manifest.ticketActions;
+    }
+  }
+  return declared;
+}
+
+const TICKET_FAMILY_ACTIONS = ticketFamilyActionsFrom(
+  SERVER_PROVIDERS.map((provider) => provider.manifest),
+  { [GITHUB_PROVIDER_IDENTITY.slug]: GITHUB_TICKET_FAMILY_ACTIONS },
+);
+
+export function ticketFamilyActionsOf(provider: string): TicketFamilyActions {
+  return Object.hasOwn(TICKET_FAMILY_ACTIONS, provider)
+    ? TICKET_FAMILY_ACTIONS[provider]!
+    : {};
+}
+
+function blockerRuleOfFamilies(
+  families: readonly string[],
+): TicketBlockerRule {
+  return families.includes("code") || !families.includes("tickets")
+    ? "merged_change"
+    : "done_status";
+}
+
+export function ticketBlockerRuleOf(provider: string): TicketBlockerRule {
+  if (provider === GITHUB_PROVIDER_IDENTITY.slug) return "merged_change";
+  const manifest = PROVIDERS.providers.find((candidate) =>
+    candidate.manifest.slug === provider
+  )?.manifest;
+  return manifest === undefined
+    ? "merged_change"
+    : blockerRuleOfFamilies(manifest.families);
 }

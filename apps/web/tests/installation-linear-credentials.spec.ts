@@ -22,6 +22,7 @@ const unregistered = {
   configured: false,
   clientId: null,
   clientSecretSavedAt: null,
+  signingSecretSavedAt: null,
   callbackUrl: CALLBACK,
   version: 0,
 };
@@ -30,6 +31,7 @@ const registered = {
   configured: true,
   clientId: CLIENT_ID,
   clientSecretSavedAt: "2026-11-19T10:00:00.000Z",
+  signingSecretSavedAt: null,
   callbackUrl: CALLBACK,
   version: 3,
 };

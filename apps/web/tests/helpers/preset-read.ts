@@ -7,6 +7,7 @@ type FlatStep = {
 
 export function presetRead<Item extends { id: string; steps: FlatStep[] }>(
   item: Item,
+  inputs?: Record<string, unknown>,
 ) {
   const nodes: unknown[] = [];
   let open: { id: string; steps: unknown[] } | undefined;
@@ -32,6 +33,7 @@ export function presetRead<Item extends { id: string; steps: FlatStep[] }>(
       apiVersion: "bakery.dev/v1",
       kind: "workflow",
       name: item.id,
+      ...(inputs === undefined ? {} : { inputs }),
       steps: nodes,
     },
   };

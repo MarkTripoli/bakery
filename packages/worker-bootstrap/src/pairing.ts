@@ -453,6 +453,19 @@ export async function recordLink(
   return recorded;
 }
 
+export async function readLinkCode(root: string): Promise<string | null> {
+  try {
+    return (await readRecord(join(root, TOKEN_FILE))).trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+export async function forgetLink(root: string): Promise<void> {
+  await rm(join(root, PAIRING_FILE), { force: true });
+  await rm(join(root, TOKEN_FILE), { force: true });
+}
+
 export type PairOptions = Readonly<{
   /** Absolute install root; the same one slice 1 installs into. */
   root: string;

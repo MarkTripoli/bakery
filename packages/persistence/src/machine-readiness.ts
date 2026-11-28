@@ -1,3 +1,4 @@
+import { hostAllowedCapabilities } from "@bakery/contracts/workflow-action-registry";
 import { StandardError } from "@bakery/contracts/http";
 import type { PgTransactionClient } from "./postgres.ts";
 import {
@@ -213,7 +214,7 @@ type CheckFreshnessContext = {
   inventoryRevision: number;
 };
 
-function isFreshCheck(
+export function isFreshCheck(
   check: StoredCheck,
   context: CheckFreshnessContext,
 ): boolean {
@@ -1194,9 +1195,34 @@ export function createMachineReadinessWorkflows(
       if (host.status !== "revoked") {
         throw new StandardError({ code: "STATE_CONFLICT" });
       }
-      // A still-unconsumed repair enrollment for this host under a different
-      // idempotency key owns the host's single pending-repair slot (partial
-      // unique index); conflict instead of a raw unique violation.
+      const expired = await transaction.query<{ id: string }>(
+        `update bakery.worker_enrollments
+            set canceled_at = clock_timestamp(),
+                updated_at = clock_timestamp(), version = version + 1
+          where organization_id = $1 and target_worker_host_id = $2
+            and consumed_at is null and canceled_at is null
+            and expires_at <= clock_timestamp()
+          returning id`,
+        [organizationId, workerHostId],
+      );
+      for (const row of expired.rows) {
+        await appendEnrollmentEvent(
+          organizationId,
+          row.id,
+          "canceled",
+          workerHostId,
+          metadata,
+        );
+        await appendAudit(transaction, {
+          organizationId,
+          principalId,
+          operation: "workerEnrollments.cancel",
+          resourceType: "worker_enrollment",
+          resourceId: row.id,
+          requestId: metadata.requestId,
+          traceId: metadata.traceId,
+        });
+      }
       const pendingRepair = await transaction.query<{ id: string }>(
         `select id from bakery.worker_enrollments
          where organization_id = $1 and target_worker_host_id = $2
@@ -1281,10 +1307,14 @@ export function createMachineReadinessWorkflows(
       if (input.expectedInventoryRevision !== hostRow.inventoryRevision) {
         throw new StandardError({ code: "STATE_CONFLICT" });
       }
-      const hostCapabilities = Array.isArray(hostRow.capabilities) &&
+      const hostCapabilities = hostAllowedCapabilities(
+        Array.isArray(hostRow.capabilities) &&
           hostRow.capabilities.every((entry) => typeof entry === "string")
-        ? (hostRow.capabilities as string[]).map((entry) => entry.toLowerCase())
-        : [];
+          ? (hostRow.capabilities as string[]).map((entry) =>
+            entry.toLowerCase()
+          )
+          : [],
+      );
       const componentKeys = new Set<string>();
       for (const component of input.components) {
         if (componentKeys.has(component.componentKey)) {
@@ -1417,13 +1447,14 @@ export function createMachineReadinessWorkflows(
         `update bakery.worker_hosts
          set inventory_revision = $2,
              readiness_revision = readiness_revision + $3,
-             updated_at = current_timestamp, version = version + 1
+             updated_at = current_timestamp, version = version + $5
          where organization_id = $1 and id = $4`,
         [
           hostRow.organizationId,
           newInventoryRevision,
           inventoryChanged || checksApplied ? 1 : 0,
           hostRow.id,
+          inventoryChanged ? 1 : 0,
         ],
       );
       if (inventoryChanged) {
@@ -1536,13 +1567,30 @@ export function createMachineReadinessWorkflows(
         throw new StandardError({ code: "UNPROCESSABLE" });
       }
       if (input.secretId) {
-        const secret = await transaction.query<{ id: string }>(
-          `select id from bakery.secrets
-           where organization_id = $1 and id = $2`,
+        const secret = await transaction.query<{ provider: string | null }>(
+          `select provider from bakery.secrets
+           where organization_id = $1 and id = $2 and revoked_at is null`,
           [organizationId, input.secretId],
         );
-        if (secret.rows.length === 0) {
+        const found = secret.rows[0];
+        if (found === undefined) {
           throw new StandardError({ code: "UNPROCESSABLE" });
+        }
+        if (
+          input.billingRoute !== "api_metered" ||
+          found.provider !== input.provider
+        ) {
+          throw new StandardError({
+            code: "VALIDATION_FAILED",
+            params: {
+              issues: [{
+                path: ["secretId"],
+                code: "model_key_provider_mismatch",
+                message:
+                  "Choose a metered API key saved for this binding's provider.",
+              }],
+            },
+          });
         }
       }
       const inserted = await transaction.query<{ id: string }>(

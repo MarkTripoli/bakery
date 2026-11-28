@@ -5,28 +5,56 @@ import {
   appendDomainEvent,
   type PgTransactionClient,
 } from "@bakery/persistence";
+import {
+  type CursorBinding,
+  decodeCursor,
+  encodeCursor,
+} from "../../platform/cursor.ts";
 import { attributeAction } from "../auth/application/action-attribution.ts";
-import { accessScopeClause } from "../auth/application/bindings.ts";
-import type { CatalogActionName } from "@bakery/contracts/contracts";
-import { permissionForAction } from "../auth/application/authorize.ts";
+import {
+  accessScopeClause,
+  BINDING_ROLES,
+  bindingAllows,
+  bindingCovers,
+} from "../auth/application/bindings.ts";
+import {
+  type CatalogActionName,
+  organizationId as toOrganizationId,
+  principalId as toPrincipalId,
+} from "@bakery/contracts/contracts";
+import { resolveOrganizationActor } from "../auth/adapters/authority-postgres.ts";
+import {
+  authorize,
+  permissionForAction,
+} from "../auth/application/authorize.ts";
+import type { OrganizationActor } from "../auth/application/authority.ts";
 import { roleHasPermission } from "../auth/application/permissions.ts";
 import {
+  hasLiveRunGrant,
   RUN_GRANT_ACTIONS,
   type RunPower,
 } from "../auth/application/run-grants.ts";
 import {
   AgentPower,
-  assertAgentMayExercise,
-  type ExercisedPower,
+  type AttemptOrigin,
+  attemptOrigin,
   grantRefusal,
+  type MatchingGrant,
   matchingGrants,
 } from "../auth/application/agent-power-grants.ts";
+import { passedOnFromJoin } from "./request-passed-on.ts";
 import { requireWorkTransaction } from "./work-transaction.ts";
 
 /** An agent asked on a run other than the one its session belongs to. */
 export const AGENT_ASK_OWN_RUN_ONLY = "agent_ask_own_run_only";
 /** An agent asked a person, role or group no live ask grant names. */
 export const AGENT_ASK_AUDIENCE_NOT_GRANTED = "agent_ask_audience_not_granted";
+export const AGENT_ASK_NOT_INVOLVED = "agent_ask_not_involved";
+export const AGENT_ASK_POWER_NOT_HELD = "agent_ask_power_not_held";
+export const AGENT_ASK_STEP_LIMIT = "agent_ask_step_limit";
+export const AGENT_ASK_RUN_LIMIT = "agent_ask_run_limit";
+export const AGENT_ASKS_PER_STEP = 3;
+export const AGENT_ASKS_PER_RUN = 10;
 
 export const REQUEST_POWER_NOT_HELD = "request_power_not_held";
 
@@ -107,6 +135,13 @@ const RUN_GRANT_PERMISSIONS = [
     ),
   ),
 ];
+const RUN_READ_PERMISSION = permissionForAction("runs.get");
+const RUN_READ_SYSTEM_ROLES = SYSTEM_ROLES.filter((role) =>
+  roleHasPermission(role, RUN_READ_PERMISSION)
+);
+const RUN_READ_BINDING_ROLES = BINDING_ROLES.filter((role) =>
+  roleHasPermission(role, RUN_READ_PERMISSION)
+);
 
 type RequestRow = {
   id: string;
@@ -130,7 +165,19 @@ type RequestRow = {
   created_at: Date | string;
   updated_at: Date | string;
   version: number;
+  first_asked_at: Date | string | null;
+  next_ask_hours: number | null;
+  next_asked_at: Date | string | null;
+  next_asked_name: string | null;
+  next_role_key: string | null;
+  next_planned_name: string | null;
+  next_already_asked: boolean | null;
+  next_ask_claimed: boolean;
+  next_audience_has_new: boolean | null;
+  passed_on_from: string | null;
 };
+
+const DEFAULT_NEXT_ASK_HOURS = 24;
 
 const REQUEST_SELECT = `
   select request.id, request.run_id, request.step_key, request.target_id,
@@ -142,10 +189,135 @@ const REQUEST_SELECT = `
               then 'expired' else request.status end as status,
          request.expires_at, request.fallback_for_name,
          request.audience_role_key, request.audience_group_id,
-         request.audience_name, request.created_at, request.updated_at, request.version
+         request.audience_name, request.created_at, request.updated_at, request.version,
+         first_ask.first_asked_at,
+         case when step.input ? 'ifNobodyAnswers'
+              then coalesce((step.input #>> '{ifNobodyAnswers,afterHours}')::int,
+                            ${DEFAULT_NEXT_ASK_HOURS})
+         end as next_ask_hours,
+         next_request.created_at as next_asked_at,
+         next_request.name as next_asked_name,
+         step.input #>> '{ifNobodyAnswers,recipientRoleKey}' as next_role_key,
+         coalesce(next_person.display_name, next_group.name, next_role.name,
+                  next_run_person.display_name) as next_planned_name,
+         coalesce(next_person.id, next_run_person.id) = any(first_round.ids)
+           as next_already_asked,
+         next_claim.asked_at is not null as next_ask_claimed,
+         next_audience.has_new as next_audience_has_new,
+         passed_on.name as passed_on_from
     from bakery.person_requests as request
     join bakery.principals as recipient on recipient.id = request.recipient_id
-    left join bakery.principals as asker on asker.id = request.asked_by`;
+    left join bakery.principals as asker on asker.id = request.asked_by
+    left join bakery.run_steps as step
+      on step.organization_id = request.organization_id
+     and step.run_id = request.run_id and step.step_key = request.step_key
+     and step.iteration = request.step_iteration
+     and jsonb_typeof(step.input -> 'ifNobodyAnswers') = 'object'
+    left join lateral (
+      select min(sibling.created_at) as first_asked_at
+        from bakery.person_requests as sibling
+       where step.id is not null
+         and sibling.organization_id = request.organization_id
+         and sibling.run_id = request.run_id
+         and sibling.step_key = request.step_key
+         and sibling.step_iteration = request.step_iteration
+    ) as first_ask on true
+    left join lateral (
+      select array_agg(first.recipient_id) as ids
+        from bakery.person_requests as first
+       where step.id is not null
+         and first.organization_id = request.organization_id
+         and first.run_id = request.run_id
+         and first.step_key = request.step_key
+         and first.step_iteration = request.step_iteration
+         and first.created_at = first_ask.first_asked_at
+    ) as first_round on true
+    left join bakery.person_request_next_asks as next_claim
+      on step.id is not null
+     and next_claim.organization_id = request.organization_id
+     and next_claim.run_id = request.run_id
+     and next_claim.step_key = request.step_key
+     and next_claim.step_iteration = request.step_iteration
+    left join lateral (
+      select later.created_at,
+             coalesce(later.audience_name, later_recipient.display_name) as name
+        from bakery.person_requests as later
+        join bakery.principals as later_recipient
+          on later_recipient.id = later.recipient_id
+       where step.id is not null
+         and later.organization_id = request.organization_id
+         and later.run_id = request.run_id
+         and later.step_key = request.step_key
+         and later.step_iteration = request.step_iteration
+         and later.created_at > first_ask.first_asked_at
+       order by later.created_at, later.id
+       limit 1
+    ) as next_request on true
+    left join lateral (
+      select principal.id, principal.display_name
+        from bakery.principals as principal
+        join bakery.organization_memberships as membership
+          on membership.principal_id = principal.id
+         and membership.organization_id = request.organization_id
+         and membership.status = 'active'
+       where principal.id::text = step.input #>> '{ifNobodyAnswers,recipientId}'
+         and principal.disabled_at is null
+    ) as next_person on true
+    left join bakery.organization_groups as next_group
+      on next_group.organization_id = request.organization_id
+     and next_group.id::text = step.input #>> '{ifNobodyAnswers,recipientGroupId}'
+    left join bakery.organization_roles as next_role
+      on next_role.organization_id = request.organization_id
+     and next_role.key = step.input #>> '{ifNobodyAnswers,recipientRoleKey}'
+    left join bakery.workflow_runs as next_run
+      on step.input #>> '{ifNobodyAnswers,recipientRunRole}' is not null
+     and next_run.organization_id = request.organization_id
+     and next_run.id = request.run_id
+    left join bakery.tasks as next_task
+      on next_task.organization_id = next_run.organization_id
+     and next_task.id = next_run.task_id
+    left join lateral (
+      select principal.id, principal.display_name
+        from bakery.principals as principal
+        join bakery.organization_memberships as membership
+          on membership.principal_id = principal.id
+         and membership.organization_id = request.organization_id
+         and membership.status = 'active'
+       where principal.disabled_at is null
+         and principal.id = case step.input #>> '{ifNobodyAnswers,recipientRunRole}'
+           when 'starter' then next_run.requested_by
+           when 'task_owner' then next_task.created_by
+         end
+    ) as next_run_person on true
+    left join lateral (
+      select exists (
+        select 1
+          from bakery.organization_memberships as membership
+          join bakery.principals as principal
+            on principal.id = membership.principal_id
+         where membership.organization_id = request.organization_id
+           and membership.status = 'active'
+           and principal.principal_type = 'human'
+           and principal.disabled_at is null
+           and membership.principal_id <> all(coalesce(first_round.ids, '{}'))
+           and (
+             exists (
+               select 1 from bakery.organization_group_members as member
+                where member.organization_id = request.organization_id
+                  and member.group_id = next_group.id
+                  and member.principal_id = membership.principal_id
+             )
+             or (membership.custom_role_id is null
+                 and membership.role in ('admin', 'developer')
+                 and membership.role
+                   = step.input #>> '{ifNobodyAnswers,recipientRoleKey}')
+             or membership.custom_role_id = next_role.id
+           )
+      ) as has_new
+       where next_group.id is not null
+          or step.input #>> '{ifNobodyAnswers,recipientRoleKey}' is not null
+    ) as next_audience on true
+    ${passedOnFromJoin("request", "passed_on")}`;
 
 function iso(value: Date | string): string {
   return (value instanceof Date ? value : new Date(value)).toISOString();
@@ -190,14 +362,50 @@ function toRunRequest(row: RequestRow) {
     createdAt: iso(row.created_at),
     updatedAt: iso(row.updated_at),
     version: row.version,
+    ...nextAskOf(row),
+  };
+}
+
+function plannedNextName(row: RequestRow): string | null {
+  const systemRole = row.next_role_key === null
+    ? undefined
+    : SYSTEM_ROLE_NAMES[row.next_role_key];
+  return systemRole ?? row.next_planned_name;
+}
+
+function nextAskOf(row: RequestRow) {
+  if (row.next_ask_hours === null || row.first_asked_at === null) {
+    return { nextAsk: null, passedOn: false };
+  }
+  const firstAskedAt = new Date(iso(row.first_asked_at)).getTime();
+  if (new Date(iso(row.created_at)).getTime() > firstAskedAt) {
+    return { nextAsk: null, passedOn: row.passed_on_from !== null };
+  }
+  const reachesNobodyNew = row.next_already_asked === true ||
+    row.next_audience_has_new === false ||
+    (row.next_ask_claimed && row.next_asked_at === null);
+  if (reachesNobodyNew) return { nextAsk: null, passedOn: false };
+  return {
+    nextAsk: {
+      dueAt: new Date(firstAskedAt + row.next_ask_hours * 3_600_000)
+        .toISOString(),
+      askedAt: row.next_asked_at === null ? null : iso(row.next_asked_at),
+      who: row.next_asked_at === null
+        ? plannedNextName(row)
+        : row.next_asked_name,
+    },
+    passedOn: false,
   };
 }
 
 type RunFacts = {
   id: string;
   task_id: string;
+  application_id: string | null;
+  repository_id: string | null;
   requested_by: string | null;
   task_created_by: string | null;
+  workflow_owner: string | null;
 };
 
 /** The run, if the caller may see its task; a hidden run is a missing run. */
@@ -221,12 +429,19 @@ async function loadRun(
     scopeSql = ` and ${scoped.sql}`;
   }
   const found = await transaction.query<RunFacts>(
-    `select run.id, run.task_id, run.requested_by,
-            task.created_by as task_created_by
+    `select run.id, run.task_id, task.application_id, task.repository_id,
+            run.requested_by, task.created_by as task_created_by,
+            definition.owner_principal_id as workflow_owner
        from bakery.workflow_runs as run
        join bakery.tasks as task
          on task.organization_id = run.organization_id
         and task.id = run.task_id
+       left join bakery.workflow_versions as version
+         on version.organization_id = run.organization_id
+        and version.id = run.workflow_version_id
+       left join bakery.workflow_definitions as definition
+         on definition.organization_id = version.organization_id
+        and definition.id = version.workflow_id
       where run.organization_id = $1 and run.id = $2${scopeSql}`,
     values,
   );
@@ -405,6 +620,7 @@ async function requestOnRun(
   context: ActionContext,
   input: unknown,
   step: Readonly<{ stepKey: string; iteration: number }> | null,
+  unresolvedName: string | null = null,
 ) {
   const { transaction, organizationId, principalId, accessScope } =
     requireWorkTransaction(context);
@@ -422,9 +638,11 @@ async function requestOnRun(
   };
   const run = await loadRun(context, transaction, organizationId, accessScope);
 
-  const named =
-    [value.recipientId, value.recipientRoleKey, value.recipientGroupId]
-      .filter((recipient) => recipient !== undefined).length;
+  const named = [
+    value.recipientId ?? unresolvedName ?? undefined,
+    value.recipientRoleKey,
+    value.recipientGroupId,
+  ].filter((recipient) => recipient !== undefined).length;
   if (named !== 1) {
     unprocessable(
       ["recipientId"],
@@ -634,24 +852,31 @@ async function requestOnRun(
       recipients.push({ principalId: id, fallbackForName: null });
     }
   } else {
-    const meantId = value.recipientId as string;
-    if (meantId === asker) {
+    const meantId = value.recipientId ?? null;
+    if (meantId !== null && meantId === asker) {
       unprocessable(["recipientId"], "request_self", "You cannot ask yourself");
     }
-    // The person asked is resolved once, here, and frozen on the request. One
-    // who cannot be found (removed, disabled, not a member, not a person) falls
-    // back to whoever started the run, with a visible note (O62).
-    const resolved = await activeHuman(transaction, organizationId, meantId);
-    if (resolved === null) {
-      const meant = await transaction.query<{ display_name: string }>(
-        "select display_name from bakery.principals where id = $1",
-        [meantId],
+    const resolved = meantId === null
+      ? null
+      : await activeHuman(transaction, organizationId, meantId);
+    if (meantId === null || resolved === null) {
+      const meant = meantId === null
+        ? unresolvedName
+        : (await transaction.query<{ display_name: string }>(
+          `select principal.display_name from bakery.principals as principal
+             join bakery.organization_memberships as membership
+               on membership.principal_id = principal.id
+              and membership.organization_id = $2
+            where principal.id = $1`,
+          [meantId, organizationId],
+        )).rows[0]?.display_name ?? null;
+      const owner = await fallbackOwner(
+        transaction,
+        organizationId,
+        run,
+        asker,
       );
-      const owner = run.requested_by ?? run.task_created_by;
-      const ownerPerson = owner === null
-        ? null
-        : await activeHuman(transaction, organizationId, owner);
-      if (owner === null || ownerPerson === null || owner === asker) {
+      if (owner === null) {
         unprocessable(
           ["recipientId"],
           "request_recipient_unavailable",
@@ -660,13 +885,33 @@ async function requestOnRun(
       }
       recipients.push({
         principalId: owner,
-        fallbackForName: meant.rows[0]?.display_name ?? "someone",
+        fallbackForName: meant ?? "someone",
       });
     } else {
       recipients.push({ principalId: meantId, fallbackForName: null });
     }
   }
 
+  if (exercised !== null) {
+    if (audience === null) {
+      for (const recipient of recipients) {
+        await guardAgentReach(transaction, exercised, {
+          organizationId,
+          run,
+          recipientId: recipient.principalId,
+          intent: value.intent,
+          targetId,
+        });
+      }
+    }
+    await guardAgentAskLimits(transaction, exercised, {
+      organizationId,
+      runId: run.id,
+      tags: audience === null
+        ? recipients.map((recipient) => recipient.principalId)
+        : [audience.groupId ?? audience.roleKey ?? audience.name],
+    });
+  }
   const actor: Actor = {
     kind: step === null
       ? attributeAction(context, principalId).actorKind
@@ -695,6 +940,266 @@ async function requestOnRun(
   }
   if (first === null) throw new Error("REQUEST_INSERT_FAILED");
   return toRunRequest(await readRequest(transaction, organizationId, first));
+}
+
+export type WorkflowApprovalAsk = Readonly<{
+  stepKey: string;
+  iteration: number;
+  questionId: string;
+  recipients: readonly Readonly<{
+    principalId: string;
+    fallbackForName: string | null;
+    audience: Audience | null;
+  }>[];
+}>;
+
+export async function askApproversFromWorkflowStep(
+  context: ActionContext,
+  ask: WorkflowApprovalAsk,
+): Promise<void> {
+  const { transaction, organizationId, principalId, accessScope } =
+    requireWorkTransaction(context);
+  const run = await loadRun(context, transaction, organizationId, accessScope);
+  for (const recipient of ask.recipients) {
+    await askOne(context, transaction, {
+      organizationId,
+      principalId,
+      run,
+      intent: "approve",
+      stepKey: ask.stepKey,
+      stepIteration: ask.iteration,
+      targetId: ask.questionId,
+      power: POWER_OF_INTENT.approve,
+      note: null,
+      neededBy: null,
+      recipient: {
+        principalId: recipient.principalId,
+        fallbackForName: recipient.fallbackForName,
+      },
+      audience: recipient.audience,
+      actor: { kind: "workflow", sessionId: null, fromRunId: null },
+    });
+  }
+}
+
+const SYSTEM_ROLE_HANDLES: Readonly<Record<string, string>> = {
+  admins: "admin",
+  developers: "developer",
+};
+
+export async function audienceByHandle(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  handle: string,
+): Promise<(Audience & { members: string[] }) | null> {
+  const systemRole = SYSTEM_ROLE_HANDLES[handle];
+  if (systemRole !== undefined) {
+    const found = await audienceMembers(
+      transaction,
+      organizationId,
+      systemRole,
+      null,
+    );
+    return { roleKey: systemRole, groupId: null, ...found };
+  }
+  const group = await transaction.query<{ id: string }>(
+    `select id from bakery.organization_groups
+      where organization_id = $1 and mention_name = $2`,
+    [organizationId, handle],
+  );
+  const groupId = group.rows[0]?.id;
+  if (groupId !== undefined) {
+    const found = await audienceMembers(
+      transaction,
+      organizationId,
+      null,
+      groupId,
+    );
+    return { roleKey: null, groupId, ...found };
+  }
+  const role = await transaction.query(
+    `select 1 from bakery.organization_roles
+      where organization_id = $1 and key = $2`,
+    [organizationId, handle],
+  );
+  if (role.rows.length === 0) return null;
+  const found = await audienceMembers(
+    transaction,
+    organizationId,
+    handle,
+    null,
+  );
+  return { roleKey: handle, groupId: null, ...found };
+}
+
+export async function tagMentionedOnSteer(
+  context: ActionContext,
+  steer: Readonly<{
+    runId: string;
+    stepKey: string;
+    mentions: readonly string[];
+    mentionHandles: readonly string[];
+  }>,
+): Promise<void> {
+  if (steer.mentions.length === 0 && steer.mentionHandles.length === 0) return;
+  const { transaction, organizationId, principalId } = requireWorkTransaction(
+    context,
+  );
+  const authority = (context as { authority?: unknown }).authority;
+  if (
+    typeof authority !== "object" || authority === null ||
+    !("organizationId" in authority)
+  ) {
+    throw new StandardError({ code: "AUTH_FORBIDDEN" });
+  }
+  const runContext = {
+    ...context,
+    params: { ...context.params, id: steer.runId },
+  } as ActionContext;
+  const run = await loadRun(runContext, transaction, organizationId, undefined);
+  const asks: {
+    input: Record<string, string>;
+    unresolvedName: string | null;
+    reached: readonly string[];
+  }[] = [];
+  for (const recipientId of new Set(steer.mentions)) {
+    if (recipientId === principalId) continue;
+    const person = await activeHuman(transaction, organizationId, recipientId);
+    asks.push({
+      input: { recipientId },
+      unresolvedName: null,
+      reached: person === null ? [] : [recipientId],
+    });
+  }
+  for (const raw of new Set(steer.mentionHandles)) {
+    const handle = raw.startsWith("@") ? raw.slice(1) : raw;
+    const found = await audienceByHandle(transaction, organizationId, handle);
+    const others = found?.members.filter((id) => id !== principalId) ?? [];
+    if (found !== null && found.members.length > 0 && others.length === 0) {
+      continue;
+    }
+    if (found === null || others.length === 0) {
+      asks.push({
+        input: {},
+        unresolvedName: found?.name ?? `@${handle}`,
+        reached: [],
+      });
+      continue;
+    }
+    asks.push({
+      input: found.groupId === null
+        ? { recipientRoleKey: found.roleKey as string }
+        : { recipientGroupId: found.groupId },
+      unresolvedName: null,
+      reached: others,
+    });
+  }
+  if (!mayShareRun(authority as OrganizationActor)) {
+    for (const ask of asks) {
+      for (const id of ask.reached) {
+        if (!(await seesRun(transaction, organizationId, id, run))) {
+          throw new StandardError({
+            code: "AUTH_FORBIDDEN",
+            params: { reason: REQUEST_SHARE_FORBIDDEN },
+          });
+        }
+      }
+    }
+  }
+  for (const ask of asks) {
+    await requestOnRun(
+      runContext,
+      { ...ask.input, intent: "fyi", stepKey: steer.stepKey },
+      null,
+      ask.unresolvedName,
+    );
+  }
+}
+
+export const REQUEST_SHARE_FORBIDDEN = "request_share_forbidden";
+
+function mayShareRun(actor: OrganizationActor): boolean {
+  try {
+    authorize(actor, permissionForAction("runRequests.create"));
+    return true;
+  } catch (error) {
+    if (error instanceof StandardError) return false;
+    throw error;
+  }
+}
+
+async function seesRun(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  principalId: string,
+  run: RunFacts,
+): Promise<boolean> {
+  if (
+    await hasLiveRunGrant(
+      transaction,
+      organizationId,
+      principalId,
+      "run",
+      run.id,
+    )
+  ) {
+    return true;
+  }
+  let actor: OrganizationActor;
+  try {
+    actor = await resolveOrganizationActor(
+      transaction,
+      toPrincipalId(principalId),
+      toOrganizationId(organizationId),
+      { lockMembership: false },
+    );
+  } catch (error) {
+    if (error instanceof StandardError) return false;
+    throw error;
+  }
+  const permission = permissionForAction("runs.get");
+  try {
+    authorize(actor, permission);
+    return true;
+  } catch (error) {
+    if (!(error instanceof StandardError)) throw error;
+  }
+  const task = await transaction.query<
+    { application_id: string; repository_id: string | null }
+  >(
+    `select application_id, repository_id from bakery.tasks
+      where organization_id = $1 and id = $2`,
+    [organizationId, run.task_id],
+  );
+  const target = task.rows[0];
+  if (!target) return false;
+  return (actor.bindings ?? []).some((binding) =>
+    bindingAllows(binding, permission) &&
+    bindingCovers(binding, {
+      applicationId: target.application_id,
+      repositoryId: target.repository_id,
+    })
+  );
+}
+
+async function fallbackOwner(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  run: RunFacts,
+  asker: string | null,
+): Promise<string | null> {
+  const candidates = [
+    run.workflow_owner,
+    run.requested_by,
+    run.task_created_by,
+  ];
+  for (const candidate of new Set(candidates)) {
+    if (candidate === null || candidate === asker) continue;
+    if (await activeHuman(transaction, organizationId, candidate)) {
+      return candidate;
+    }
+  }
+  return null;
 }
 
 type Recipient = Readonly<{
@@ -818,12 +1323,11 @@ async function audienceMembers(
   };
 }
 
-/**
- * Refuses an agent's ask unless a live ask grant names the role or group it
- * asks, and only on the run its session belongs to (a step asks about its own
- * run). A person passes untouched, and so does a seat agent asking one person,
- * which keeps the rule it always had. Called before anything is written.
- */
+type AgentAsk = Readonly<{
+  origin: AttemptOrigin | null;
+  liveGrants: readonly MatchingGrant[];
+}>;
+
 async function guardAgentAsk(
   transaction: PgTransactionClient,
   context: ActionContext,
@@ -834,33 +1338,245 @@ async function guardAgentAsk(
     roleKey: string | null;
     groupId: string | null;
   }>,
-): Promise<ExercisedPower | null> {
+): Promise<AgentAsk | null> {
   const attribution = attributeAction(context, scope.principalId);
   if (attribution.actorKind === "person") return null;
   const audienceAsk = scope.roleKey !== null || scope.groupId !== null;
   if (context.agentSession === undefined && !audienceAsk) return null;
-  const exercised = await assertAgentMayExercise(transaction, context, {
+  const origin = context.agentSession === undefined
+    ? null
+    : await attemptOrigin(
+      transaction,
+      scope.organizationId,
+      context.agentSession.attemptId,
+    );
+  const grants = await matchingGrants(transaction, {
     organizationId: scope.organizationId,
-    principalId: scope.principalId,
     power: AgentPower.Ask,
+    workflowId: origin?.workflowId ?? null,
+    accessTokenId: attribution.accessTokenId,
   });
-  if (exercised.origin !== null && exercised.origin.runId !== scope.runId) {
+  if (context.agentSession !== undefined && origin === null) {
+    throw grantRefusal(grants);
+  }
+  if (origin !== null && origin.runId !== scope.runId) {
     forbidden(AGENT_ASK_OWN_RUN_ONLY);
   }
-  if (!audienceAsk) forbidden(AGENT_ASK_AUDIENCE_NOT_GRANTED);
-  const grants = (await matchingGrants(transaction, {
-    organizationId: scope.organizationId,
-    power: AgentPower.Ask,
-    workflowId: exercised.origin?.workflowId ?? null,
-    accessTokenId: attribution.accessTokenId,
-  })).filter((grant) =>
-    scope.roleKey !== null
-      ? grant.roleKey === scope.roleKey
-      : grant.groupId === scope.groupId
+  if (audienceAsk) {
+    const named = grants.filter((grant) =>
+      scope.roleKey !== null
+        ? grant.roleKey === scope.roleKey
+        : grant.groupId === scope.groupId
+    );
+    if (named.length === 0) forbidden(AGENT_ASK_AUDIENCE_NOT_GRANTED);
+    if (!named.some((grant) => !grant.expired)) throw grantRefusal(named);
+  }
+  return {
+    origin,
+    liveGrants: grants.filter((grant) => !grant.expired),
+  };
+}
+
+const INTENT_ACTION: Readonly<
+  Partial<Record<RequestIntent, CatalogActionName>>
+> = {
+  review: "artifactComments.create",
+  approve: "approvals.decide",
+  answer: "questions.answer",
+  take_over: "runSteps.takeOver",
+};
+
+async function involvedInRun(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  run: RunFacts,
+  recipientId: string,
+): Promise<boolean> {
+  if (
+    [run.requested_by, run.task_created_by, run.workflow_owner].includes(
+      recipientId,
+    )
+  ) return true;
+  const named = await transaction.query(
+    `select 1 from bakery.person_requests
+      where organization_id = $1 and run_id = $2 and recipient_id = $3
+     union all
+     select 1 from bakery.questions
+      where organization_id = $1 and run_id = $2
+        and audience->'principalIds' ? $3::text
+     union all
+     select 1 from bakery.decisions_ledger
+      where organization_id = $1 and run_id = $2 and kind = 'steer'
+        and decided_by = $3
+     union all
+     select 1 from bakery.run_step_notes
+      where organization_id = $1 and run_id = $2 and author_id = $3
+     limit 1`,
+    [organizationId, run.id, recipientId],
   );
-  if (grants.length === 0) forbidden(AGENT_ASK_AUDIENCE_NOT_GRANTED);
-  if (!grants.some((grant) => !grant.expired)) throw grantRefusal(grants);
-  return exercised;
+  return named.rows.length > 0;
+}
+
+async function holdsIntentPower(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  recipientId: string,
+  intent: RequestIntent,
+  targetId: string | null,
+): Promise<boolean> {
+  const action = INTENT_ACTION[intent];
+  if (action === undefined) return true;
+  const power = POWER_OF_INTENT[intent];
+  if (power !== undefined && targetId !== null) {
+    const granted = await transaction.query(
+      `select 1 from bakery.run_power_grants
+        where organization_id = $1 and principal_id = $2 and power = $3
+          and coalesce(question_id, artifact_version_id, run_step_id) = $4
+          and revoked_at is null and expires_at > now()
+        limit 1`,
+      [organizationId, recipientId, power, targetId],
+    );
+    if (granted.rows.length > 0) return true;
+  }
+  const permission = permissionForAction(action);
+  const member = await transaction.query<
+    { role: string | null; permissions: string[] | null }
+  >(
+    `select membership.role, custom.permissions
+       from bakery.organization_memberships as membership
+       left join bakery.organization_roles as custom
+         on custom.organization_id = membership.organization_id
+        and custom.id = membership.custom_role_id
+      where membership.organization_id = $1 and membership.principal_id = $2
+        and membership.status = 'active'`,
+    [organizationId, recipientId],
+  );
+  const row = member.rows[0];
+  if (!row) return false;
+  const role = SYSTEM_ROLES.find((name) => name === row.role);
+  const allowed = row.permissions !== null
+    ? row.permissions.includes(permission)
+    : role !== undefined && roleHasPermission(role, permission);
+  if (!allowed) return false;
+  if (intent !== "approve" && intent !== "answer") return true;
+  const question = await transaction.query<
+    { audience: QuestionAudience | null }
+  >(
+    `select audience from bakery.questions
+      where organization_id = $1 and id = $2`,
+    [organizationId, targetId],
+  );
+  return decidesItself(question.rows[0]?.audience ?? null, recipientId);
+}
+
+async function grantReaches(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  grants: readonly MatchingGrant[],
+  recipientId: string,
+): Promise<boolean> {
+  const roleKeys = grants.flatMap((grant) =>
+    grant.roleKey === null ? [] : [grant.roleKey]
+  );
+  const groupIds = grants.flatMap((grant) =>
+    grant.groupId === null ? [] : [grant.groupId]
+  );
+  if (roleKeys.length === 0 && groupIds.length === 0) return false;
+  const found = await transaction.query(
+    `select 1 from bakery.organization_memberships
+      where organization_id = $1 and principal_id = $2
+        and status = 'active' and role = any($3::text[])
+     union all
+     select 1 from bakery.organization_group_members
+      where organization_id = $1 and principal_id = $2
+        and group_id = any($4::uuid[])
+     limit 1`,
+    [organizationId, recipientId, roleKeys, groupIds],
+  );
+  return found.rows.length > 0;
+}
+
+async function guardAgentReach(
+  transaction: PgTransactionClient,
+  agent: AgentAsk,
+  scope: Readonly<{
+    organizationId: string;
+    run: RunFacts;
+    recipientId: string;
+    intent: RequestIntent;
+    targetId: string | null;
+  }>,
+): Promise<void> {
+  const involved = await involvedInRun(
+    transaction,
+    scope.organizationId,
+    scope.run,
+    scope.recipientId,
+  );
+  const holds = await holdsIntentPower(
+    transaction,
+    scope.organizationId,
+    scope.recipientId,
+    scope.intent,
+    scope.targetId,
+  );
+  if (involved && holds) return;
+  if (
+    await grantReaches(
+      transaction,
+      scope.organizationId,
+      agent.liveGrants,
+      scope.recipientId,
+    )
+  ) return;
+  forbidden(involved ? AGENT_ASK_POWER_NOT_HELD : AGENT_ASK_NOT_INVOLVED);
+}
+
+async function guardAgentAskLimits(
+  transaction: PgTransactionClient,
+  agent: AgentAsk,
+  scope: Readonly<{ organizationId: string; runId: string; tags: string[] }>,
+): Promise<void> {
+  const tag =
+    "coalesce(audience_group_id::text, audience_role_key, recipient_id::text)";
+  await transaction.query(
+    "select pg_advisory_xact_lock(hashtextextended($1, 0))",
+    [`agent-ask:${scope.runId}`],
+  );
+  const sessionId = agent.origin?.agentSessionId ?? null;
+  const made = await transaction.query<{ tag: string; from_step: boolean }>(
+    `select distinct ${tag} as tag,
+            coalesce(asked_by_session_id in (
+              select peer.id from bakery.agent_sessions as peer
+                join bakery.agent_sessions as own
+                  on own.organization_id = peer.organization_id
+                 and own.run_step_id = peer.run_step_id
+               where own.organization_id = $1 and own.id = $3
+            ), false) as from_step
+       from bakery.person_requests
+      where organization_id = $1 and run_id = $2 and asked_by_kind = 'agent'`,
+    [scope.organizationId, scope.runId, sessionId],
+  );
+  const onRun = new Set(made.rows.map((row) => row.tag));
+  const onStep = new Set(
+    made.rows.filter((row) => row.from_step).map((row) => row.tag),
+  );
+  const fresh = scope.tags.filter((tag) => !onRun.has(tag));
+  if (onRun.size + fresh.length > AGENT_ASKS_PER_RUN) {
+    throw new StandardError({
+      code: "STATE_CONFLICT",
+      params: { reason: AGENT_ASK_RUN_LIMIT },
+    });
+  }
+  const freshOnStep = scope.tags.filter((tag) => !onStep.has(tag));
+  if (
+    sessionId !== null && onStep.size + freshOnStep.length > AGENT_ASKS_PER_STEP
+  ) {
+    throw new StandardError({
+      code: "STATE_CONFLICT",
+      params: { reason: AGENT_ASK_STEP_LIMIT },
+    });
+  }
 }
 
 function forbidden(reason: string): never {
@@ -981,9 +1697,9 @@ async function askOne(
        organization_id, run_id, task_id, step_key, intent, recipient_id,
        fallback_for_name, asked_by, asked_by_kind, note, needed_by, expires_at,
        target_id, audience_role_key, audience_group_id, audience_name,
-       step_iteration)
+       step_iteration, asked_by_session_id)
      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
-             now() + make_interval(days => $12), $13, $14, $15, $16, $17)
+             now() + make_interval(days => $12), $13, $14, $15, $16, $17, $18)
      returning id`,
     [
       organizationId,
@@ -1003,6 +1719,7 @@ async function askOne(
       audience?.groupId ?? null,
       audience?.name ?? null,
       ask.stepIteration,
+      actor.sessionId,
     ],
   );
   const requestId = created.rows[0]?.id;
@@ -1140,6 +1857,323 @@ export async function myRunRequests(context: ActionContext) {
     [organizationId, runId, principalId, REQUEST_LIST_LIMIT],
   );
   return { requests: found.rows.map(toRunRequest) };
+}
+
+const PROJECT_RUN_PRINCIPALS_SQL = `
+  select distinct membership.principal_id
+    from bakery.organization_memberships as membership
+    join bakery.principals as principal on principal.id = membership.principal_id
+    left join bakery.organization_roles as custom
+      on custom.organization_id = membership.organization_id
+     and custom.id = membership.custom_role_id
+   where membership.organization_id = $1 and membership.status = 'active'
+     and principal.principal_type = 'human' and principal.disabled_at is null
+     and (
+       membership.role = any($3::text[])
+       or $4 = any(coalesce(custom.permissions, array[]::text[]))
+       or exists (
+         select 1
+           from bakery.access_bindings as binding
+          where binding.organization_id = membership.organization_id
+            and binding.principal_id = membership.principal_id
+            and binding.role_key = any($5::text[])
+            and (
+              binding.application_id = $6
+              or ($7::uuid is not null and binding.repository_id = $7)
+            )
+       )
+     )`;
+
+type RunAccessRow = {
+  id: string;
+  principal_id: string;
+  display_name: string;
+  via: string;
+  granted_by: string | null;
+  granted_by_name: string | null;
+  granted_by_kind: "person" | "agent" | "workflow";
+  created_at: Date | string;
+  cursor_created_at: string;
+  cursor_position: number;
+  source_request_id: string | null;
+  audience_name: string | null;
+  version: number;
+};
+
+type RunAccessPowerRow = {
+  principal_id: string;
+  intent: Exclude<RequestIntent, "fyi">;
+  step_key: string | null;
+  target_id: string;
+  expires_at: Date | string;
+};
+
+const RUN_ACCESS_ORDERING = "openRequest:desc,createdAt:desc,id:desc";
+
+export async function listRunAccess(
+  context: ActionContext,
+  input: { cursor?: string; limit?: number },
+  cursorSecret: string,
+) {
+  const {
+    transaction,
+    organizationId,
+    principalId,
+    accessScope,
+  } = requireWorkTransaction(context);
+  const run = await loadRun(context, transaction, organizationId, accessScope);
+  const limit = input.limit ?? 20;
+  const binding: CursorBinding = {
+    action: "runAccess.list",
+    organizationId,
+    principalId,
+    ordering: RUN_ACCESS_ORDERING,
+    filters: JSON.stringify({ runId: run.id }),
+    schemaVersion: 1,
+  };
+  const position = await decodeCursor(cursorSecret, input.cursor, binding);
+  const projectParameters = [
+    organizationId,
+    run.id,
+    RUN_READ_SYSTEM_ROLES,
+    RUN_READ_PERMISSION,
+    RUN_READ_BINDING_ROLES,
+    run.application_id,
+    run.repository_id,
+  ];
+  const project = await transaction.query<{ count: number }>(
+    `with project_principals as (${PROJECT_RUN_PRINCIPALS_SQL})
+     select count(*)::int as count from project_principals
+      where $2::uuid is not null`,
+    projectParameters,
+  );
+  const direct = await transaction.query<RunAccessRow>(
+    `with project_principals as (${PROJECT_RUN_PRINCIPALS_SQL})
+     select access_grant.id, access_grant.principal_id, principal.display_name,
+            access_grant.via, access_grant.granted_by,
+            grantor.display_name as granted_by_name,
+            access_grant.granted_by_kind, access_grant.created_at,
+            to_char(
+              access_grant.created_at at time zone 'UTC',
+              'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'
+            ) as cursor_created_at,
+            case when current_open_request.present is not null
+              then 1 else 0 end as cursor_position,
+            access_grant.source_request_id, request.audience_name,
+            access_grant.version
+       from bakery.run_access_grants as access_grant
+       join bakery.principals as principal
+         on principal.id = access_grant.principal_id
+       join bakery.organization_memberships as membership
+         on membership.organization_id = access_grant.organization_id
+        and membership.principal_id = access_grant.principal_id
+        and membership.status = 'active'
+       left join bakery.principals as grantor
+         on grantor.id = access_grant.granted_by
+       left join bakery.person_requests as request
+         on request.organization_id = access_grant.organization_id
+        and request.id = access_grant.source_request_id
+       left join lateral (
+         select 1 as present
+           from bakery.person_requests as current_request
+          where current_request.organization_id = access_grant.organization_id
+            and current_request.run_id = access_grant.run_id
+            and current_request.recipient_id = access_grant.principal_id
+            and current_request.status = 'open'
+            and current_request.expires_at > now()
+          limit 1
+       ) as current_open_request on true
+      where access_grant.organization_id = $1 and access_grant.run_id = $2
+        and access_grant.revoked_at is null
+        and principal.principal_type = 'human' and principal.disabled_at is null
+        and not exists (
+          select 1 from project_principals as project
+           where project.principal_id = access_grant.principal_id
+        )
+        and (
+          $8::timestamptz is null or
+          (
+            case when current_open_request.present is not null
+              then 1 else 0 end,
+            access_grant.created_at,
+            access_grant.id
+          ) < ($10::integer, $8, $9::uuid)
+        )
+      order by (current_open_request.present is not null) desc,
+               access_grant.created_at desc, access_grant.id desc
+      limit $11`,
+    [
+      ...projectParameters,
+      position?.createdAt ?? null,
+      position?.id ?? null,
+      position?.position ?? null,
+      limit + 1,
+    ],
+  );
+  const directCount = await transaction.query<{ count: number }>(
+    `with project_principals as (${PROJECT_RUN_PRINCIPALS_SQL})
+     select count(*)::int as count
+       from bakery.run_access_grants as access_grant
+       join bakery.principals as principal
+         on principal.id = access_grant.principal_id
+       join bakery.organization_memberships as membership
+         on membership.organization_id = access_grant.organization_id
+        and membership.principal_id = access_grant.principal_id
+        and membership.status = 'active'
+      where access_grant.organization_id = $1 and access_grant.run_id = $2
+        and access_grant.revoked_at is null
+        and principal.principal_type = 'human' and principal.disabled_at is null
+        and not exists (
+          select 1 from project_principals as project
+           where project.principal_id = access_grant.principal_id
+        )`,
+    projectParameters,
+  );
+  const visible = direct.rows.slice(0, limit);
+  const powers = await transaction.query<RunAccessPowerRow>(
+    `select power.principal_id, request.intent, request.step_key,
+            request.target_id, power.expires_at
+       from bakery.run_power_grants as power
+       join bakery.person_requests as request
+         on request.organization_id = power.organization_id
+        and request.id = power.source_request_id
+      where power.organization_id = $1 and power.run_id = $2
+        and power.principal_id = any($3::uuid[])
+        and power.revoked_at is null and power.expires_at > now()
+      order by power.created_at, power.id`,
+    [organizationId, run.id, visible.map((row) => row.principal_id)],
+  );
+  const powersByPrincipal = new Map<string, RunAccessPowerRow[]>();
+  for (const power of powers.rows) {
+    const current = powersByPrincipal.get(power.principal_id);
+    if (current === undefined) {
+      powersByPrincipal.set(power.principal_id, [power]);
+    } else {
+      current.push(power);
+    }
+  }
+  const projectCount = project.rows[0]?.count ?? 0;
+  const directTotal = directCount.rows[0]?.count ?? 0;
+  const last = visible.at(-1);
+  return {
+    projectCount,
+    totalCount: projectCount + directTotal,
+    items: visible.map((row) => ({
+      id: row.id,
+      principal: {
+        principalId: row.principal_id,
+        displayName: row.display_name,
+      },
+      via: row.via,
+      grantedBy: row.granted_by === null ? null : {
+        principalId: row.granted_by,
+        displayName: row.granted_by_name ?? row.granted_by,
+      },
+      grantedByKind: row.granted_by_kind,
+      grantedAt: iso(row.created_at),
+      sourceRequestId: row.source_request_id,
+      audience: row.audience_name,
+      powers: (powersByPrincipal.get(row.principal_id) ?? []).map((power) => ({
+        intent: power.intent,
+        stepKey: power.step_key,
+        targetId: power.target_id,
+        expiresAt: iso(power.expires_at),
+      })),
+      version: row.version,
+    })),
+    nextCursor: direct.rows.length > limit && last
+      ? await encodeCursor(cursorSecret, binding, {
+        createdAt: last.cursor_created_at,
+        position: last.cursor_position,
+        id: last.id,
+      })
+      : null,
+  };
+}
+
+export async function removeRunAccess(context: ActionContext) {
+  const { transaction, organizationId, principalId, accessScope } =
+    requireWorkTransaction(context);
+  const run = await loadRun(context, transaction, organizationId, accessScope);
+  const targetId = context.params.principalId;
+  if (!targetId) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+  const expectedVersion = requireCommandMetadata(context).expectedVersion;
+  if (expectedVersion === undefined) {
+    throw new StandardError({ code: "PRECONDITION_REQUIRED" });
+  }
+  const current = await transaction.query<{
+    id: string;
+    version: number;
+    revoked_at: Date | null;
+  }>(
+    `select id, version, revoked_at
+       from bakery.run_access_grants
+      where organization_id = $1 and run_id = $2 and principal_id = $3
+      order by (revoked_at is null) desc, created_at desc, id desc
+      limit 1 for update`,
+    [organizationId, run.id, targetId],
+  );
+  const grant = current.rows[0];
+  if (!grant) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+  if (grant.version !== expectedVersion || grant.revoked_at !== null) {
+    throw new StandardError({ code: "PRECONDITION_FAILED" });
+  }
+  await transaction.query(
+    `update bakery.run_access_grants
+        set revoked_at = now(), revoked_by = $2, version = version + 1
+      where id = $1 and revoked_at is null`,
+    [grant.id, principalId],
+  );
+  const withdrawn = await transaction.query<{ id: string }>(
+    `update bakery.person_requests
+        set status = 'withdrawn', withdrawn_at = now(), withdrawn_by = $4,
+            updated_at = now(), version = version + 1
+      where organization_id = $1 and run_id = $2 and recipient_id = $3
+        and status = 'open'
+      returning id`,
+    [organizationId, run.id, targetId, principalId],
+  );
+  const revoked = await transaction.query<{ id: string }>(
+    `update bakery.run_power_grants
+        set revoked_at = now(), revoked_by = $4, version = version + 1
+      where organization_id = $1 and run_id = $2 and principal_id = $3
+        and revoked_at is null
+      returning id`,
+    [organizationId, run.id, targetId, principalId],
+  );
+  await ledger(transaction, {
+    organizationId,
+    taskId: run.task_id,
+    runId: run.id,
+    kind: "run_access_removed",
+    decidedBy: principalId,
+    text: "access removed",
+    detail: {
+      principalId: targetId,
+      withdrawnRequestCount: withdrawn.rows.length,
+      revokedPowerCount: revoked.rows.length,
+    },
+  });
+  await appendAudit(transaction, {
+    organizationId,
+    principalId,
+    operation: "runAccess.remove",
+    resourceType: "run_access_grant",
+    resourceId: grant.id,
+    requestId: context.requestId,
+    traceId: context.traceId,
+    details: {
+      runId: run.id,
+      principalId: targetId,
+      withdrawnRequestCount: withdrawn.rows.length,
+      revokedPowerCount: revoked.rows.length,
+    },
+  });
+  return {
+    principalId: targetId,
+    version: grant.version + 1,
+    withdrawnRequestCount: withdrawn.rows.length,
+  };
 }
 
 /**

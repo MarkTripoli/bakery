@@ -25,6 +25,10 @@ import type {
 import { WorkerApiClient } from "../../apps/worker/src/client.ts";
 import { createFakeSkillFixture } from "../helpers/worker-skill-materialization.ts";
 import {
+  forgetModelKeyWhenAttemptEnds,
+  readOncePerAttempt,
+} from "../../apps/worker/src/model-key.ts";
+import {
   localAssignment,
   supervisorConfig,
 } from "../helpers/worker-execution/recovery-support.ts";
@@ -389,3 +393,54 @@ Deno.test("native context serialization exposes only validated independent attem
     await Deno.remove(directory, { recursive: true });
   }
 });
+
+for (
+  const [label, skillsFail] of [["reaches execute", false], [
+    "ends in skill preparation",
+    true,
+  ]] as const
+) {
+  Deno.test(`an attempt that ${label} forgets its model key`, async () => {
+    const fixture = await createExecutionFixture({ withSkill: true });
+    let reads = 0;
+    const keys = readOncePerAttempt(() => {
+      reads += 1;
+      return Promise.resolve({
+        provider: "anthropic",
+        apiKey: "sk-ant-fixture",
+      });
+    });
+    const proof = {
+      leaseToken: fixture.assignment.leaseToken,
+      fence: String(fixture.assignment.fence),
+      workerSessionId: fixture.assignment.workerSessionId!,
+      workerSessionGeneration: fixture.assignment.workerSessionGeneration!,
+    };
+    fixture.state.executor = forgetModelKeyWhenAttemptEnds({
+      credentialRedactionSecrets: async (assignment) => [
+        (await keys.read(assignment.attemptId, proof)).apiKey,
+      ],
+      execute: () => {
+        fixture.state.stopping = true;
+        return Promise.resolve({
+          status: "failed",
+          fault: { code: "EXPECTED_TEST_FAILURE" },
+        });
+      },
+    }, keys);
+    if (skillsFail) {
+      fixture.state.skillMaterializer!.prepare = () => {
+        fixture.state.stopping = true;
+        return Promise.reject(new Error("skill download failed"));
+      };
+    }
+    try {
+      await runExecution(fixture);
+      assertEquals(reads, 1);
+      await keys.read(fixture.assignment.attemptId, proof);
+      assertEquals(reads, 2);
+    } finally {
+      await Deno.remove(fixture.directory, { recursive: true });
+    }
+  });
+}

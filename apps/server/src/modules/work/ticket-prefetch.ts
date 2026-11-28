@@ -2,7 +2,11 @@ import type {
   TicketRequestOrigin,
   TicketSourcePolicy,
 } from "@bakery/contracts/ticket-admission";
-import { requestedIntentFromLabels } from "./ticket-policy.ts";
+import {
+  carriedLabelName,
+  labelSetOf,
+  type TicketLabels,
+} from "./ticket-policy.ts";
 import type { BlockerProofEntry } from "./ticket-snapshot.ts";
 import type {
   IssueRef,
@@ -80,20 +84,13 @@ export function isAutomaticOrigin(origin: TicketRequestOrigin): boolean {
   return origin === "webhook" || origin === "poll";
 }
 
-/**
- * The request label an automatic origin relies on: the execute label when the
- * issue carries it (it covers planning too), else the planning-only label.
- * Null when the issue carries none or carries the hold label, which wins.
- */
 export function requestLabelOf(
-  labels: readonly string[],
+  labels: TicketLabels,
   policy: Pick<TicketSourcePolicy, "labels">,
 ): string | null {
-  if (labels.includes(policy.labels.hold)) return null;
-  if (requestedIntentFromLabels(labels, policy) === null) return null;
-  return labels.includes(policy.labels.execute)
-    ? policy.labels.execute
-    : policy.labels.planOnly;
+  if (carriedLabelName(labels, policy, "hold") !== null) return null;
+  return carriedLabelName(labels, policy, "execute") ??
+    carriedLabelName(labels, policy, "planOnly");
 }
 
 export async function mapPool<Item, Result>(
@@ -162,7 +159,10 @@ export async function prefetchTicketReads(
   let actorRole: TicketActorRole | null = null;
   let provenanceLabel: string | null = null;
   if (isAutomaticOrigin(request.origin)) {
-    provenanceLabel = requestLabelOf(issue.snapshot.labels, request.policy);
+    provenanceLabel = requestLabelOf(
+      labelSetOf(issue.snapshot),
+      request.policy,
+    );
     if (provenanceLabel !== null) {
       provenance = await reader.readLabelProvenance(
         handle,

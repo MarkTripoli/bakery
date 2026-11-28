@@ -34,6 +34,9 @@ export {
   RESERVED_PROVIDER_SLUGS,
   ResourceKindSchema,
   servesFamily,
+  TicketActionRefSchema,
+  TicketFamilyActionSchema,
+  TicketTriggerSchema,
 } from "./src/provider-manifest.ts";
 export type {
   AppRegistration,
@@ -41,6 +44,9 @@ export type {
   ProviderFamily,
   ProviderManifest,
   ResourceKind,
+  TicketActionRef,
+  TicketFamilyAction,
+  TicketTrigger,
 } from "./src/provider-manifest.ts";
 export {
   credentialFieldAccepts,
@@ -94,10 +100,15 @@ export type {
 } from "./src/storage-port.ts";
 export type {
   ApiTokenProbe,
+  ConnectedResource,
+  ConnectedResourceGrant,
+  ConnectedResourceInput,
+  ConnectRefusal,
   ConnectStrategy,
   CredentialStrategy,
   IntakeIntent,
   OAuth2Profile,
+  SignedEventSource,
   WebhookIngress,
 } from "./src/strategies.ts";
 export type {

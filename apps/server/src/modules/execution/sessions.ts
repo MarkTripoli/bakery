@@ -18,6 +18,7 @@ import {
   isStorableDecisionText,
 } from "@bakery/contracts/human-approval";
 import { appendDecision } from "../work/human-approval-store.ts";
+import { tagMentionedOnSteer } from "../work/run-requests.ts";
 import { DEFAULT_AGENT_SPAWN } from "@bakery/config";
 import type { AgentSpawnConfig } from "@bakery/config";
 import {
@@ -32,6 +33,7 @@ import {
   type SteeringMode,
 } from "./adapter-capabilities.ts";
 import { enqueueWorkerControlCommand } from "./coordination.ts";
+import { allocateConversationFeedSequence } from "../conversation/feed-sequence.ts";
 
 type SessionRow = {
   id: string;
@@ -403,14 +405,11 @@ export async function steerAgentSession(
     });
   }
 
-  const next = await transaction.query<{ sequence: string }>(
-    `select (coalesce(max(sequence), 0) + 1)::text as sequence
-       from bakery.messages
-      where organization_id = $1 and conversation_id = $2`,
-    [organizationId, session.conversation_id],
+  const sequence = await allocateConversationFeedSequence(
+    transaction,
+    organizationId,
+    session.conversation_id,
   );
-  const sequence = next.rows[0]?.sequence;
-  if (!sequence) throw new Error("MESSAGE_SEQUENCE_UNAVAILABLE");
   const inserted = await transaction.query<MessageRow>(
     `insert into bakery.messages (
        organization_id, conversation_id, author_id, message_type, body,
@@ -506,6 +505,12 @@ export async function steerAgentSession(
     requestId: context.requestId,
     traceId: context.traceId,
     details: { messageId: message.id, mode },
+  });
+  await tagMentionedOnSteer(context, {
+    runId: ownerRow.run_id,
+    stepKey: targetRow.step_key,
+    mentions: input.mentions ?? [],
+    mentionHandles: input.mentionHandles ?? [],
   });
   return toMessage(message);
 }

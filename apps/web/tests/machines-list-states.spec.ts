@@ -41,6 +41,7 @@ function machine(name: string, over: Record<string, unknown> = {}) {
     readinessReason: null,
     failedCheckIds: [],
     lastHeartbeatAt: "2026-01-01T00:00:00.000Z",
+    activeAttemptCount: 0,
     credentialGeneration: 1,
     archivedAt: null,
     cleanup: { state: "not_requested", requestedAt: null, confirmedAt: null },
@@ -138,100 +139,130 @@ const rowOf = (page: Page, name: string) =>
   ).first();
 
 test.describe("machines list states", () => {
-  test("every state is one badge, one line and one button", async ({ page }) => {
-    await open(page);
-    const expectations: [string, string, string, string][] = [
-      [
-        "build-linux-01",
-        "Ready",
-        "Linux · Claude Code, Codex · 2 slots",
-        "Open",
-      ],
-      ["build-mac-01", "Ready", "macOS · Claude Code, Pi · 1 slot", "Open"],
-      ["ci-linux-02", "Needs attention", "2 checks failed.", "Fix"],
-      [
-        "ci-linux-03",
-        "Not responding",
-        "Not responding. It has stopped answering Bakery.",
-        "Open",
-      ],
-      ["ci-linux-04", "Offline", "Offline. Bakery cannot reach it.", "Open"],
-      [
-        "spare-linux-05",
-        "Paused",
-        "Paused. It takes no new work until someone resumes it.",
-        "Open",
-      ],
-      [
-        "spare-linux-06",
-        "Finishing up",
-        "Finishing its current work. It takes no new work.",
-        "Open",
-      ],
-      [
-        "new-linux-07",
-        "Checking",
-        "Linux · Claude Code, Codex · 2 slots",
-        "Open",
-      ],
-      ["old-mac-08", "Retired", "Retired. It no longer takes work.", "Open"],
-    ];
-    const geometries: RowActionGeometry[] = [];
-    for (const [name, badge, line, action] of expectations) {
-      const row = rowOf(page, name);
-      await expect(row, name).toContainText(badge);
-      await expect(row, name).toContainText(line);
-      // One control per row: a link on a wide screen, a button on a phone.
-      const control = row.getByRole("link").or(row.getByRole("button"));
-      await expect(control, name).toHaveCount(1);
-      await expect(
-        row.getByRole("link", { name: `${action} ${name}` }).or(
-          row.getByRole("button", { name: `${action} ${name}` }),
-        ),
-        name,
-      ).toBeVisible();
-      // One badge on the row, not three.
-      await expect(row.locator("[data-ui-component=badge]"), name).toHaveCount(
-        1,
-      );
-      // The control sits beside or under the row's text, never on it.
-      const geometry = await rowActionGeometry(row);
+  test(
+    "every state is one badge, one line and one button",
+    async ({ page }, testInfo) => {
+      const desktop = testInfo.project.name === "desktop";
+      await open(page);
+      const expectations: [string, string, string, string][] = [
+        [
+          "build-linux-01",
+          "Ready",
+          "Linux · Claude Code, Codex · 0 of 2 tasks",
+          "Open",
+        ],
+        [
+          "build-mac-01",
+          "Ready",
+          "macOS · Claude Code, Pi · 0 of 1 tasks",
+          "Open",
+        ],
+        ["ci-linux-02", "Needs attention", "2 checks failed.", "Fix"],
+        [
+          "ci-linux-03",
+          "Not responding",
+          "It has stopped answering Bakery.",
+          "Open",
+        ],
+        ["ci-linux-04", "Offline", "Bakery cannot reach it.", "Open"],
+        [
+          "spare-linux-05",
+          "Paused",
+          "It takes no new work until someone resumes it.",
+          "Open",
+        ],
+        [
+          "spare-linux-06",
+          "Finishing up",
+          "It takes no new work and stops once its current work is done.",
+          "Open",
+        ],
+        [
+          "new-linux-07",
+          "Checking",
+          "Linux · Claude Code, Codex · 0 of 2 tasks",
+          "Open",
+        ],
+        ["old-mac-08", "Retired", "It no longer takes work.", "Open"],
+      ];
+      const geometries: RowActionGeometry[] = [];
+      for (const [name, badge, line, action] of expectations) {
+        const row = rowOf(page, name);
+        await expect(row, name).toContainText(badge);
+        if (desktop && line.includes(" · ")) {
+          const [system, agents, slots] = line.split(" · ");
+          await expect(row, name).toContainText(system!);
+          await expect(row, name).toContainText(agents!);
+          await expect(row, name).toContainText(slots!.replace(/ tasks$/, ""));
+        } else {
+          await expect(row, name).toContainText(line);
+        }
+        const control = row.getByRole("link").or(row.getByRole("button"));
+        await expect(control, name).toHaveCount(1);
+        await expect(
+          row.getByRole("link", { name: `${action} ${name}` }).or(
+            row.getByRole("button", { name: `${action} ${name}` }),
+          ),
+          name,
+        ).toBeVisible();
+        await expect(row.locator("[data-ui-component=badge]"), name)
+          .toHaveCount(
+            1,
+          );
+        const geometry = await rowActionGeometry(row);
+        expect(
+          geometry.overlaps,
+          `${name}: the ${geometry.label} control covers text`,
+        )
+          .toEqual([]);
+        geometries.push(geometry);
+      }
       expect(
-        geometry.overlaps,
-        `${name}: the ${geometry.label} control covers text`,
-      )
-        .toEqual([]);
-      geometries.push(geometry);
-    }
-    // Fix and Open are the same size: one fixed width across the list.
-    expect(
-      new Set(
-        geometries.map((geometry) => `${geometry.width}x${geometry.height}`),
-      ).size,
-      `control sizes: ${
-        geometries.map((g) => `${g.label} ${g.width}x${g.height}`).join(", ")
-      }`,
-    ).toBe(1);
-    // A fleet of nine machines is a list: no filter yet.
-    await expect(page.getByRole("group", { name: "Show machines" }))
-      .toHaveCount(0);
-    // Nothing of the old table's columns or words in the list itself.
-    const list = page.getByRole("table", { name: "Machines" }).or(
-      page.getByRole("list", { name: "Machines" }),
+        new Set(
+          geometries.map((geometry) => `${geometry.width}x${geometry.height}`),
+        ).size,
+        `control sizes: ${
+          geometries.map((g) => `${g.label} ${g.width}x${g.height}`).join(", ")
+        }`,
+      ).toBe(1);
+      await expect(page.getByRole("group", { name: "Show machines" }))
+        .toHaveCount(0);
+      const list = page.getByRole("table", { name: "Machines" }).or(
+        page.getByRole("list", { name: "Machines" }),
+      );
+      for (
+        const word of [
+          "Connectivity",
+          "Readiness",
+          "Last heartbeat",
+          "Capabilities",
+        ]
+      ) {
+        await expect(list).not.toContainText(word);
+      }
+      await shot(page, "machines-list");
+      const axe = await new AxeBuilder({ page }).analyze();
+      expect(axe.violations).toEqual([]);
+    },
+  );
+
+  test("a retired machine is found by the Retired filter", async ({ page }) => {
+    await open(page, {
+      workers: [
+        ...FLEET,
+        machine("extra-linux-09"),
+        machine("extra-linux-10"),
+      ],
+    });
+    const filter = page.getByRole("group", { name: "Show machines" });
+    await filter.getByRole("radio", { name: "Retired" }).click();
+    await expect(page.getByTestId("machines-page")).toContainText(
+      "old-mac-08",
     );
-    for (
-      const word of [
-        "Connectivity",
-        "Readiness",
-        "Last heartbeat",
-        "Capabilities",
-      ]
-    ) {
-      await expect(list).not.toContainText(word);
-    }
-    await shot(page, "machines-list");
-    const axe = await new AxeBuilder({ page }).analyze();
-    expect(axe.violations).toEqual([]);
+    await expect(page.getByTestId("machines-page")).not.toContainText(
+      "build-linux-01",
+    );
+    await shot(page, "machines-list-retired-filter");
   });
 
   test("more than ten machines offer a filter that keeps what it names", async ({ page }) => {
@@ -265,6 +296,18 @@ test.describe("machines list states", () => {
       "ci-linux-04",
     );
     await shot(page, "machines-list-filter");
+  });
+
+  test("offline says when the list was read and does not offer Add machine", async ({ page, context }) => {
+    await open(page, {});
+    await expect(page.getByRole("button", { name: "Add machine", exact: true }))
+      .toBeEnabled();
+    await context.setOffline(true);
+    await expect(page.getByText(/You are offline\. Last updated /))
+      .toBeVisible();
+    await expect(page.getByRole("button", { name: "Add machine", exact: true }))
+      .toBeDisabled();
+    await shot(page, "machines-list-offline-last-updated");
   });
 
   test("an administrator with no machines is invited to add one; anyone else is told whom to ask", async ({ page }) => {
@@ -398,7 +441,7 @@ test.describe("machines list states", () => {
     const machinesBox = await rowOf(page, "build-linux-01").boundingBox();
     expect(groupBox!.y).toBeLessThan(machinesBox!.y);
     await shot(page, "machines-list-finishing");
-    await group.getByRole("button", { name: "Get new settings for late-box" })
+    await group.getByRole("button", { name: "Continue setup of late-box" })
       .click();
     await expect(page).toHaveURL(
       /\/machines\/new\?finish=00000000-0000-4000-8000-0000000000f2$/,
@@ -470,5 +513,32 @@ test.describe("machines list states", () => {
     // Back at the top, the capture is what a person sees on arrival.
     await page.evaluate(() => globalThis.scrollTo(0, 0));
     await shot(page, "machines-list-finishing-paged");
+  });
+});
+
+test.describe("machines list: tasks running on each machine", () => {
+  test("a busy machine says how many run, and a silent one says what may be lost", async ({ page }) => {
+    await open(page, {
+      workers: [
+        machine("busy-linux-01", { slots: 4, activeAttemptCount: 3 }),
+        machine("quiet-linux-02", {
+          connectivity: "offline",
+          unsettledAttemptCount: 2,
+        }),
+        machine("idle-linux-03", { connectivity: "stale" }),
+      ],
+    });
+    await expect(rowOf(page, "busy-linux-01")).toContainText("3 of 4");
+    await expect(rowOf(page, "quiet-linux-02")).toContainText(
+      "2 tasks may be lost.",
+    );
+    await expect(rowOf(page, "busy-linux-01")).not.toContainText(
+      "may be lost",
+    );
+    await expect(rowOf(page, "idle-linux-03")).not.toContainText(
+      "may be lost",
+    );
+    await page.mouse.move(700, 700);
+    await still(page, "machines-list-tasks");
   });
 });

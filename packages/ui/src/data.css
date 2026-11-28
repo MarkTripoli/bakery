@@ -394,6 +394,16 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+.ui-code-block--command[data-state="overflowing"] {
+  overflow-wrap: normal;
+  white-space: pre;
+}
+.ui-code-block__line[data-change="added"] {
+  color: var(--color-syntax-success);
+}
+.ui-code-block__line[data-change="removed"] {
+  color: var(--color-syntax-danger);
+}
 .ui-code-block__copied {
   color: var(--color-syntax-success);
   inset-block-start: var(--space-2);
@@ -662,6 +672,10 @@
   overflow-wrap: anywhere;
   padding: var(--space-3); /* auth.css:10 .code 12px */
   user-select: all; /* auth.css:22 .setup-key */
+}
+
+.ui-setup-key[data-variant="pairing"] {
+  font: var(--type-otp);
 }
 .ui-backup-code-list {
   background: var(--color-surface-subtle); /* auth.css:23 .backup-code-list */
@@ -1461,6 +1475,33 @@
 .ui-inline[data-controls="filters"] {
   align-items: flex-end;
 }
+.ui-inline[data-controls="person"] {
+  flex-wrap: nowrap;
+  max-inline-size: 100%;
+}
+.ui-inline[data-controls="person"] > button {
+  flex: none;
+}
+.ui-inline[data-controls="person"] > [data-ui-component="badge"] {
+  display: block;
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-inline[data-controls="file-row"] {
+  align-items: center;
+  border-block-start: var(--border-default) solid var(--color-border);
+  flex-wrap: nowrap;
+}
+.ui-inline[data-controls="file-row"] > .ui-list-row {
+  border-block: var(--border-none);
+  flex: 1;
+  min-inline-size: 0;
+}
+.ui-inline[data-controls="figures"] > .ui-stat-tile {
+  flex: 0 0 auto;
+}
 /* A header with a long path wraps the path under the name and keeps its action
    at the end of the line, never dropped beneath the text. */
 @media (min-width: 744px) {
@@ -1616,6 +1657,19 @@
 .ui-detail-row[data-label-width="wide"] {
   min-block-size: var(--target-min);
 }
+@media (max-width: 743px) {
+  .ui-detail-row[data-stack="phone"] {
+    align-items: start;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+  .ui-detail-row[data-stack="phone"] .ui-detail-row__label {
+    flex: none;
+  }
+  .ui-detail-row[data-stack="phone"] + .ui-detail-row[data-stack="phone"] {
+    margin-block-start: var(--space-3);
+  }
+}
 .ui-detail-row__value {
   color: var(--color-fg);
   font: var(--type-caption);
@@ -1750,12 +1804,30 @@
   color: var(--color-fg);
   font: var(--type-control);
 }
+.ui-list-row__title[data-middle="true"] {
+  display: flex;
+  max-inline-size: 100%;
+  min-inline-size: 0;
+  white-space: pre;
+}
+.ui-list-row__title-start {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ui-list-row__title-end {
+  flex: 0 0 auto;
+}
 .ui-list-row__detail {
   color: var(--color-fg-muted);
   font: var(--type-caption);
 }
-/* A clamped text keeps its first lines and ends in an ellipsis; the whole text
-   is the element's title. */
+.ui-text[data-lines="6"] {
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 6;
+  display: -webkit-box;
+  overflow: hidden;
+}
 .ui-text[data-lines="3"] {
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;
@@ -1804,6 +1876,9 @@
 }
 .ui-data-table--ruled[data-inset="edge"][data-rows="double"] td {
   block-size: calc(var(--space-12) + var(--space-3) - var(--border-default));
+}
+.ui-data-table--ruled[data-inset="edge"][data-rows="auto"] td {
+  padding-block: var(--space-3);
 }
 .ui-data-table button.ui-data-table__select {
   background: transparent;
@@ -2087,6 +2162,9 @@
   gap: var(--space-2);
   padding-block: var(--space-3);
 }
+.ui-notification-popover__message--action {
+  align-items: flex-start;
+}
 .ui-notification-popover__footer {
   border-block-start: var(--border-default) solid var(--color-border);
   margin-block-start: var(--space-2);
@@ -2327,6 +2405,44 @@
   font-variant-numeric: tabular-nums;
 }
 
+.ui-line-chart {
+  color: var(--color-fg);
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+}
+.ui-line-chart__plot {
+  display: block;
+  inline-size: 100%;
+}
+.ui-line-chart__band {
+  fill: currentColor;
+  fill-opacity: 0.12;
+}
+.ui-line-chart__band-label,
+.ui-line-chart__tick {
+  fill: currentColor;
+  font: var(--type-caption);
+}
+.ui-line-chart__point {
+  fill: currentColor;
+}
+.ui-line-chart__line {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: var(--border-emphasis);
+}
+.ui-line-chart__ends {
+  color: var(--color-fg-muted);
+  display: flex;
+  font: var(--type-caption);
+  justify-content: space-between;
+}
+.ui-line-chart__description {
+  color: var(--color-fg-muted);
+  font: var(--type-body);
+}
+
 /* A combobox with a help tip: the tip sits one small gap after the label's word,
    centred on its line, and the control below it is as wide as any other in its
    stack. The label stays the control's label; it only lets its children join
@@ -2549,4 +2665,7 @@
     inline-size: 100%;
     min-block-size: var(--target-coarse);
   }
+}
+.ui-menu button[data-tone="danger"] {
+  color: var(--color-destructive);
 }

@@ -34,6 +34,7 @@ import {
   RouteOutcomeCode,
 } from "../integrations/fact-reads.ts";
 import { lockAuthority } from "../integrations/write-authority.ts";
+import { ticketBlockerRuleOf } from "../integrations/registry.ts";
 import { createRunCommand } from "./run-command.ts";
 import {
   createCoordinationPlanCommand,
@@ -52,8 +53,10 @@ import {
 import {
   chosenWorkflowId,
   intentFromLabels,
+  labelSetOf,
   requestedIntentFromLabels,
   type TicketLabelBasis,
+  type TicketLabels,
   workflowRequired,
 } from "./ticket-policy.ts";
 import {
@@ -192,6 +195,7 @@ export type AdmissionCall = {
    * reads it: a request that exists keeps the workflow it was pinned with.
    */
   preset?: TicketPresetPin["id"] | null;
+  requirePlanApproval?: boolean;
   /** Request and trace ids of the calling request; fresh ones are made when absent. */
   trace?: { requestId: string; traceId: string };
 };
@@ -268,27 +272,22 @@ function presetPin(preset: WorkflowPresetDefinition): TicketPresetPin {
   };
 }
 
-/**
- * The source's application, or a stated refusal.
- *
- * A task names an application and cannot omit one (tasks.application_id is NOT
- * NULL), so a source with no application cannot admit. 0206 made the source's
- * application optional for providers that verify a webhook with a shared
- * secret; that is enough to read readiness and report it, and not enough to
- * create a task. Refusing here keeps the answer a reason a caller can act on
- * rather than a contract error from deep inside task creation, and it runs
- * before any write so two concurrent attempts store nothing.
- */
-function requireApplication(
-  source: Readonly<{ applicationId: string | null }>,
-): string {
-  if (source.applicationId === null) {
-    throw new StandardError({
-      code: "PRECONDITION_FAILED",
-      params: { reason: "source_application_required" },
-    });
+async function lockAdmissionScope(
+  transaction: PgTransactionClient,
+  source: TicketSource,
+): Promise<void> {
+  if (source.applicationId !== null) {
+    await lockApplication(
+      transaction,
+      source.organizationId,
+      source.applicationId,
+    );
+    return;
   }
-  return source.applicationId;
+  await transaction.query(
+    "select pg_advisory_xact_lock(hashtextextended($1, 0))",
+    [`ticket-source-admission:${source.id}`],
+  );
 }
 
 /**
@@ -312,7 +311,7 @@ function requirementsChanged(): StandardError {
 /** The label basis of a new admission, from its origin and the issue's labels. */
 export function labelBasisFor(
   origin: TicketRequestOrigin,
-  labels: readonly string[],
+  labels: TicketLabels,
   policy: TicketSource["policy"],
 ): TicketLabelBasis {
   if (origin === "manual") return "manual";
@@ -332,7 +331,10 @@ type Frame = {
   authority:
     & Pick<
       ReadinessSourceFacts,
-      "connectionEnabled" | "installationEnabled" | "resourceSelected"
+      | "connectionEnabled"
+      | "installationEnabled"
+      | "resourceSelected"
+      | "blockerRule"
     >
     & { repositoryFullName: string };
 };
@@ -393,6 +395,7 @@ async function sourceAuthority(
   );
   return {
     repositoryFullName: scope.handle.repositoryFullName,
+    blockerRule: ticketBlockerRuleOf(scope.handle.provider),
     connectionEnabled: verdict !== RouteOutcomeCode.ConnectionNotEnabled &&
       verdict !== RouteOutcomeCode.ConnectionChanged,
     installationEnabled: verdict !== RouteOutcomeCode.InstallationUnavailable &&
@@ -419,10 +422,12 @@ async function sourceFacts(
     installationEnabled: frame.authority.installationEnabled,
     resourceSelected: frame.authority.resourceSelected,
     repositoryFullName: frame.authority.repositoryFullName,
+    blockerRule: frame.authority.blockerRule,
   };
   if (source.repositoryId === null) {
     return {
       ...base,
+      repositoryBound: false,
       repositoryArchived: false,
       repositoryHasActiveProfile: false,
       presetReady: false,
@@ -436,6 +441,7 @@ async function sourceFacts(
     );
     return {
       ...base,
+      repositoryBound: true,
       repositoryArchived: facts.archived,
       repositoryHasActiveProfile: facts.hasActiveProfile,
       presetReady: false,
@@ -448,6 +454,7 @@ async function sourceFacts(
   );
   return {
     ...base,
+    repositoryBound: true,
     repositoryArchived: availability.reasons.includes("repository_archived") ||
       availability.reasons.includes("application_archived"),
     repositoryHasActiveProfile: !availability.reasons.includes(
@@ -563,9 +570,9 @@ async function evaluate(
   return await evaluateReadiness(input);
 }
 
-function issueLabels(prefetch: TicketPrefetch): readonly string[] {
+function issueLabels(prefetch: TicketPrefetch): TicketLabels {
   return prefetch.issue.kind === "present"
-    ? prefetch.issue.snapshot.labels
+    ? labelSetOf(prefetch.issue.snapshot)
     : [];
 }
 
@@ -792,11 +799,7 @@ async function recordWithin(
     const { report } = await unstored(frame, callerActor);
     return { ticketId: null, report, storedReport: null };
   }
-  await lockApplication(
-    transaction,
-    organizationId,
-    requireApplication(source),
-  );
+  await lockAdmissionScope(transaction, source);
   const existing = await findNonterminalRequest(
     transaction,
     organizationId,
@@ -903,13 +906,6 @@ async function admitWithin(
   };
   // (1) The source, `for share`: pins the policy revision and the delegation.
   const source = await lockSource(transaction, organizationId, call.sourceId);
-  // A task names an application and cannot omit one (tasks.application_id is
-  // NOT NULL), so a source with no application cannot admit. 0206 made the
-  // source's application optional for providers that verify a webhook with a
-  // shared secret; that is enough to read readiness and report it, and not
-  // enough to create a task. Refused here, before any write, so the answer is a
-  // stated reason rather than a contract error from deep inside task creation.
-  requireApplication(source);
   // (2) Live source authority, `for share`, in the order the intake path uses.
   const authority = await sourceAuthority(transaction, source);
   const frame: Frame = {
@@ -931,11 +927,7 @@ async function admitWithin(
     return await unstored(frame, callerActor);
   }
   // (4) The application, before any branch that can write a task or a run.
-  await lockApplication(
-    transaction,
-    organizationId,
-    requireApplication(source),
-  );
+  await lockAdmissionScope(transaction, source);
 
   const existing = await findNonterminalRequest(
     transaction,
@@ -1182,6 +1174,9 @@ async function admitFresh(
   }
   if (report.preset === null) throw workflowRequired();
   const actor = context.actor;
+  const planApproval = call.requirePlanApproval === true
+    ? "human_approval"
+    : source.policy.approval.plan;
 
   // (8) The task, its primary link and the request, in one transaction.
   const snapshot = ticket.snapshot;
@@ -1199,7 +1194,7 @@ async function admitFresh(
     taskType: "feature",
     title: text.title,
     description: text.description,
-    approvalPolicy: { plan: source.policy.approval.plan },
+    approvalPolicy: { plan: planApproval },
     planningOnly: intent === "plan",
   });
   if (!taskInput.success) {
@@ -1273,7 +1268,7 @@ async function admitFresh(
 
   // (9) A start under an automatic plan approval creates the run now: on the
   // request's task, or on each child task when the ticket was routed.
-  if (intent === "start" && source.policy.approval.plan === "automatic") {
+  if (intent === "start" && planApproval === "automatic") {
     if (children === null) {
       const runId = await startRun(frame, actor, request, task);
       request = await updateRequest(transaction, request, {
@@ -2020,11 +2015,7 @@ async function recheckWithin(
     existing === null ||
     (scope.requestId !== null && existing.id !== scope.requestId)
   ) return nothing;
-  await lockApplication(
-    transaction,
-    organizationId,
-    requireApplication(source),
-  );
+  await lockAdmissionScope(transaction, source);
   let ticket = locked;
   if (prefetch.issue.kind === "present") {
     const resolved = await resolveTicket(frame);

@@ -1,7 +1,12 @@
-import { HUMAN_APPROVAL_EVENT as HUMAN_APPROVAL_BOUNDS_EVENT } from "../../human-approval.ts";
 import { type DiagnosticCollector, pointerOf } from "../diagnostics.ts";
 import { WORKFLOW_COMPILER_LIMITS } from "../limits.ts";
-import type { WorkflowNode, WorkflowSemanticDocument } from "../schema.ts";
+import type {
+  WorkflowLane,
+  WorkflowNode,
+  WorkflowParallelNode,
+  WorkflowSemanticDocument,
+} from "../schema.ts";
+import { resolveStepFiles } from "../step-files.ts";
 import type { NodeLocations } from "./shape.ts";
 
 /** Worst-case totals of a node list or a whole workflow. */
@@ -90,13 +95,8 @@ export function nodeWorstCase(node: WorkflowNode, depth = 1): WorstCase {
       return {
         steps: 1,
         attempts: 1,
-        // A human.approval wait spends no active clock: §9 puts the wait outside
-        // it, so waiting for a person must not consume the run's wall-clock
-        // budget. Every other wait counts its full duration.
         timeMs: node.wait.kind === "duration"
           ? node.wait.durationMs
-          : node.wait.event === HUMAN_APPROVAL_BOUNDS_EVENT
-          ? 0
           : node.wait.timeoutMs,
         costUsd: 0,
       };
@@ -127,6 +127,148 @@ export function workflowWorstCase(
   document: WorkflowSemanticDocument,
 ): WorstCase {
   return sum(document.steps, 1);
+}
+
+function laneWaitsOn(
+  lanes: readonly WorkflowLane[],
+): (later: string, earlier: string) => boolean {
+  const needs = new Map(lanes.map((lane) => [lane.id, lane.needs]));
+  return (later, earlier) => {
+    const seen = new Set<string>();
+    const pending = [...(needs.get(later) ?? [])];
+    while (pending.length > 0) {
+      const next = pending.pop()!;
+      if (next === earlier) return true;
+      if (seen.has(next)) continue;
+      seen.add(next);
+      pending.push(...(needs.get(next) ?? []));
+    }
+    return false;
+  };
+}
+
+function concurrentWorkspaceWriters(
+  node: WorkflowParallelNode,
+): WorkflowNode[] {
+  if (node.maxConcurrency <= 1) return [];
+  const waitsOn = laneWaitsOn(node.lanes);
+  const writing = node.lanes
+    .map((lane) => ({ lane, writers: workspaceWriters(lane.steps) }))
+    .filter(({ writers }) => writers.length > 0);
+  return writing.flatMap(({ lane, writers }, index) =>
+    writing.slice(0, index).some(({ lane: earlier }) =>
+        earlier.repository === lane.repository &&
+        !waitsOn(lane.id, earlier.id) &&
+        !waitsOn(earlier.id, lane.id)
+      )
+      ? writers
+      : []
+  );
+}
+
+function workspaceWriters(nodes: readonly WorkflowNode[]): WorkflowNode[] {
+  return nodes.flatMap((node): WorkflowNode[] => {
+    switch (node.kind) {
+      case "action":
+        return resolveStepFiles(node.files).write.includes("workspace")
+          ? [node]
+          : [];
+      case "wait":
+        return [];
+      case "sequence":
+      case "forEach":
+        return workspaceWriters(node.steps);
+      case "branch":
+        return [...workspaceWriters(node.then), ...workspaceWriters(node.else)];
+      case "repeat":
+        return [
+          ...(node.seed.form === "sequence"
+            ? workspaceWriters(node.seed.steps)
+            : []),
+          ...workspaceWriters(node.steps),
+        ];
+      case "parallel":
+        return node.lanes.flatMap((lane) => workspaceWriters(lane.steps));
+    }
+  });
+}
+
+function checkParallelForEachPolicy(
+  nodes: readonly WorkflowNode[],
+  parallel: boolean,
+  locations: NodeLocations,
+  collector: DiagnosticCollector,
+): void {
+  for (const node of nodes) {
+    switch (node.kind) {
+      case "action":
+        if (
+          parallel &&
+          resolveStepFiles(node.files).write.includes("workspace")
+        ) {
+          collector.add(
+            pointerOf([...(locations.get(node) ?? []), "files"]),
+            "for_each_parallel_workspace_write",
+          );
+        }
+        break;
+      case "wait":
+        break;
+      case "sequence":
+        checkParallelForEachPolicy(
+          node.steps,
+          parallel,
+          locations,
+          collector,
+        );
+        break;
+      case "branch":
+        checkParallelForEachPolicy(node.then, parallel, locations, collector);
+        checkParallelForEachPolicy(node.else, parallel, locations, collector);
+        break;
+      case "repeat":
+        if (node.seed.form === "sequence") {
+          checkParallelForEachPolicy(
+            node.seed.steps,
+            parallel,
+            locations,
+            collector,
+          );
+        }
+        checkParallelForEachPolicy(
+          node.steps,
+          parallel,
+          locations,
+          collector,
+        );
+        break;
+      case "parallel": {
+        for (const writer of concurrentWorkspaceWriters(node)) {
+          collector.add(
+            pointerOf([...(locations.get(writer) ?? []), "files"]),
+            "parallel_lanes_workspace_write",
+          );
+        }
+        for (const lane of node.lanes) {
+          checkParallelForEachPolicy(
+            lane.steps,
+            parallel,
+            locations,
+            collector,
+          );
+        }
+        break;
+      }
+      case "forEach":
+        checkParallelForEachPolicy(
+          node.steps,
+          parallel || (node.maxConcurrency ?? 1) > 1,
+          locations,
+          collector,
+        );
+        break;
+    }
+  }
 }
 
 function checkRepeatPolicy(
@@ -195,6 +337,7 @@ export function checkWorkflowBounds(
   locations: NodeLocations,
   collector: DiagnosticCollector,
 ): WorstCase {
+  checkParallelForEachPolicy(document.steps, false, locations, collector);
   const limits = document.limits;
   if (limits.maxRepairCycles !== undefined) {
     checkRepeatPolicy(

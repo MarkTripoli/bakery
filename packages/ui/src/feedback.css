@@ -204,6 +204,17 @@
   outline-offset: var(--space-0-5);
 }
 
+.ui-task-setup-notice__content {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.ui-task-setup-notice__reasons {
+  color: var(--color-fg);
+  margin: var(--space-0);
+  padding-inline-start: var(--space-5);
+}
+
 .ui-toast {
   /* One line of text sits on the middle of the dismiss button's row, not above empty space. */
   align-items: center;
@@ -340,6 +351,13 @@
 }
 .ui-tooltip[data-dismissed="true"] .ui-tooltip__content {
   display: none;
+}
+.ui-tooltip[data-state] .ui-tooltip__content:empty {
+  display: none;
+}
+.ui-tooltip__content[data-align="start"] {
+  inset-inline-start: 0;
+  transform: none;
 }
 
 /* HelpTip: the information button after a label. Its box is the pointer
@@ -593,6 +611,31 @@
   }
 }
 
+.ui-spinner {
+  animation: ui-spinner-turn calc(var(--duration-transition) * 3.5) linear
+    infinite;
+  block-size: var(--space-3-5);
+  border: var(--border-default) solid var(--color-border);
+  border-block-start-color: var(--color-fg-muted);
+  border-radius: var(--radius-circle);
+  box-sizing: border-box;
+  display: inline-block;
+  flex: none;
+  inline-size: var(--space-3-5);
+}
+
+@keyframes ui-spinner-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-spinner {
+    animation: none;
+  }
+}
+
 @media (pointer: coarse) {
   .ui-feedback-dismiss {
     block-size: var(--target-coarse);
@@ -804,4 +847,28 @@
 [data-needs-setup="true"] {
   outline: var(--border-emphasis) solid var(--color-destructive);
   outline-offset: var(--space-1);
+}
+
+.ui-toast[data-placement="floating"] {
+  inset-block-end: calc(var(--space-4) + env(safe-area-inset-bottom));
+  inset-inline: var(--space-4);
+  margin-inline: auto;
+  max-inline-size: var(--layout-dialog);
+  position: fixed;
+  z-index: var(--layer-tooltip);
+}
+
+@media (max-width: 743px) {
+  .ui-toast[data-placement="floating"] .ui-toast__content {
+    flex-basis: 0;
+  }
+
+  .ui-toast[data-placement="floating"] .ui-toast__action {
+    flex-basis: 100%;
+    order: 1;
+  }
+}
+
+.ui-toast-room {
+  flex: none;
 }

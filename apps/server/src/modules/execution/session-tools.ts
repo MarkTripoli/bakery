@@ -93,6 +93,7 @@ const OPERATION_SCOPES: Readonly<Record<string, OperationScope>> = Object
     // blanket read: an inputs-only step (read: [inputs]) is never offered them, and
     // every call is judged again by the same layered guard as a write.
     "storageRoots.list": "files.read",
+    "files.search": "files.read",
     "storageFolderEntries.list": "files.read",
     "storageFiles.content": "files.read",
     // A file's saved versions, the runs that used one, and what a version

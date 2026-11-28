@@ -43,6 +43,7 @@ export type StartResult =
   }>
   | Readonly<{
     started: false;
+    pause?: string;
     passedOver?: readonly { externalTicketId: string; reason: string }[];
   }>;
 
@@ -54,6 +55,7 @@ export type BatchPorts = {
       organizationId: string;
       batchId: string;
       repositoryId: string;
+      presetId: string | null;
       startedBy: string;
     },
   ) => Promise<StartResult>;
@@ -127,7 +129,10 @@ export async function readIssueOutcome(
   const row = result.rows[0];
   if (!row) return "failed";
   if (row.merged) return "merged";
-  if (row.status === "failed" || row.status === "blocked") return "failed";
+  if (
+    row.status === "failed" || row.status === "blocked" ||
+    row.status === "needs_human"
+  ) return "failed";
   if (row.status === "canceled") return "cancelled";
   if (row.status === "completed" && !row.merging && !row.pr_open) {
     return "failed";
@@ -266,6 +271,7 @@ async function apply(
         organizationId,
         batchId: id,
         repositoryId: batch.repositoryId,
+        presetId: batch.presetId,
         startedBy: batch.startedBy,
       });
       let position = batch.issues.reduce(
@@ -318,6 +324,14 @@ async function apply(
         await transaction.query(
           `update bakery.batches set next_approved = false, ${touch} where id = $1`,
           [id],
+        );
+      } else if (result.pause) {
+        await transaction.query(
+          `update bakery.batches
+              set state = 'paused', pause_reason = $2,
+                  paused_at = now(), ${touch}
+            where id = $1`,
+          [id, result.pause],
         );
       } else {
         await transaction.query(

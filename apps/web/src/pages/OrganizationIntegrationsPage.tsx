@@ -3,7 +3,10 @@ import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import type { ApiFailure, IntegrationConnection } from "../api/client.ts";
 import { useBakeryApi } from "../api/context.tsx";
-import { effectiveAccessQueryOptions } from "../api/query.ts";
+import {
+  effectiveAccessQueryOptions,
+  installationSettingsQueryOptions,
+} from "../api/query.ts";
 import { isForbiddenFailure } from "../app/async-state.ts";
 import * as organizationSelection from "../app/organization-selection.ts";
 import { protectedQueryKey } from "../app/query-scope.ts";
@@ -26,7 +29,11 @@ import {
   CONNECTION_OUTCOMES,
   type ConnectionOutcome,
 } from "./integrations/outcomes.ts";
-import { useProviderConnect } from "./integrations/providers/index.ts";
+import {
+  providerLook,
+  useOAuthConnect,
+  useProviderConnect,
+} from "./integrations/providers/index.ts";
 
 /** Query parameters the GitHub callbacks redirect with (server contract). */
 export const CONNECTION_OUTCOME_PARAMETER = "githubConnection";
@@ -43,6 +50,7 @@ export function parseConnectionOutcome(
 
 /** Outcomes that name a connection and belong on that connection's own page. */
 const OUTCOMES_FOR_THE_CONNECTION = new Set<ConnectionOutcome>([
+  "connected",
   "pending",
   "refreshed",
   "already_connected",
@@ -50,15 +58,17 @@ const OUTCOMES_FOR_THE_CONNECTION = new Set<ConnectionOutcome>([
 
 /** The organization's integrations: what is connected and what can be added. */
 export function OrganizationIntegrationsPage(
-  { outcome, connectionId }: {
+  { outcome, outcomeProvider, connectionId, removedId }: {
+    readonly removedId: string | null;
     readonly outcome: ConnectionOutcome | null;
+    readonly outcomeProvider: string;
     readonly connectionId: string | null;
   },
 ) {
   const api = useBakeryApi();
   const scope = useProtectedScope();
   const navigate = useNavigate();
-  const { locale, timeZone } = useI18n();
+  const { locale, timeZone, translate } = useI18n();
   useRestoreOrganizationScope();
   const restoring = organizationSelection.hasRemembered();
   const organizationId = scope.organizationId ??
@@ -69,6 +79,11 @@ export function OrganizationIntegrationsPage(
     retry: false,
   });
   const canManage = access.data?.role === "admin";
+  const installation = useQuery({
+    ...installationSettingsQueryOptions(api, scoped),
+    enabled: canManage,
+    retry: false,
+  });
   const connections = useQuery<IntegrationConnection[], ApiFailure>({
     queryKey: protectedQueryKey(scoped, "integrationConnections.list", {}),
     queryFn: async ({ signal }) => {
@@ -89,31 +104,46 @@ export function OrganizationIntegrationsPage(
     enabled: organizationId !== null,
     retry: false,
   });
-  const connectFlow = useProviderConnect({ organizationId, outcome });
+  const connectFlow = useProviderConnect({
+    organizationId,
+    outcome: outcomeProvider === "slack" ? null : outcome,
+  });
+  const oauthFlow = useOAuthConnect({ organizationId, provider: "slack" });
 
   // A callback that names the connection it made or refreshed lands on that
   // connection's page, on its next unfinished step, with the outcome shown.
+  const landing = outcome !== null && connectionId !== null &&
+    OUTCOMES_FOR_THE_CONNECTION.has(outcome);
   useEffect(() => {
-    if (
-      outcome !== null && connectionId !== null &&
-      OUTCOMES_FOR_THE_CONNECTION.has(outcome)
-    ) {
+    if (landing) {
       void navigate({
         to: "/settings/organization/integrations/$connectionId",
         params: { connectionId },
-        search: { githubConnection: outcome },
+        search: outcomeProvider === "slack"
+          ? { slackConnection: outcome }
+          : { githubConnection: outcome },
         replace: true,
       });
     }
-  }, [outcome, connectionId, navigate]);
+  }, [landing, outcome, outcomeProvider, connectionId, navigate]);
 
   const items = connections.data ?? [];
   const rows: ConnectionRow[] = items.map((connection) => ({
     id: connection.id,
+    provider: connection.provider,
     account: connection.label,
     health: connectionHealth(connection),
     lastCheckedAt: connection.lastCheckedAt,
   }));
+  const removed = items.find((item) =>
+    item.id === removedId && item.status === "revoked"
+  );
+  const removedName = removed === undefined
+    ? null
+    : translate("settings.connections.other.title", {
+      provider: providerLook(removed.provider, translate).name,
+      account: removed.label,
+    });
   const accessForbidden = access.isError && isForbiddenFailure(access.error);
   const state: IntegrationsHomeState = accessForbidden ||
       (connections.isError && isForbiddenFailure(connections.error))
@@ -146,7 +176,18 @@ export function OrganizationIntegrationsPage(
           connectStatus={connectFlow.connectStatus}
           continuing={connectFlow.continuing}
           formatTime={connectionTimeFormatter(locale, timeZone)}
+          canOpenInstallation={installation.isSuccess}
+          removedName={removedName}
+          onDismissRemoved={() =>
+            void navigate({
+              to: ORGANIZATION_INTEGRATIONS_PATH,
+              search: {},
+              replace: true,
+            })}
           onConnect={() => void connectFlow.connect()}
+          onConnectProvider={oauthFlow.connectFor}
+          providerConnectStatus={oauthFlow.connectStatus}
+          outcomeProvider={outcomeProvider}
           onDismissOutcome={() =>
             void navigate({
               to: ORGANIZATION_INTEGRATIONS_PATH,
@@ -161,7 +202,7 @@ export function OrganizationIntegrationsPage(
             })}
           onReconnect={reconnect}
           onReload={() => void connections.refetch()}
-          outcome={outcome}
+          outcome={landing ? null : outcome}
           rows={rows}
           state={state}
         />

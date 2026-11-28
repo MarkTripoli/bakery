@@ -1,3 +1,4 @@
+import { boundedPostgresMutation } from "../../platform/bounded-mutation.ts";
 import type { ActionContext } from "@bakery/contracts/action-registry";
 import { WorkflowStartsSchema } from "@bakery/contracts/workflow-starts";
 import type { JsonValue } from "@bakery/contracts/contracts";
@@ -17,10 +18,6 @@ import {
   decodeCursor,
   encodeCursor,
 } from "../../platform/cursor.ts";
-import {
-  POSTGRES_UNIQUE_VIOLATION,
-  postgresErrorCode,
-} from "../../platform/postgres-errors.ts";
 import { canonicalJson, sha256Hex } from "../../platform/canonical-json.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
 import { reconcilePersonalSkillUse } from "../catalog/skill-use-grants.ts";
@@ -252,20 +249,8 @@ export function toWorkflowVersion(row: WorkflowVersionRow) {
   };
 }
 
-async function boundedMutation<T>(work: () => Promise<T>): Promise<T> {
-  try {
-    return await work();
-  } catch (error) {
-    if (error instanceof StandardError) throw error;
-    const code = postgresErrorCode(error);
-    if (code === POSTGRES_UNIQUE_VIOLATION) {
-      throw new StandardError({ code: "STATE_CONFLICT", cause: error });
-    }
-    if (["22001", "22P02", "23502", "23503"].includes(code ?? "")) {
-      throw new StandardError({ code: "UNPROCESSABLE", cause: error });
-    }
-    throw error;
-  }
+function boundedMutation<T>(work: () => Promise<T>): Promise<T> {
+  return boundedPostgresMutation(work);
 }
 
 /** Audit and event facts carry ids and versions only, never definition text. */
@@ -686,6 +671,10 @@ export async function updateWorkflowDefinition(
           set name = case when $4::boolean then $5 else name end,
               description = case when $6::boolean then $7 else description end,
               enabled = case when $8::boolean then $9 else enabled end,
+              enabled_at = case
+                when $8::boolean and $9::boolean and not enabled then now()
+                else enabled_at
+              end,
               updated_at = now(),
               version = version + 1
         where organization_id = $1 and id = $2 and version = $3
@@ -1488,7 +1477,7 @@ export async function activateWorkflowVersion(
     transaction.query<WorkflowDefinitionRow>(
       `update bakery.workflow_definitions
           set active_version_id = $4, active_version_set_by = $5,
-              updated_at = now(), version = version + 1
+              active_version_set_at = now(), updated_at = now(), version = version + 1
         where organization_id = $1 and id = $2 and version = $3
         returning ${DEFINITION_COLUMNS}`,
       // The principal who uses the version is who its starts run as.

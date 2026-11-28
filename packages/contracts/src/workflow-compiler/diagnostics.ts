@@ -109,6 +109,8 @@ export const WORKFLOW_COMPILER_DIAGNOSTIC_CODES = Object.freeze(
     "for_each_max_invalid",
     "for_each_as_invalid",
     "for_each_items_invalid",
+    "for_each_parallel_workspace_write",
+    "parallel_lanes_workspace_write",
     // Calls and declared workflow outputs.
     "call_shape_invalid",
     "call_version_unavailable",
@@ -122,6 +124,7 @@ export const WORKFLOW_COMPILER_DIAGNOSTIC_CODES = Object.freeze(
     "workflow_outputs_invalid",
     "wait_shape_invalid",
     "wait_timeout_required",
+    "approval_wait_use_step",
     "parallel_lanes_invalid",
     "parallel_join_required",
     "parallel_failure_policy_required",
@@ -258,6 +261,10 @@ export const WORKFLOW_COMPILER_MESSAGES: Readonly<
   for_each_as_invalid:
     "The forEach item name is invalid or repeats an enclosing forEach's name.",
   for_each_items_invalid: "The forEach items must be a list.",
+  for_each_parallel_workspace_write:
+    "A parallel forEach step cannot write to the workspace. Set maxConcurrency to 1 or narrow the step's files.write paths.",
+  parallel_lanes_workspace_write:
+    "Only one parallel lane can write to the workspace. Narrow this step's files.write, or set the parallel step's maxConcurrency to 1. A step with no files section writes the workspace.",
   call_shape_invalid:
     "A call needs a `call` object with a published `workflow` version id and, when the child declares inputs, a `with` object.",
   call_version_unavailable:
@@ -279,6 +286,8 @@ export const WORKFLOW_COMPILER_MESSAGES: Readonly<
     "A workflow output must be a name mapped to a `$step` reference.",
   wait_shape_invalid: "The wait must declare a duration or an event.",
   wait_timeout_required: "An event wait requires a timeout.",
+  approval_wait_use_step:
+    "Wait for a person with a `uses: human.approval` step: Bakery creates the approval and the step waits for the decision.",
   parallel_lanes_invalid: "The parallel lanes are invalid.",
   parallel_join_required: "The parallel join policy must be explicit.",
   parallel_failure_policy_required:

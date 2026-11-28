@@ -374,7 +374,22 @@
   flex-direction: column;
   gap: var(--space-4);
 }
+.ui-comment-rail textarea,
+.ui-comment-sheet textarea {
+  field-sizing: content;
+  max-block-size: calc(var(--space-6) * 6);
+  overflow-y: auto;
+  resize: none;
+}
+@supports not (field-sizing: content) {
+  .ui-comment-rail textarea,
+  .ui-comment-sheet textarea {
+    min-block-size: calc(var(--space-6) * 3);
+  }
+}
 .ui-artifact-discussion textarea,
+.ui-comment-rail textarea,
+.ui-comment-sheet textarea,
 .ui-send-to-agent-dialog textarea {
   border: var(--border-default) solid var(--color-control-border);
   border-radius: var(--radius-control);

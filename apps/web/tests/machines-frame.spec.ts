@@ -26,6 +26,12 @@ const PAGES = [
   },
   {
     path: "/machines/new",
+    testId: "machine-add",
+    crumbs: ["Workspace", "Machines", "Add a machine"],
+    wide: false,
+  },
+  {
+    path: "/machines/new/by-hand",
     testId: "machine-wizard",
     crumbs: ["Workspace", "Machines", "Add a machine"],
     wide: false,
@@ -125,6 +131,7 @@ test.describe("alignment", () => {
       level: 1,
       name: "touch-target-host",
     });
+    await page.getByRole("tab", { name: "Checks and software" }).click();
     const checks = page.getByRole("heading", { level: 2, name: "Checks" });
     await expect(checks).toBeVisible();
     expect((await checks.boundingBox())!.x).toBeCloseTo(
@@ -140,7 +147,7 @@ test.describe("Machines frame, evidence", () => {
     await page.goto("/machines");
     await expect(page.getByTestId("machines-page")).toBeVisible();
     await shot(page, "machines-frame-list");
-    await page.goto("/machines/new");
+    await page.goto("/machines/new/by-hand");
     await expect(page.getByTestId("machine-wizard")).toBeVisible();
     await shot(page, "machines-frame-wizard");
     await page.goto(`/machines/${MACHINE_ID}`);

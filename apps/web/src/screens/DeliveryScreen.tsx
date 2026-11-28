@@ -1,14 +1,20 @@
+import { useState } from "react";
 import * as UI from "@bakery/ui";
 import { formatDate, formatNumber } from "@bakery/i18n";
+import { DeliveryChart } from "./delivery/DeliveryChart.tsx";
 import { useShellViewport } from "../app/responsive.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import {
+  type ChartPoint,
   type DeliveryShow,
   durationWords,
   type Figure,
   type Freshness,
+  isDeliveryShow,
   type LeadTime,
   type RecordRow,
+  ruleKey,
+  type SizeAndQuality,
   type TimePartId,
 } from "./delivery/delivery-display.ts";
 import {
@@ -48,14 +54,18 @@ export type DeliveryScreenProps = {
     | "noRepository"
     | "emptyPeriod"
     | "notFound";
-  readonly figures: Readonly<Record<DeliveryShow, Figure>>;
+  readonly figures: Readonly<Record<(typeof FIGURES)[number]["show"], Figure>>;
   readonly freshness: Freshness | null;
+  readonly offline: boolean;
+  readonly lastUpdated: string | null;
+  readonly quality: SizeAndQuality;
   /** Records the reader may not open; the line shows only above zero. */
   readonly hiddenCount: number;
   readonly repositories: readonly DeliveryRepository[];
   readonly repositoryId: string | null;
   readonly period: DeliveryPeriod;
   readonly periodTooLong: boolean;
+  readonly rangeReversed: boolean;
   readonly custom: { readonly from: string; readonly to: string };
   /** The window the figures were asked for, for the empty-period sentence. */
   readonly window: { readonly from: Date; readonly to: Date };
@@ -64,6 +74,12 @@ export type DeliveryScreenProps = {
   readonly records: DeliveryRecords;
   /** How long tasks took and where the time went; null when no task was delivered. */
   readonly leadTime: LeadTime | null;
+  readonly chart: {
+    readonly status: "loading" | "error" | "ready";
+    readonly points: readonly ChartPoint[];
+    readonly resolution: "day" | "week";
+    readonly to: string;
+  };
   /** Admins are sent to reconnect; everyone else is told who can. */
   readonly canReconnect: boolean;
   readonly reconnectHref: string;
@@ -73,9 +89,11 @@ export type DeliveryScreenProps = {
   readonly onPeriodChange: (period: DeliveryPeriod) => void;
   readonly onCustomChange: (range: { from: string; to: string }) => void;
   readonly onShow: (show: DeliveryShow | null) => void;
+  readonly onShowUncounted: () => void;
   readonly onMissingOnly: (on: boolean) => void;
   readonly onLoadMore: () => void;
   readonly onRetryRecords: () => void;
+  readonly onRetryChart: () => void;
   readonly onRetry: () => void;
   readonly onRefresh: () => void;
   readonly onShowLast30Days: () => void;
@@ -116,12 +134,21 @@ const FIGURES = [
   },
 ] as const;
 
-const RULE_KEYS = {
-  merged: "delivery.records.rule.merged",
-  tasks: "delivery.records.rule.tasks",
-  open: "delivery.records.rule.open",
-  closed: "delivery.records.rule.closed",
-} as const satisfies Record<DeliveryShow, string>;
+const CHART_SERIES = [
+  { show: "merged", label: "delivery.figure.merged.label" },
+  { show: "opened", label: "delivery.chart.opened" },
+  { show: "open", label: "delivery.figure.open.label" },
+  { show: "closed", label: "delivery.figure.closed.label" },
+  { show: "lines", label: "delivery.chart.lines" },
+  { show: "tasks", label: "delivery.chart.tasks" },
+] as const;
+
+function showRecordsHeading() {
+  const heading = document.getElementById("delivery-records-heading");
+  if (heading === null) return;
+  heading.scrollIntoView({ block: "start" });
+  heading.focus({ preventScroll: true });
+}
 
 export function DeliveryScreen(props: DeliveryScreenProps) {
   const { translate } = useI18n();
@@ -160,7 +187,13 @@ export function DeliveryScreen(props: DeliveryScreenProps) {
             title={translate("delivery.title")}
           />
         )}
-      {props.periodTooLong
+      {props.rangeReversed
+        ? (
+          <UI.InlineNotice tone="warning">
+            {translate("delivery.period.reversed")}
+          </UI.InlineNotice>
+        )
+        : props.periodTooLong
         ? (
           <UI.InlineNotice tone="warning">
             {translate("delivery.period.tooLong")}
@@ -211,6 +244,45 @@ export function DeliveryScreen(props: DeliveryScreenProps) {
   );
 }
 
+function MenuPicker(
+  { align = "end", items, label, onSelect, word }: {
+    readonly align?: "start" | "end";
+    readonly items: UI.MenuItem[];
+    readonly label: string;
+    readonly onSelect: (id: string) => void;
+    readonly word: string;
+  },
+) {
+  const [open, setOpen] = useState(false);
+  return (
+    <UI.Popover
+      align={align}
+      label={word}
+      onOpenChange={setOpen}
+      open={open}
+      trigger={
+        <>
+          {label}
+          <UI.IconGlyph name="chevron-down" size="small" />
+        </>
+      }
+      triggerAppearance="toolbar"
+      triggerLabel={label}
+      variant="interactive"
+    >
+      <UI.Menu
+        aria-label={word}
+        items={items}
+        onSelect={(id) => {
+          setOpen(false);
+          onSelect(id);
+        }}
+        variant="selection"
+      />
+    </UI.Popover>
+  );
+}
+
 /** The two filters, right of the title; both live in the address. */
 function Filters(props: DeliveryScreenProps) {
   const { translate } = useI18n();
@@ -246,26 +318,7 @@ function Filters(props: DeliveryScreenProps) {
     items: UI.MenuItem[],
     onSelect: (id: string) => void,
   ) => (
-    <UI.Popover
-      align="end"
-      label={word}
-      trigger={
-        <>
-          {label}
-          <UI.IconGlyph name="chevron-down" size="small" />
-        </>
-      }
-      triggerAppearance="toolbar"
-      triggerLabel={label}
-      variant="interactive"
-    >
-      <UI.Menu
-        aria-label={word}
-        items={items}
-        onSelect={onSelect}
-        variant="selection"
-      />
-    </UI.Popover>
+    <MenuPicker items={items} label={label} onSelect={onSelect} word={word} />
   );
   return (
     <UI.Stack gap="compact">
@@ -336,6 +389,7 @@ function Ready(props: DeliveryScreenProps) {
     return (
       <>
         <FreshnessNotice {...props} />
+        <OfflineLine {...props} />
         <UI.EmptyState
           action={
             <UI.Button onClick={props.onShowLast30Days}>
@@ -355,6 +409,7 @@ function Ready(props: DeliveryScreenProps) {
   return (
     <UI.Stack gap="spacious">
       <FreshnessNotice {...props} />
+      <OfflineLine {...props} />
       <UI.Inline gap="standard" variant="quarters">
         {FIGURES.map((figure) => {
           const value = figureText(props.figures[figure.show]);
@@ -363,8 +418,11 @@ function Ready(props: DeliveryScreenProps) {
             <UI.StatTile
               action={{
                 label: translate("delivery.figure.show", { label, value }),
-                onSelect: () =>
-                  props.onShow(props.show === figure.show ? null : figure.show),
+                onSelect: () => {
+                  const next = props.show === figure.show ? null : figure.show;
+                  props.onShow(next);
+                  if (next !== null) showRecordsHeading();
+                },
                 selected: props.show === figure.show,
               }}
               detail={props.figures[figure.show].kind === "unknown"
@@ -385,9 +443,161 @@ function Ready(props: DeliveryScreenProps) {
           </UI.Text>
         )
         : null}
+      <SizeAndQualitySection {...props} />
       {props.leadTime === null ? null : <TimeWent lead={props.leadTime} />}
+      <OverTime {...props} />
       <RecordsSection {...props} figureText={figureText} />
     </UI.Stack>
+  );
+}
+
+function OfflineLine(props: DeliveryScreenProps) {
+  const { translate } = useI18n();
+  return props.offline && props.lastUpdated !== null
+    ? (
+      <UI.Text variant="muted">
+        {translate("delivery.lastUpdated", { time: props.lastUpdated })}
+      </UI.Text>
+    )
+    : null;
+}
+
+function SizeAndQualitySection(props: DeliveryScreenProps) {
+  const { translate } = useI18n();
+  const { lines, uncounted } = props.quality;
+  return (
+    <UI.Stack data-testid="delivery-quality" gap="standard">
+      <UI.Heading level="subsection" rank={2}>
+        {translate("delivery.quality.heading")}
+      </UI.Heading>
+      <UI.DescriptionList>
+        <UI.DetailRow
+          stackOnPhone
+          label={
+            <UI.Inline gap="compact">
+              {translate("delivery.quality.lines.label")}
+              <UI.HelpTip label={translate("delivery.quality.lines.helpLabel")}>
+                {translate("delivery.quality.lines.help")}
+              </UI.HelpTip>
+            </UI.Inline>
+          }
+          labelWidth="wide"
+        >
+          <UI.Text>
+            {lines === null
+              ? translate("delivery.figure.unknown")
+              : translate("delivery.quality.lines.value", {
+                lines: lines.total,
+                count: lines.pullRequests,
+              })}
+          </UI.Text>
+        </UI.DetailRow>
+        {uncounted > 0
+          ? (
+            <UI.DetailRow
+              stackOnPhone
+              label={translate("delivery.quality.uncounted.label")}
+              labelWidth="wide"
+            >
+              <UI.Button
+                aria-label={translate("delivery.quality.uncounted.action", {
+                  count: uncounted,
+                })}
+                onClick={() => {
+                  props.onShowUncounted();
+                  showRecordsHeading();
+                }}
+                variant="text"
+              >
+                {translate("delivery.quality.uncounted.value", {
+                  count: uncounted,
+                })}
+              </UI.Button>
+            </UI.DetailRow>
+          )
+          : null}
+        <UI.DetailRow
+          stackOnPhone
+          label={translate("delivery.quality.openToMerge.label")}
+          labelWidth="wide"
+        >
+          <UI.Text>
+            {translate("delivery.quality.openToMerge.unknown")}
+          </UI.Text>
+        </UI.DetailRow>
+      </UI.DescriptionList>
+    </UI.Stack>
+  );
+}
+
+function OverTime(props: DeliveryScreenProps) {
+  const { translate, locale } = useI18n();
+  const shown: DeliveryShow = props.show ?? "merged";
+  const figure = CHART_SERIES.find((entry) => entry.show === shown)!;
+  const series = props.chart;
+  const day = new Intl.DateTimeFormat(locale, {
+    dateStyle: "medium",
+    timeZone: "UTC",
+  });
+  const numberFormat = new Intl.NumberFormat(locale);
+  const formatHours = (value: number) => {
+    const words = durationWords(value);
+    return translate(words.key, words.params);
+  };
+  return (
+    <DeliveryChart
+      hours={shown === "tasks"}
+      label={translate(figure.label)}
+      onRetry={props.onRetryChart}
+      points={series.points}
+      resolution={series.resolution}
+      to={series.to}
+      status={series.status}
+      showMenu={
+        <MenuPicker
+          align="start"
+          items={CHART_SERIES.map((entry) => ({
+            id: entry.show,
+            label: translate(entry.label),
+            selected: entry.show === shown,
+          }))}
+          label={`${translate("delivery.chart.show")}: ${
+            translate(figure.label)
+          }`}
+          onSelect={(id) => {
+            if (isDeliveryShow(id)) props.onShow(id);
+          }}
+          word={translate("delivery.chart.show")}
+        />
+      }
+      table={
+        <UI.DataTable
+          caption={translate(figure.label)}
+          captionHidden
+          columns={[
+            {
+              id: "day",
+              header: translate("delivery.chart.column.day"),
+              cell: (point: ChartPoint) => day.format(new Date(point.at)),
+            },
+            {
+              id: "value",
+              header: translate(figure.label),
+              align: "end" as const,
+              cell: (point: ChartPoint) =>
+                point.value === null
+                  ? translate("delivery.chart.noData")
+                  : shown === "tasks"
+                  ? formatHours(point.value)
+                  : numberFormat.format(point.value),
+            },
+          ]}
+          emptyMessage={translate("delivery.chart.noData")}
+          getRowKey={(point) => point.at}
+          rows={[...series.points]}
+        />
+      }
+    />
   );
 }
 
@@ -610,7 +820,7 @@ function FreshnessNotice(props: DeliveryScreenProps) {
       action={
         <UI.Button
           onClick={() => {
-            props.onShow(freshness.unmeasured > 0 ? "merged" : "tasks");
+            props.onShow("tasks");
             props.onMissingOnly(true);
           }}
           variant="outline"
@@ -624,17 +834,9 @@ function FreshnessNotice(props: DeliveryScreenProps) {
         when === null
           ? translate("delivery.fresh.asOfUnknown")
           : translate("delivery.fresh.asOf", { time: when }),
-        freshness.unmeasured > 0
-          ? translate("delivery.fresh.lines", {
-            unmeasured: formatNumber(freshness.unmeasured, locale),
-            merged: freshness.merged,
-          })
-          : null,
-        freshness.tasksMissing > 0
-          ? translate("delivery.fresh.tasks", { tasks: freshness.tasksMissing })
-          : null,
+        translate("delivery.fresh.tasks", { tasks: freshness.tasksMissing }),
         translate("delivery.fresh.neverZero", {
-          count: freshness.unmeasured + freshness.tasksMissing,
+          count: freshness.tasksMissing,
         }),
       ].filter((part) => part !== null).join(" ")}
     </UI.InlineNotice>
@@ -650,12 +852,13 @@ function RecordsSection(
   const { translate, locale, timeZone } = useI18n();
   const phone = useShellViewport() === "phone";
   const shown: DeliveryShow = props.show ?? "merged";
+  const version = props.records.revision?.split("@")[1] ?? null;
   const chosen = props.show !== null;
   const { records } = props;
   const missing = records.rows.filter((row) => row.missing !== null);
   const rows = props.missingOnly ? missing : records.rows;
-  const figure = FIGURES.find((entry) => entry.show === shown)!;
-  const figureValue = props.figures[shown];
+  const figure = FIGURES.find((entry) => entry.show === shown);
+  const figureValue = figure === undefined ? null : props.figures[figure.show];
   const dayAndTime = (iso: string | null) =>
     iso === null ? "\u2014" : formatDate(new Date(iso), locale, {
       dateStyle: "medium",
@@ -668,16 +871,18 @@ function RecordsSection(
     return translate(words.key, words.params);
   };
   const repositoryName = (id: string | null) =>
-    props.repositories.find((r) => r.id === id)?.name ?? "\u2014";
+    props.repositories.find((r) => r.id === id)?.name ??
+      translate("delivery.figure.unknown");
   const isTask = shown === "tasks";
-  const heading = chosen && figureValue.kind === "value"
-    ? translate(
-      isTask
-        ? "delivery.records.heading.tasks"
-        : "delivery.records.heading.pullRequests",
-      { count: figureValue.value, figure: translate(figure.label) },
-    )
-    : translate("delivery.records.heading");
+  const heading =
+    chosen && figureValue?.kind === "value" && figure !== undefined
+      ? translate(
+        isTask
+          ? "delivery.records.heading.tasks"
+          : "delivery.records.heading.pullRequests",
+        { count: figureValue.value, figure: translate(figure.label) },
+      )
+      : translate("delivery.records.heading");
   const reason = (row: RecordRow) =>
     row.missing === null ? null : translate(row.missing);
 
@@ -702,7 +907,7 @@ function RecordsSection(
     );
   };
   const cellOrReason = (row: RecordRow, text: string | null) =>
-    text !== null ? text : reason(row) ?? "\u2014";
+    text !== null ? text : reason(row) ?? translate("delivery.figure.unknown");
 
   const columns: UI.DataTableColumn<RecordRow>[] = [
     {
@@ -717,14 +922,14 @@ function RecordsSection(
         </UI.Stack>
       ),
     },
-    {
+    ...(isTask ? [] : [{
       id: "repository",
       header: translate("delivery.records.column.repository"),
-      cell: (row) =>
+      cell: (row: RecordRow) =>
         row.providerNumber === null
           ? repositoryName(row.repositoryId)
           : `${repositoryName(row.repositoryId)} #${row.providerNumber}`,
-    },
+    }]),
     ...(isTask
       ? [
         {
@@ -773,7 +978,7 @@ function RecordsSection(
           header: translate("delivery.records.column.opened"),
           cell: (row: RecordRow) => dayAndTime(row.openedAt),
         },
-        ...(shown === "merged"
+        ...(shown === "merged" || shown === "lines"
           ? [
             {
               id: "merged",
@@ -937,10 +1142,9 @@ function RecordsSection(
           </>
         )}
       <UI.Text variant="muted">
-        {translate(RULE_KEYS[shown], {
-          zone: timeZone,
-          version: records.revision?.split("@")[1] ?? "\u2014",
-        })}
+        {version === null
+          ? translate(ruleKey(shown, null), { zone: timeZone })
+          : translate(ruleKey(shown, version), { zone: timeZone, version })}
       </UI.Text>
     </UI.Stack>
   );

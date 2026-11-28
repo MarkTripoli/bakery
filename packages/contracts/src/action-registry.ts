@@ -642,6 +642,18 @@ export class ActionRegistry {
     }
     return action;
   }
+  #runsThroughCommandRunner(action: ActionDefinition): boolean {
+    return action.policy.type === ActionKind.Command &&
+      this.#commandRunner !== undefined &&
+      (this.#commandRunnerScope === "all" || action.naturalIdempotency ||
+        action.explicitIdempotency !== undefined);
+  }
+
+  requiresIdempotencyKey(action: ActionDefinition): boolean {
+    return action.naturalIdempotency !== true &&
+      this.#runsThroughCommandRunner(action);
+  }
+
   list(): readonly ActionDefinition[] {
     return [...this.#actions.values()];
   }
@@ -719,10 +731,7 @@ export class ActionRegistry {
       if (authorizedContext.signal.aborted) {
         throw new DOMException("Action aborted", "AbortError");
       }
-      const commandRunner = action.policy.type === ActionKind.Command &&
-          this.#commandRunner &&
-          (this.#commandRunnerScope === "all" || action.naturalIdempotency ||
-            action.explicitIdempotency !== undefined)
+      const commandRunner = this.#runsThroughCommandRunner(action)
         ? this.#commandRunner
         : undefined;
       const metadata =
@@ -797,7 +806,7 @@ function describeMismatchValue(value: unknown): string {
 }
 
 export function assertRegisteredActions(
-  registry: Pick<ActionRegistry, "list">,
+  registry: Pick<ActionRegistry, "list" | "requiresIdempotencyKey">,
 ): void {
   for (const action of registry.list()) {
     const matches = catalogActions.filter((catalog) =>
@@ -809,6 +818,14 @@ export function assertRegisteredActions(
       );
     }
     const catalog = matches[0];
+    if (
+      registry.requiresIdempotencyKey(action) &&
+      !catalog.idempotency.includes("Idempotency-Key")
+    ) {
+      throw new ActionRegistryError(
+        `action ${action.name} needs an Idempotency-Key the catalog does not tell clients to send`,
+      );
+    }
     const fields: [string, unknown, unknown][] = [
       ["method", action.method.toUpperCase(), catalog.method.toUpperCase()],
       [

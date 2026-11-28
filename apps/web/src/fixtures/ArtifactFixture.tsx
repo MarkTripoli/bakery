@@ -182,6 +182,7 @@ export function ArtifactFixture(
       composer={{
         id: "artifact-comment-body",
         disabled: false,
+        posting: false,
         mode: {
           kind: "reply",
           onCancel: () => {
@@ -318,7 +319,7 @@ export function ArtifactFixture(
           content: (
             <ArtifactRevisionDetailsView
               artifact={fixtureDetails.artifact}
-              organizationId="bakery"
+              organizationName="bakery"
               artifactCount={1}
               retrying={false}
               selectedVersion={fixtureDetails.selectedVersion}

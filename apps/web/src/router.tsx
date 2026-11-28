@@ -42,13 +42,18 @@ import { FileVersionPage } from "./pages/FileVersionPage.tsx";
 import { folderPathOf } from "./pages/files/files-state.ts";
 import { AgentPage } from "./pages/AgentPage.tsx";
 import { EvaluationRunPage } from "./pages/EvaluationRunPage.tsx";
+import { AddSkillPage } from "./pages/AddSkillPage.tsx";
+import { SkillEditorPage } from "./pages/SkillEditorPage.tsx";
 import { SkillPage } from "./pages/SkillPage.tsx";
+import { SkillUpdatePage } from "./pages/SkillUpdatePage.tsx";
 import { skillFilter, skillSearch } from "./pages/library/skills-state.ts";
 import { BuiltInWorkflowPage } from "./pages/BuiltInWorkflowPage.tsx";
 import { WorkflowPage } from "./pages/WorkflowPage.tsx";
 import { MachinesPage } from "./pages/MachinesPage.tsx";
 import { MachineDetailPage } from "./pages/MachineDetailPage.tsx";
 import { MachineModelNewPage } from "./pages/MachineModelNewPage.tsx";
+import { MachineAddPage } from "./pages/MachineAddPage.tsx";
+import { MachineLinkPage } from "./pages/MachineLinkPage.tsx";
 import { MachineWizardPage } from "./pages/MachineWizardPage.tsx";
 import { TaskCoordinationPage } from "./pages/task-coordination/TaskCoordinationPage.tsx";
 import { WorkflowEditorPage } from "./pages/library/WorkflowEditorPage.tsx";
@@ -97,6 +102,8 @@ import { SsoPage } from "./pages/SsoPage.tsx";
 import { InstallationSettingsPage } from "./pages/InstallationSettingsPage.tsx";
 import { InstallationMonitoringPage } from "./pages/InstallationMonitoringPage.tsx";
 import { MonitoringDestinationPage } from "./pages/MonitoringDestinationPage.tsx";
+import { InstallationBackupsPage } from "./pages/InstallationBackupsPage.tsx";
+import { InstallationBackupsSettingsPage } from "./pages/InstallationBackupsSettingsPage.tsx";
 import { InstallationRestorePage } from "./pages/InstallationRestorePage.tsx";
 import { InstallationUpdatesPage } from "./pages/InstallationUpdatesPage.tsx";
 import { InstallationUsagePage } from "./pages/InstallationUsagePage.tsx";
@@ -113,6 +120,10 @@ import { TotpSetupPage } from "./pages/TotpSetupPage.tsx";
 import { BackupCodesPage } from "./pages/BackupCodesPage.tsx";
 import { TotpDisablePage } from "./pages/TotpDisablePage.tsx";
 import { SecurityHubPage } from "./pages/SecurityHubPage.tsx";
+import {
+  isSlackLinkNotice,
+  type SlackLinkNotice,
+} from "./screens/LinkedSlackSection.tsx";
 import { ChangePasswordPage } from "./pages/ChangePasswordPage.tsx";
 import { PasskeysPage } from "./pages/PasskeysPage.tsx";
 import { AddPasskeyPage } from "./pages/AddPasskeyPage.tsx";
@@ -355,8 +366,50 @@ export const routeCoverage = [
     ],
   },
   {
+    id: "library-skill-add",
+    path: "/library/skills/add",
+    classification: "production",
+    states: [
+      "loading",
+      "ready",
+      "empty",
+      "error",
+      "forbidden",
+      "offline",
+      "long-copy",
+    ],
+  },
+  {
     id: "library-skill",
     path: "/library/skills/$skillId",
+    classification: "production",
+    states: [
+      "loading",
+      "ready",
+      "empty",
+      "error",
+      "forbidden",
+      "offline",
+      "long-copy",
+    ],
+  },
+  {
+    id: "library-skill-edit",
+    path: "/library/skills/$skillId/edit",
+    classification: "production",
+    states: [
+      "loading",
+      "ready",
+      "empty",
+      "error",
+      "forbidden",
+      "offline",
+      "long-copy",
+    ],
+  },
+  {
+    id: "library-skill-update",
+    path: "/library/skills/$skillId/update",
     classification: "production",
     states: [
       "loading",
@@ -500,6 +553,32 @@ export const routeCoverage = [
     ],
   },
   {
+    id: "machine-link",
+    path: "/machines/link",
+    classification: "production",
+    states: [
+      "loading",
+      "ready",
+      "reconnecting",
+      "error",
+      "forbidden",
+      "offline",
+    ],
+  },
+  {
+    id: "machine-new-by-hand",
+    path: "/machines/new/by-hand",
+    classification: "production",
+    states: [
+      "loading",
+      "ready",
+      "reconnecting",
+      "error",
+      "forbidden",
+      "offline",
+    ],
+  },
+  {
     id: "machine-detail",
     path: "/machines/$machineId",
     classification: "production",
@@ -513,6 +592,36 @@ export const routeCoverage = [
       "offline",
       "long-copy",
       "detail",
+    ],
+  },
+  {
+    id: "machine-checks",
+    path: "/machines/$machineId/checks",
+    classification: "production",
+    states: [
+      "loading",
+      "ready",
+      "reconnecting",
+      "empty",
+      "error",
+      "forbidden",
+      "offline",
+      "long-copy",
+    ],
+  },
+  {
+    id: "machine-work",
+    path: "/machines/$machineId/work",
+    classification: "production",
+    states: [
+      "loading",
+      "ready",
+      "reconnecting",
+      "empty",
+      "error",
+      "forbidden",
+      "offline",
+      "long-copy",
     ],
   },
   {
@@ -775,6 +884,32 @@ export const routeCoverage = [
       "complete",
       "empty",
       "error",
+      "forbidden",
+    ],
+  },
+  {
+    id: "installation-backups",
+    path: "/installation/backups",
+    classification: "production",
+    states: [
+      "loading",
+      "default",
+      "busy",
+      "empty",
+      "error",
+      "forbidden",
+    ],
+  },
+  {
+    id: "installation-backups-settings",
+    path: "/installation/backups/settings",
+    classification: "production",
+    states: [
+      "loading",
+      "default",
+      "busy",
+      "error",
+      "conflict",
       "forbidden",
     ],
   },
@@ -1630,12 +1765,43 @@ const agentRoute = createRoute({
   errorComponent: ProtectedRouteError,
 });
 
+const skillAddRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/library/skills/add",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: AddSkillPage,
+  errorComponent: ProtectedRouteError,
+});
+
 const skillRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/library/skills/$skillId",
   beforeLoad: ({ context, location }) =>
     requireSession(context.session, location),
   component: () => <SkillPage skillId={skillRoute.useParams().skillId} />,
+  errorComponent: ProtectedRouteError,
+});
+
+const skillUpdateRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/library/skills/$skillId/update",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => (
+    <SkillUpdatePage skillId={skillUpdateRoute.useParams().skillId} />
+  ),
+  errorComponent: ProtectedRouteError,
+});
+
+const skillEditRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/library/skills/$skillId/edit",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => (
+    <SkillEditorPage skillId={skillEditRoute.useParams().skillId} />
+  ),
   errorComponent: ProtectedRouteError,
 });
 
@@ -1670,7 +1836,32 @@ const machineNewRoute = createRoute({
   beforeLoad: ({ context, location }) =>
     requireSession(context.session, location),
   component: () => (
-    <MachineWizardPage finishId={machineNewRoute.useSearch().finish} />
+    <MachineAddPage finishId={machineNewRoute.useSearch().finish} />
+  ),
+  errorComponent: ProtectedRouteError,
+});
+
+const machineLinkRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/machines/link",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: MachineLinkPage,
+  errorComponent: ProtectedRouteError,
+});
+
+const machineNewByHandRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/machines/new/by-hand",
+  validateSearch: (search: Record<string, unknown>) => ({
+    finish: typeof search.finish === "string" && isUuid(search.finish)
+      ? search.finish
+      : undefined,
+  }),
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => (
+    <MachineWizardPage finishId={machineNewByHandRoute.useSearch().finish} />
   ),
   errorComponent: ProtectedRouteError,
 });
@@ -1692,6 +1883,37 @@ const machineDetailRoute = createRoute({
     <MachineDetailPage
       machineId={machineDetailRoute.useParams().machineId}
       signInAgent={machineDetailRoute.useSearch().signIn}
+    />
+  ),
+  errorComponent: ProtectedRouteError,
+});
+
+const machineChecksRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/machines/$machineId/checks",
+  validateSearch: (search: Record<string, unknown>): { focus?: "checks" } =>
+    search.focus === "checks" ? { focus: "checks" } : {},
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => (
+    <MachineDetailPage
+      machineId={machineChecksRoute.useParams().machineId}
+      tab="checks"
+      focusChecks={machineChecksRoute.useSearch().focus === "checks"}
+    />
+  ),
+  errorComponent: ProtectedRouteError,
+});
+
+const machineWorkRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/machines/$machineId/work",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => (
+    <MachineDetailPage
+      machineId={machineWorkRoute.useParams().machineId}
+      tab="work"
     />
   ),
   errorComponent: ProtectedRouteError,
@@ -1994,6 +2216,28 @@ const installationRestoreRoute = createRoute({
   errorComponent: ProtectedRouteError,
 });
 
+const installationBackupsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/installation/backups",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => (
+    <InstallationBreadcrumbs section="installation.backups.title">
+      <InstallationBackupsPage />
+    </InstallationBreadcrumbs>
+  ),
+  errorComponent: ProtectedRouteError,
+});
+
+const installationBackupsSettingsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/installation/backups/settings",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => <InstallationBackupsSettingsPage />,
+  errorComponent: ProtectedRouteError,
+});
+
 const installationUpdatesRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/installation/updates",
@@ -2153,13 +2397,20 @@ const organizationIntegrationsRoute = createRoute({
     search: Record<string, unknown>,
   ): {
     githubConnection?: ReturnType<typeof parseConnectionOutcome>;
+    slackConnection?: ReturnType<typeof parseConnectionOutcome>;
     connectionId?: string;
+    removed?: string;
   } => {
     const connectionId = search[CONNECTION_ID_PARAMETER];
+    const removed = search.removed;
     return {
+      removed: typeof removed === "string" && isUuid(removed)
+        ? removed
+        : undefined,
       githubConnection: parseConnectionOutcome(
         search[CONNECTION_OUTCOME_PARAMETER],
       ),
+      slackConnection: parseConnectionOutcome(search.slackConnection),
       connectionId: typeof connectionId === "string" && isUuid(connectionId)
         ? connectionId
         : undefined,
@@ -2168,12 +2419,14 @@ const organizationIntegrationsRoute = createRoute({
   beforeLoad: ({ context, location }) =>
     requireSession(context.session, location),
   component: () => {
-    const { githubConnection, connectionId } = organizationIntegrationsRoute
-      .useSearch();
+    const { githubConnection, slackConnection, connectionId, removed } =
+      organizationIntegrationsRoute.useSearch();
     return (
       <OrganizationIntegrationsPage
+        removedId={removed ?? null}
         connectionId={connectionId ?? null}
-        outcome={githubConnection ?? null}
+        outcome={githubConnection ?? slackConnection ?? null}
+        outcomeProvider={slackConnection === undefined ? "github" : "slack"}
       />
     );
   },
@@ -2185,22 +2438,27 @@ const organizationIntegrationConnectionRoute = createRoute({
   path: "/settings/organization/integrations/$connectionId",
   validateSearch: (
     search: Record<string, unknown>,
-  ): { githubConnection?: ReturnType<typeof parseConnectionOutcome> } => ({
+  ): {
+    githubConnection?: ReturnType<typeof parseConnectionOutcome>;
+    slackConnection?: ReturnType<typeof parseConnectionOutcome>;
+  } => ({
     githubConnection: parseConnectionOutcome(
       search[CONNECTION_OUTCOME_PARAMETER],
     ),
+    slackConnection: parseConnectionOutcome(search.slackConnection),
   }),
   beforeLoad: ({ context, location }) =>
     requireSession(context.session, location),
   component: () => {
     const { connectionId } = organizationIntegrationConnectionRoute
       .useParams();
-    const { githubConnection } = organizationIntegrationConnectionRoute
-      .useSearch();
+    const { githubConnection, slackConnection } =
+      organizationIntegrationConnectionRoute.useSearch();
     return (
       <ConnectionPage
         connectionId={connectionId}
-        outcome={githubConnection ?? null}
+        outcome={githubConnection ?? slackConnection ?? null}
+        outcomeProvider={slackConnection === undefined ? "github" : "slack"}
       />
     );
   },
@@ -2276,16 +2534,22 @@ const securityRoute = createRoute({
   path: "/settings/security",
   validateSearch: (
     search: Record<string, unknown>,
-  ): { confirmed?: boolean } => ({
+  ): { confirmed?: boolean; slackLink?: SlackLinkNotice } => ({
     confirmed: searchFlag(search.confirmed) || undefined,
+    slackLink: isSlackLinkNotice(search.slackLink)
+      ? search.slackLink
+      : undefined,
   }),
   beforeLoad: ({ context, location }) =>
     requireSession(context.session, location),
   component: () => {
-    const { confirmed } = securityRoute.useSearch();
+    const { confirmed, slackLink } = securityRoute.useSearch();
     return (
       <InSettings section="shell.navigation.security">
-        <SecurityHubPage confirmed={confirmed === true} />
+        <SecurityHubPage
+          confirmed={confirmed === true}
+          slackResult={slackLink ?? null}
+        />
       </InSettings>
     );
   },
@@ -2545,6 +2809,11 @@ const notificationsRoute = createRoute({
       <NotificationsPage
         item={item ?? null}
         view={view ?? "all"}
+        onOpenRow={(row) =>
+          void navigate({
+            to: NOTIFICATIONS_PATH,
+            search: { open: row.id, r: row.revision },
+          })}
         onViewChange={(next) =>
           void navigate({
             to: NOTIFICATIONS_PATH,
@@ -2844,10 +3113,17 @@ const routeTree = rootRoute.addChildren([
   workflowEditorRoute,
   builtInWorkflowRoute,
   agentRoute,
+  skillAddRoute,
   skillRoute,
+  skillEditRoute,
+  skillUpdateRoute,
   evaluationRunRoute,
   machineNewRoute,
+  machineNewByHandRoute,
+  machineLinkRoute,
   machineDetailRoute,
+  machineChecksRoute,
+  machineWorkRoute,
   machineModelsRoute,
   machineModelNewRoute,
   statusRoute,
@@ -2873,6 +3149,8 @@ const routeTree = rootRoute.addChildren([
   installationUsageRoute,
   installationRestoreRoute,
   installationUpdatesRoute,
+  installationBackupsRoute,
+  installationBackupsSettingsRoute,
   deliveryRoute,
   installationAuditRoute,
   installationIntegrationsRoute,

@@ -12,11 +12,13 @@ export const CLIENT_SECRET_MAX = 4096;
 export type ProviderCredentialValues = {
   readonly clientId: string;
   readonly clientSecret: string;
+  readonly signingSecret: string;
 };
 
 export const EMPTY_PROVIDER_CREDENTIALS: ProviderCredentialValues = {
   clientId: "",
   clientSecret: "",
+  signingSecret: "",
 };
 
 /** The saved registration as the section shows it; never the secret. */
@@ -24,7 +26,18 @@ export type ProviderCredentialsSaved = {
   readonly configured: boolean;
   readonly clientId: string | null;
   readonly clientSecretSavedAt: string | null;
+  readonly signingSecretSavedAt: string | null;
   readonly callbackUrl: string;
+};
+
+export type ProviderCredentialsFailure = {
+  readonly signingSecretSent: boolean;
+  readonly signingSecretRefused: boolean;
+};
+
+export const NO_PROVIDER_CREDENTIALS_FAILURE: ProviderCredentialsFailure = {
+  signingSecretSent: false,
+  signingSecretRefused: false,
 };
 
 export type ProviderCredentialsView =
@@ -49,6 +62,9 @@ export type ProviderCredentialsSectionProps = {
   readonly status: ProviderCredentialsStatus;
   /** Where the provider's OAuth application is created, if it has a page for it. */
   readonly guideUrl?: string;
+  readonly connectAvailable?: boolean;
+  readonly signingSecret?: boolean;
+  readonly failure?: ProviderCredentialsFailure;
   readonly onChange: (
     field: keyof ProviderCredentialValues,
     value: string,
@@ -65,7 +81,8 @@ export function providerCredentialsReady(
 ): boolean {
   return values.clientId.trim() !== "" && values.clientSecret.trim() !== "" &&
     values.clientId.length <= CLIENT_ID_MAX &&
-    values.clientSecret.length <= CLIENT_SECRET_MAX;
+    values.clientSecret.length <= CLIENT_SECRET_MAX &&
+    values.signingSecret.length <= CLIENT_SECRET_MAX;
 }
 
 /**
@@ -83,6 +100,9 @@ export function ProviderCredentialsSection(
     values,
     status,
     guideUrl,
+    connectAvailable,
+    signingSecret,
+    failure = NO_PROVIDER_CREDENTIALS_FAILURE,
     onChange,
     onSubmit,
     onReload,
@@ -92,7 +112,11 @@ export function ProviderCredentialsSection(
   const { translate, locale, timeZone } = useI18n();
   const key = (suffix: string) =>
     `integrations.${provider}.credentials.${suffix}` as MessageKey;
-  const ids = { clientId: useId(), clientSecret: useId() };
+  const ids = {
+    clientId: useId(),
+    clientSecret: useId(),
+    signingSecret: useId(),
+  };
   const [replacing, setReplacing] = useState(false);
   const [attempted, setAttempted] = useState(false);
   const saving = status === "saving";
@@ -111,6 +135,22 @@ export function ProviderCredentialsSection(
   const secretMissing = attempted && values.clientSecret.trim() === "";
   const idTooLong = values.clientId.length > CLIENT_ID_MAX;
   const secretTooLong = values.clientSecret.length > CLIENT_SECRET_MAX;
+  const signingTooLong = values.signingSecret.length > CLIENT_SECRET_MAX;
+  const failed = status === "failed";
+  const secretAgain = failed && !secretMissing && values.clientSecret === "";
+  const signingRefused = failed && failure.signingSecretRefused &&
+    values.signingSecret === "";
+  const signingAgain = failed && failure.signingSecretSent &&
+    !failure.signingSecretRefused && values.signingSecret === "";
+  const signingError = signingTooLong
+    ? translate("settings.integrations.credentials.tooLong", {
+      limit: CLIENT_SECRET_MAX,
+    })
+    : signingRefused
+    ? translate(key("signingSecretRefused"))
+    : signingAgain
+    ? translate("settings.integrations.credentials.signingSecretAgain")
+    : undefined;
   const date = (value: string | null) =>
     value
       ? new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeZone })
@@ -132,6 +172,7 @@ export function ProviderCredentialsSection(
     <section
       aria-labelledby={`${ids.clientId}-heading`}
       data-testid={`${provider}-credentials`}
+      id={provider}
     >
       <UI.Stack gap="standard">
         <UI.Heading id={`${ids.clientId}-heading`} level="section">
@@ -142,6 +183,13 @@ export function ProviderCredentialsSection(
           />
           {translate(`integrations.${provider}.name` as MessageKey)}
         </UI.Heading>
+        {connectAvailable === false
+          ? (
+            <UI.Text variant="muted">
+              {translate(`integrations.${provider}.soon` as MessageKey)}
+            </UI.Text>
+          )
+          : null}
         {view === "loading"
           ? (
             <UI.AlertBanner tone="information">
@@ -188,6 +236,17 @@ export function ProviderCredentialsSection(
                           date: date(saved.clientSecretSavedAt),
                         })}
                       </UI.Text>
+                      {signingSecret
+                        ? (
+                          <UI.Text>
+                            {saved.signingSecretSavedAt
+                              ? translate(key("signingSecretSaved"), {
+                                date: date(saved.signingSecretSavedAt),
+                              })
+                              : translate(key("signingSecretNotSaved"))}
+                          </UI.Text>
+                        )
+                        : null}
                     </UI.Stack>
                   </>
                 )
@@ -210,7 +269,13 @@ export function ProviderCredentialsSection(
               {status === "failed"
                 ? (
                   <UI.AlertBanner tone="error">
-                    {translate(key("saveFailed"))}
+                    {translate(
+                      key(
+                        failure.signingSecretSent
+                          ? "saveFailedWithSigning"
+                          : "saveFailed",
+                      ),
+                    )}
                   </UI.AlertBanner>
                 )
                 : null}
@@ -299,13 +364,17 @@ export function ProviderCredentialsSection(
                             "settings.integrations.credentials.tooLong",
                             { limit: CLIENT_SECRET_MAX },
                           )
+                          : secretAgain
+                          ? translate(
+                            "settings.integrations.credentials.clientSecretAgain",
+                          )
                           : undefined}
                         htmlFor={ids.clientSecret}
                         label={translate(
                           `integrations.${provider}.fields.client_secret` as MessageKey,
                         )}
                         required
-                        state={secretMissing || secretTooLong
+                        state={secretMissing || secretTooLong || secretAgain
                           ? "invalid"
                           : "default"}
                       >
@@ -321,6 +390,31 @@ export function ProviderCredentialsSection(
                           value={values.clientSecret}
                         />
                       </UI.Field>
+                      {signingSecret
+                        ? (
+                          <UI.Field
+                            error={signingError}
+                            hint={translate(key("signingSecretHint"))}
+                            htmlFor={ids.signingSecret}
+                            label={translate(
+                              `integrations.${provider}.fields.signing_secret` as MessageKey,
+                            )}
+                            state={signingError ? "invalid" : "default"}
+                          >
+                            <UI.PasswordInput
+                              autoComplete="new-password"
+                              disabled={saving}
+                              id={ids.signingSecret}
+                              invalid={signingError !== undefined}
+                              name="signingSecret"
+                              onChange={(value) =>
+                                onChange("signingSecret", value)}
+                              revealLabels={reveal}
+                              value={values.signingSecret}
+                            />
+                          </UI.Field>
+                        )
+                        : null}
                       <UI.Inline>
                         <UI.Button
                           disabled={saving}

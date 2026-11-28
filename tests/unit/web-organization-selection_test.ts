@@ -1,4 +1,4 @@
-import { assertEquals, assertRejects } from "@std/assert";
+import { assert, assertEquals, assertRejects } from "@std/assert";
 import type {
   BakeryApiClient,
   OrganizationAccess,
@@ -83,6 +83,7 @@ function fakeApi(
       recipientAccept: rejecting,
       recipientReject: rejecting,
     },
+    mySlackLink: { get: rejecting, start: rejecting, unlink: rejecting },
     browserSessions: {
       list: rejecting,
       revoke: rejecting,
@@ -144,7 +145,12 @@ function fakeApi(
       update: rejecting,
       revoke: rejecting,
     },
-    machines: { dispatchBlockers: rejecting },
+    machines: { dispatchBlockers: rejecting, models: rejecting },
+    workerLinkRequests: {
+      find: rejecting,
+      approve: rejecting,
+      decline: rejecting,
+    },
     workerEnrollments: {
       list: rejecting,
       get: rejecting,
@@ -152,6 +158,8 @@ function fakeApi(
       replace: rejecting,
     },
     workerComponents: { list: rejecting },
+    workerAttempts: { list: rejecting },
+    modelProviderAccounts: { list: rejecting },
     providerRoutes: {
       list: rejecting,
       health: rejecting,
@@ -179,6 +187,20 @@ function fakeApi(
       test: rejecting,
     },
     installationRestore: { get: rejecting, step: rejecting },
+    backups: {
+      status: rejecting,
+      list: rejecting,
+      drills: rejecting,
+      start: rejecting,
+      schedule: rejecting,
+      pointInTime: rejecting,
+      offsite: rejecting,
+      issueRunnerCredential: rejecting,
+      putSchedule: rejecting,
+      putOffsite: rejecting,
+      putPointInTime: rejecting,
+      verifyOffsite: rejecting,
+    },
     installationUpdates: {
       status: rejecting,
       list: rejecting,
@@ -201,6 +223,7 @@ function fakeApi(
       list: rejecting,
       update: rejecting,
       check: rejecting,
+      remove: rejecting,
     },
     integrationResources: { list: rejecting, update: rejecting },
     integrationAuthAttempts: { create: rejecting },
@@ -300,10 +323,26 @@ function fakeApi(
     listNotifications: rejecting,
     notificationCount: rejecting,
     resolveNotificationTarget: rejecting,
+    createSkill: rejecting,
+    openSkillDraft: rejecting,
+    getSkillDraft: rejecting,
+    getSkillDraftFile: rejecting,
+    updateSkillDraft: rejecting,
+    saveSkillDraftFile: rejecting,
+    renameSkillDraftFile: rejecting,
+    deleteSkillDraftFile: rejecting,
+    discardSkillDraft: rejecting,
+    checkSkillDraft: rejecting,
+    publishSkillDraft: rejecting,
     setNotificationRead: rejecting,
     markAllNotificationsRead: rejecting,
+    undoMarkAllNotificationsRead: rejecting,
     createRun: rejecting,
     listRuns: rejecting,
+    listGroups: rejecting,
+    listRunRequests: rejecting,
+    listMyRunRequests: rejecting,
+    restartRunStep: rejecting,
     controlRun: rejecting,
     getRun: rejecting,
     getRunControlCapabilities: rejecting,
@@ -376,6 +415,10 @@ function fakeApi(
     listSkillUsedBy: rejecting,
     listSkillUseGrants: rejecting,
     getSkillSource: rejecting,
+    listSkillSources: rejecting,
+    createSkillSource: rejecting,
+    importSkill: rejecting,
+    getSkillImport: rejecting,
     listWorkflowVersions: rejecting,
     listWorkflowVersionSkills: rejecting,
     activateWorkflowVersion: rejecting,
@@ -390,6 +433,9 @@ function fakeApi(
     publishWorkflowVersion: rejecting,
     updateSkill: rejecting,
     copySkill: rejecting,
+    checkSkillSource: rejecting,
+    takeSkillSourceUpdate: rejecting,
+    setSkillActiveVersion: rejecting,
     deleteSkillUseGrant: rejecting,
     validateWorkflow: rejecting,
   };
@@ -605,4 +651,15 @@ Deno.test("restore: remembered organization wins over choosing", async () => {
   );
   assertEquals(outcome, "selected");
   assertEquals(scope.getSnapshot().organizationId, "b");
+});
+
+Deno.test("the app remembers an emailed link's organization before it renders or picks one", async () => {
+  const main = await Deno.readTextFile(
+    new URL("../../apps/web/src/main.tsx", import.meta.url),
+  );
+  const call = main.indexOf(
+    "\nrememberLinkedOrganization(globalThis.location.search);",
+  );
+  assert(call > 0, "main.tsx calls rememberLinkedOrganization at startup");
+  assert(call < main.indexOf("createRoot("), "before the app renders");
 });

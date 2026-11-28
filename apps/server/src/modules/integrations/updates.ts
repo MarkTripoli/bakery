@@ -24,12 +24,9 @@ import {
   readAppCredentials,
 } from "./callbacks.ts";
 import { getConnection, resourceColumns } from "./connections.ts";
+import { followConnectionStatus } from "./slack-receipts.ts";
 import type { GitHubAppClient } from "./github-app.ts";
-import {
-  GITHUB_PROVIDER,
-  type IntegrationsDependencies,
-  isSelectionTaken,
-} from "./postgres.ts";
+import { type IntegrationsDependencies, isSelectionTaken } from "./postgres.ts";
 
 type Connection = z.output<typeof contractSchemas.IntegrationConnection>;
 type Resource = z.output<typeof contractSchemas.IntegrationResource>;
@@ -40,7 +37,7 @@ type ResourceUpdate = z.output<
   typeof contractSchemas.IntegrationResourceUpdate
 >;
 
-const CONNECTION_UPDATED = "integrationConnections.updated";
+export const CONNECTION_UPDATED = "integrationConnections.updated";
 const RESOURCES_CHANGED = "integration.resources_changed";
 
 /**
@@ -81,6 +78,7 @@ async function isReservedElsewhere(
 
 type LockedConnection = {
   id: string;
+  provider: string;
   status: string;
   version: number;
   installationExternalId: string;
@@ -102,7 +100,8 @@ async function lockConnection(
   lock: boolean,
 ): Promise<LockedConnection> {
   const result = await transaction.query<LockedConnection>(
-    `select connection.id, connection.status, connection.version,
+    `select connection.id, connection.provider, connection.status,
+       connection.version,
        connection.secret_id as "secretId",
        connection.external_authorization_id as "installationExternalId",
        installation.status as "installationStatus"
@@ -278,6 +277,13 @@ export async function updateConnection(
   if (version === undefined) {
     throw new StandardError({ code: "PRECONDITION_FAILED" });
   }
+  if (status !== current.status) {
+    await followConnectionStatus(transaction, {
+      organizationId: actor.organizationId,
+      connectionId: id,
+      status: status === "enabled" ? "active" : "disabled",
+    });
+  }
   await recordAuthAudit(transaction, value, {
     organizationId: actor.organizationId,
     principalId: actor.subject.principalId,
@@ -285,7 +291,7 @@ export async function updateConnection(
     resourceType: "integration_connection",
     resourceId: id,
     details: {
-      provider: GITHUB_PROVIDER,
+      provider: current.provider,
       from: current.status,
       to: status,
       labelChanged: change.label !== undefined,
@@ -404,6 +410,11 @@ export async function removeConnection(
   if (version === undefined) {
     throw new StandardError({ code: "PRECONDITION_FAILED" });
   }
+  await followConnectionStatus(transaction, {
+    organizationId: actor.organizationId,
+    connectionId: id,
+    status: "disabled",
+  });
   await recordAuthAudit(transaction, value, {
     organizationId: actor.organizationId,
     principalId: actor.subject.principalId,
@@ -411,7 +422,7 @@ export async function removeConnection(
     resourceType: "integration_connection",
     resourceId: id,
     details: {
-      provider: GITHUB_PROVIDER,
+      provider: current.provider,
       from: current.status,
       to: "revoked",
       releasedResources: released.rowCount ?? 0,
@@ -516,7 +527,7 @@ export async function updateResource(
     resourceType: "integration_resource",
     resourceId,
     details: {
-      provider: GITHUB_PROVIDER,
+      provider: connection.provider,
       connectionId,
       externalId: resource.externalId,
       selected,

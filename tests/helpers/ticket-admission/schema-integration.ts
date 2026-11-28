@@ -283,6 +283,7 @@ Deno.test("issue 82 schema: migration 0145 creates the five tables with named co
          join pg_class as tbl on tbl.oid = con.conrelid
          join pg_namespace as ns on ns.oid = tbl.relnamespace
         where ns.nspname = 'bakery' and tbl.relname = any($1::text[])
+          and con.contype <> 'n'
         order by tbl.relname, con.conname`,
       [TABLES],
     );

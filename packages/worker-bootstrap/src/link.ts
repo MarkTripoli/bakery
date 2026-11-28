@@ -1,9 +1,11 @@
 import { BootstrapError } from "./errors.ts";
 import {
+  forgetLink,
   hasUnsafeCharacter,
   hasVisibleCharacter,
   normalizeServerOrigin,
   type PairingBinding,
+  readLinkCode,
   readPairingBinding,
   recordLink,
 } from "./pairing.ts";
@@ -90,6 +92,11 @@ export class LinkStepFailed extends Error {
   }
 }
 
+export type RegisteredHost =
+  | Readonly<{ kind: "known"; workerHostId: string }>
+  | Readonly<{ kind: "in-service" }>
+  | Readonly<{ kind: "none" }>;
+
 export type LinkIo = Readonly<{
   /** Whether a person can answer here: a script or a pipe cannot. */
   isTerminal: boolean;
@@ -104,7 +111,12 @@ export type LinkIo = Readonly<{
   /** Installs the verified worker into the root; throws LinkStepFailed. */
   install: (root: string) => Promise<void>;
   /** Writes the settings, adds the service and starts it; throws LinkStepFailed. */
-  startService: (binding: PairingBinding) => Promise<void>;
+  startService: (
+    binding: PairingBinding,
+    root: string,
+    repairOf: string | null,
+  ) => Promise<void>;
+  registeredHost: (root: string) => Promise<RegisteredHost>;
 }>;
 
 const AGENT_NAMES: Readonly<Record<string, string>> = {
@@ -138,6 +150,7 @@ type Inspection = Readonly<{
   supported: boolean;
   supportedSystems: readonly { os: string; architecture: string }[];
   expiresAt: string;
+  repairsWorkerHostId: string | null;
 }>;
 
 /** A line Bakery supplied, refused if it could forge or erase what is shown. */
@@ -174,6 +187,10 @@ function parseInspection(value: unknown): Inspection {
       };
     }),
     expiresAt: shownText(body.expiresAt, 40),
+    repairsWorkerHostId: typeof body.repairsWorkerHostId === "string" &&
+        /^[0-9a-f-]{36}$/i.test(body.repairsWorkerHostId)
+      ? body.repairsWorkerHostId.toLowerCase()
+      : null,
   };
 }
 
@@ -305,12 +322,32 @@ const SERVICE_NOTICE =
 const CONNECTION_CHECKS = 8;
 const CONNECTION_CHECK_MS = 5_000;
 
-/** Links with a code: inspect, show, ask once, install, record, start, wait. */
+function alreadyLinked(existing: PairingBinding): string {
+  return `This computer is already linked to ${existing.organizationName} as ${existing.name}. Nothing was changed.\n`;
+}
+
+function repairsThisLink(
+  existing: PairingBinding,
+  inspection: Inspection,
+  origin: string,
+  registered: RegisteredHost,
+): boolean {
+  const repairs = inspection.repairsWorkerHostId;
+  if (
+    repairs === null || existing.serverOrigin !== origin ||
+    existing.organizationName !== inspection.organizationName
+  ) return false;
+  return registered.kind === "in-service" ||
+    (registered.kind === "known" &&
+      registered.workerHostId.toLowerCase() === repairs);
+}
+
 async function linkWithCode(
   command: LinkCommand,
   origin: string,
   code: string,
   io: LinkIo,
+  existing: PairingBinding | null = null,
 ): Promise<number> {
   const report = {
     linkCode: code,
@@ -324,6 +361,12 @@ async function linkWithCode(
       await post(io, origin, "/v1/worker/link-code-inspection", report),
     );
   } catch (error) {
+    if (
+      error instanceof Refused && error.reason === "used" && existing !== null
+    ) {
+      io.write(alreadyLinked(existing));
+      return 0;
+    }
     if (error instanceof Refused) {
       io.write(`${refusalText(error.reason, origin)}\n`);
       return 2;
@@ -339,6 +382,18 @@ async function linkWithCode(
       }.\n`,
     );
     return 2;
+  }
+  if (
+    existing !== null &&
+    !repairsThisLink(
+      existing,
+      inspection,
+      origin,
+      await io.registeredHost(command.root),
+    )
+  ) {
+    io.write(alreadyLinked(existing));
+    return 0;
   }
   io.write(`Bakery worker · link this machine\n\n`);
   io.write(`${describeLink(inspection, io.machine)}\n\n`);
@@ -358,6 +413,9 @@ async function linkWithCode(
   try {
     await io.install(command.root);
     io.write("✓ Installed\n");
+    const previousCode = existing === null
+      ? null
+      : await readLinkCode(command.root);
     const binding = await recordLink(command.root, {
       serverOrigin: origin,
       organizationName: inspection.organizationName,
@@ -368,7 +426,21 @@ async function linkWithCode(
       capabilities: inspection.capabilities,
       boundAt: io.now().toISOString(),
     }, code);
-    await io.startService(binding);
+    try {
+      await io.startService(
+        binding,
+        command.root,
+        existing === null ? null : inspection.repairsWorkerHostId,
+      );
+    } catch (error) {
+      if (existing === null || previousCode === null) {
+        await forgetLink(command.root);
+      } else {
+        const { version: _, enrollmentId: __, ...previous } = existing;
+        await recordLink(command.root, previous, previousCode);
+      }
+      throw error;
+    }
     io.write("✓ Service started\n");
   } catch (error) {
     if (error instanceof LinkStepFailed) {
@@ -508,15 +580,13 @@ export async function runLink(
       return 2;
     }
     const existing = await readPairingBinding(command.root);
-    if (existing !== null) {
-      io.write(
-        `This computer is already linked to ${existing.organizationName} as ${existing.name}. Nothing was changed.\n`,
-      );
+    if (existing !== null && command.code === null) {
+      io.write(alreadyLinked(existing));
       return 0;
     }
     return command.code === null
       ? await linkByApproval(command, origin, io)
-      : await linkWithCode(command, origin, command.code, io);
+      : await linkWithCode(command, origin, command.code, io, existing);
   } catch (error) {
     io.write(
       `${

@@ -28,6 +28,9 @@ import { WORK_HOME } from "../shell/breadcrumb-paths.ts";
 import { ShellSlot } from "../shell/shell-slots.tsx";
 import { SkillToast, useSkillActions } from "./library/SkillActions.tsx";
 import { SkillGrantRow } from "./library/SkillGrantRow.tsx";
+import { SkillSourceCheckControl } from "./library/SkillSourceCheckControl.tsx";
+import { SkillUseVersion } from "./library/SkillUseVersion.tsx";
+import { useCanChangeSkill } from "./library/useCanChangeSkill.ts";
 import {
   copiedWords,
   fileSize,
@@ -234,6 +237,7 @@ function VersionsCard(
   },
 ) {
   const { translate, locale, timeZone } = useI18n();
+  const canChange = useCanChangeSkill(skill) === true;
   const { versions, items } = state;
   const when = (iso: string) =>
     new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeZone }).format(
@@ -265,34 +269,45 @@ function VersionsCard(
             role="list"
           >
             {ordered.map((version) => (
-              <div data-version={version.id} key={version.id} role="listitem">
-                <UI.Stack gap="none">
-                  <UI.Inline gap="compact">
-                    <UI.Text>
-                      {version.label === null
-                        ? translate("library.skills.version", {
-                          number: version.revision,
-                        })
-                        : translate("library.skill.versions.labelled", {
-                          number: version.revision,
-                          label: version.label,
-                        })}
+              <div
+                data-version={version.id}
+                key={version.id}
+                role="listitem"
+                tabIndex={-1}
+              >
+                <UI.Stack gap="compact">
+                  <UI.Stack gap="none">
+                    <UI.Inline gap="compact">
+                      <UI.Text>
+                        {version.label === null
+                          ? translate("library.skills.version", {
+                            number: version.revision,
+                          })
+                          : translate("library.skill.versions.labelled", {
+                            number: version.revision,
+                            label: version.label,
+                          })}
+                      </UI.Text>
+                      {version.id === skill.activeVersionId
+                        ? (
+                          <UI.Badge tone="success">
+                            {translate("library.skill.versions.inUse")}
+                          </UI.Badge>
+                        )
+                        : null}
+                    </UI.Inline>
+                    <UI.Text variant="caption">
+                      {translate("library.skill.versions.meta", {
+                        status: words(versionStatusWords(version.status)),
+                        date: when(version.publishedAt ?? version.createdAt),
+                        fingerprint: fingerprint(version.digest),
+                      })}
                     </UI.Text>
-                    {version.id === skill.activeVersionId
-                      ? (
-                        <UI.Badge tone="success">
-                          {translate("library.skill.versions.inUse")}
-                        </UI.Badge>
-                      )
-                      : null}
-                  </UI.Inline>
-                  <UI.Text variant="caption">
-                    {translate("library.skill.versions.meta", {
-                      status: words(versionStatusWords(version.status)),
-                      date: when(version.publishedAt ?? version.createdAt),
-                      fingerprint: fingerprint(version.digest),
-                    })}
-                  </UI.Text>
+                  </UI.Stack>
+                  {canChange && version.status === "published" &&
+                      version.id !== skill.activeVersionId
+                    ? <SkillUseVersion skill={skill} version={version} />
+                    : null}
                 </UI.Stack>
               </div>
             ))}
@@ -531,7 +546,13 @@ function CopiedLine(
   );
 }
 
-function SourceDetails({ sourceId }: { readonly sourceId: string }) {
+function SourceDetails(
+  { sourceId, skill }: {
+    readonly sourceId: string;
+    readonly skill: SkillResponse;
+  },
+) {
+  const canChange = useCanChangeSkill(skill) === true;
   const api = useBakeryApi();
   const scope = useProtectedScope();
   const { translate, locale, timeZone } = useI18n();
@@ -547,7 +568,25 @@ function SourceDetails({ sourceId }: { readonly sourceId: string }) {
   if (source.isPending) return <UI.Skeleton shape="row" />;
   const data = source.data;
   const kind = sourceKindWords(data.sourceType);
-  return (
+  if (data.locator.startsWith("bakery://")) {
+    return (
+      <UI.Stack gap="compact">
+        <UI.Text>{translate("library.skill.origin.written")}</UI.Text>
+        {data.license === null ? null : (
+          <UI.DescriptionList>
+            <UI.DescriptionItem
+              title={translate("library.skill.origin.license")}
+              description={data.license}
+            />
+          </UI.DescriptionList>
+        )}
+      </UI.Stack>
+    );
+  }
+  const versionId = skill.activeVersionId;
+  const checkable = canChange && versionId !== null &&
+    data.sourceType !== "local_bundle";
+  const details = (
     <UI.DescriptionList>
       <UI.DescriptionItem
         title={translate("library.skill.origin.kind")}
@@ -586,6 +625,17 @@ function SourceDetails({ sourceId }: { readonly sourceId: string }) {
       />
     </UI.DescriptionList>
   );
+  return checkable
+    ? (
+      <UI.Stack gap="standard">
+        {details}
+        <SkillSourceCheckControl
+          address={data.locator}
+          skill={{ ...skill, activeVersionId: versionId }}
+        />
+      </UI.Stack>
+    )
+    : details;
 }
 
 function OriginCard({ skill }: { readonly skill: SkillResponse }) {
@@ -597,7 +647,7 @@ function OriginCard({ skill }: { readonly skill: SkillResponse }) {
         ? <UI.Text>{translate("library.skill.origin.written")}</UI.Text>
         : origin.kind === "copied"
         ? <CopiedLine skillId={origin.skillId} versionId={origin.versionId} />
-        : <SourceDetails sourceId={origin.sourceId} />}
+        : <SourceDetails skill={skill} sourceId={origin.sourceId} />}
     </Card>
   );
 }

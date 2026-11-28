@@ -124,6 +124,7 @@ export const ExecutionImplementedAction = Object.freeze(
     RunStepsNote: "runSteps.note",
     RunStepsTakeOver: "runSteps.takeOver",
     RunStepsRevertWrites: "runSteps.revertWrites",
+    RunStepsGiven: "runSteps.given",
     HandoffManifestsGet: "handoffManifests.get",
     HandoffManifestsContinue: "handoffManifests.continue",
     TranscriptStatus: "outputStreams.transcript",
@@ -137,12 +138,14 @@ export const MachineImplementedAction = Object.freeze(
   {
     WorkersList: "workers.list",
     WorkersGet: "workers.get",
+    WorkerAttemptsList: "workerAttempts.list",
     WorkersEnroll: "workers.enroll",
     WorkerEnrollmentsList: "workerEnrollments.list",
     WorkerEnrollmentsGet: "workerEnrollments.get",
     WorkerEnrollmentsCancel: "workerEnrollments.cancel",
     WorkerEnrollmentsReplace: "workerEnrollments.replace",
     MachinesDispatchBlockers: "machines.dispatchBlockers",
+    MachinesModels: "machines.models",
     WorkerInspectEnrollment: "worker.inspectEnrollment",
     WorkerReportInventory: "worker.reportInventory",
     WorkerComponentsList: "workerComponents.list",
@@ -366,6 +369,8 @@ export const IntegrationsImplementedAction = Object.freeze(
     IntegrationAuthAttemptsGet: "integrationAuthAttempts.get",
     IntegrationSetup: "integrationAuth.setup",
     IntegrationAuthorizationCallback: "integrationAuth.authorizationCallback",
+    IntegrationProviderAuthorizationCallback:
+      "integrationAuth.providerCallback",
     IntegrationConnectionsGet: "integrationConnections.get",
     IntegrationConnectionsCreate: "integrationConnections.create",
     IntegrationConnectionsList: "integrationConnections.list",
@@ -384,6 +389,10 @@ export const IntegrationsImplementedAction = Object.freeze(
     IntegrationInstallationsList: "integrationInstallations.list",
     IntegrationInstallationsGet: "integrationInstallations.get",
     IntakeWebhook: "intake.webhook",
+    IntegrationSlackIdentityCallback: "integrationAuth.slackIdentityCallback",
+    MySlackLinkGet: "mySlackLink.get",
+    MySlackLinkDelete: "mySlackLink.delete",
+    MySlackLinkAttemptsCreate: "mySlackLinkAttempts.create",
   } as const satisfies Record<string, CatalogActionName>,
 );
 export const integrationsImplementedActions = Object.freeze(
@@ -400,6 +409,8 @@ export const DeliveryImplementedAction = Object.freeze(
     RunRepairAllowancesCreate: "runRepairAllowances.create",
     RunRepairTriesList: "runRepairTries.list",
     PullRequestsList: "pullRequests.list",
+    PullRequestsRegister: "pullRequests.register",
+    PullRequestsOpen: "pullRequests.open",
     MergeEntriesList: "mergeEntries.list",
     MergeEntriesCreate: "mergeEntries.create",
     PullRequestsMerge: "pullRequests.merge",
@@ -490,6 +501,8 @@ export const notificationImplementedActions = Object.freeze(
 
 export const RunRequestImplementedAction = Object.freeze(
   {
+    RunAccessList: "runAccess.list",
+    RunAccessRemove: "runAccess.remove",
     RunRequestsCreate: "runRequests.create",
     RunRequestsList: "runRequests.list",
     RunRequestsMine: "runRequests.mine",

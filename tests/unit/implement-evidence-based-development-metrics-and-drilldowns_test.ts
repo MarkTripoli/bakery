@@ -36,6 +36,7 @@ function pr(id: string, over: Partial<PullRequestFact> = {}): PullRequestFact {
     id,
     repositoryId: "r",
     taskId: "t",
+    title: "Pull request",
     providerNumber: 1,
     url: "u",
     status: "open",
@@ -237,6 +238,13 @@ Deno.test("the window is bounded: 30-day default, 366-day cap, 1,000 points", ()
   const now = t("2026-07-01T00:00:00Z");
   const d = metricWindow({}, now);
   assertEquals(d.to.getTime() - d.from.getTime(), 30 * 86_400_000);
+  const weekly = metricWindow({
+    from: "2026-03-18T00:00:00Z",
+    to: "2026-07-01T00:00:00Z",
+    resolution: "week",
+  }, now);
+  assertEquals(weekly.bucketMs, 7 * 86_400_000);
+  assertEquals(weekly.buckets, 15);
   assertThrows(() => metricWindow({ from: "2025-01-01T00:00:00Z" }, now));
   assertThrows(() =>
     metricWindow({ from: "2026-06-01T00:00:00Z", resolution: "minute" }, now)
@@ -276,7 +284,7 @@ Deno.test("the drilldown cursor round-trips a known and an unknown placed time",
     action: "metrics.sources",
     principalId: crypto.randomUUID(),
     organizationId: crypto.randomUUID(),
-    ordering: "countedAt:asc,id:asc",
+    ordering: "countedAt:desc,id:desc",
     filters: "{}",
     schemaVersion: 1,
   };
@@ -292,5 +300,5 @@ Deno.test("the drilldown cursor round-trips a known and an unknown placed time",
       createdAt,
     );
   }
-  assert(sortKey(known)[0] < sortKey(unknown)[0]);
+  assert(sortKey(known)[0] > sortKey(unknown)[0]);
 });

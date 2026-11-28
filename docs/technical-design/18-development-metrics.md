@@ -6,6 +6,8 @@ Measure delivery, waiting and quality alongside cost. Show LOC and PR counts, wi
 
 All time windows are half-open UTC intervals `[from, to)`, rendered in the viewer's timezone. Every card names its cohort, unit, sample count, missing-data count, measurement revision and last successful sync. An empty duration sample is **unknown**, not zero hours.
 
+Delivery charts and their accessible tables use the same selected `/v1/metrics` series. The merged-PR series counts `prs.merged`; its source drilldown uses `prs.changedLines` to retain each PR's line count. Bucket labels use the UTC date of each API point's `at` value so a midnight bucket is not displayed as the previous day in another timezone; individual source timestamps still render in the viewer's timezone.
+
 | Metric | Definition and source |
 | --- | --- |
 | Repository LOC | Physical lines in tracked text files at an exact commit. Report source/tests/docs separately; exclude binary, vendored, lock and generated files using the pinned repository profile. Record counter/version and exclusions. This is a snapshot, not lines written this month. |

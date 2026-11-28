@@ -15,8 +15,10 @@ import {
   automaticAdmissionAllowed,
   intentFromLabels,
   labelsCoverIntent,
+  labelSetOf,
   parseOffsetInstant,
   type TicketLabelBasis,
+  type TicketLabels,
 } from "./ticket-policy.ts";
 import {
   basisDigest,
@@ -30,6 +32,7 @@ import {
 import type {
   PredecessorProof,
   TicketActorRole,
+  TicketBlockerRule,
   TicketIssueRead,
   TicketLabelProvenance,
   TicketLinksRead,
@@ -66,12 +69,14 @@ export type ReadinessSourceFacts = {
   resourceSelected: boolean;
   /** Repository the source reads, owner/name; a ticket from another repository is refused. */
   repositoryFullName: string;
+  repositoryBound: boolean;
   /** The Bakery repository is archived. */
   repositoryArchived: boolean;
   /** The Bakery repository has an active execution profile. */
   repositoryHasActiveProfile: boolean;
   /** The fixed preset can start a run for this source (setup is complete). */
   presetReady: boolean;
+  blockerRule: TicketBlockerRule;
 };
 
 /** Authority facts of the principal an admission acts as, and of the labelling actor. */
@@ -147,7 +152,7 @@ export type ReadinessInput = {
 
 type PresentIssue = {
   normalized: NormalizedTicketSnapshot;
-  labels: readonly string[];
+  labels: TicketLabels;
 };
 
 type Context = {
@@ -520,6 +525,7 @@ type BlockerReason = typeof BLOCKER_REASON_PRIORITY[number];
 
 function blockerReason(
   proof: PredecessorProof | TicketReadFailure | undefined,
+  rule: TicketBlockerRule,
 ): BlockerReason | null {
   if (proof === undefined) return "proof_unavailable";
   switch (proof.kind) {
@@ -527,6 +533,8 @@ function blockerReason(
       return null;
     case "open":
       return "predecessor_open";
+    case "done":
+      return rule === "done_status" ? null : "closed_unmerged";
     case "closed_unmerged":
       return "closed_unmerged";
     case "inaccessible":
@@ -549,7 +557,10 @@ function dependenciesSatisfied(context: Context): Outcome | null {
     const unmet = new Map<BlockerReason, TicketIssueRef[]>();
     const met: TicketIssueRef[] = [];
     for (const blocker of sortIssueRefs(links.blockedBy)) {
-      const reason = blockerReason(byId.get(blocker.id));
+      const reason = blockerReason(
+        byId.get(blocker.id),
+        context.input.source.blockerRule,
+      );
       if (reason === null) {
         met.push(blocker);
       } else {
@@ -601,8 +612,13 @@ function repositoryReady({ source, route }: ReadinessInput): Outcome {
       ),
     );
   }
-  if (source.repositoryArchived) return waiting("repository_archived");
-  if (!source.repositoryHasActiveProfile) return waiting("no_active_profile");
+  if (!source.repositoryBound && route?.kind !== "routed") {
+    return passed(evidenceRef("repository:none"));
+  }
+  if (source.repositoryBound) {
+    if (source.repositoryArchived) return waiting("repository_archived");
+    if (!source.repositoryHasActiveProfile) return waiting("no_active_profile");
+  }
   if (route === undefined) return passed();
   // Every routed target needs its own ready profile, not only the source's.
   const noProfile = route.unready?.profile ?? [];
@@ -771,7 +787,9 @@ export async function evaluateReadiness(
       providerUpdatedAt: issue.providerUpdatedAt,
     })
     : null;
-  const labels = issue.kind === "present" ? issue.snapshot.labels : [];
+  const labels: TicketLabels = issue.kind === "present"
+    ? labelSetOf(issue.snapshot)
+    : [];
   const requirements = normalized === null
     ? null
     : await requirementsDigest(normalized);

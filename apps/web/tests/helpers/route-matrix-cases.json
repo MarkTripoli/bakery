@@ -52,8 +52,20 @@
     "path": "/library/agents/$agentId"
   },
   {
+    "id": "library-skill-add",
+    "path": "/library/skills/add"
+  },
+  {
     "id": "library-skill",
     "path": "/library/skills/$skillId"
+  },
+  {
+    "id": "library-skill-edit",
+    "path": "/library/skills/$skillId/edit"
+  },
+  {
+    "id": "library-skill-update",
+    "path": "/library/skills/$skillId/update"
   },
   {
     "id": "library-evaluation",
@@ -96,8 +108,20 @@
     "path": "/machines/new"
   },
   {
+    "id": "machine-new-by-hand",
+    "path": "/machines/new/by-hand"
+  },
+  {
     "id": "machine-detail",
     "path": "/machines/$machineId"
+  },
+  {
+    "id": "machine-checks",
+    "path": "/machines/$machineId/checks"
+  },
+  {
+    "id": "machine-work",
+    "path": "/machines/$machineId/work"
   },
   {
     "id": "machine-models",
@@ -202,6 +226,18 @@
   {
     "id": "installation-restore",
     "path": "/installation/restore"
+  },
+  {
+    "id": "installation-backups",
+    "path": "/installation/backups"
+  },
+  {
+    "id": "installation-backups-settings",
+    "path": "/installation/backups/settings"
+  },
+  {
+    "id": "installation-updates",
+    "path": "/installation/updates"
   },
   {
     "id": "installation-audit",

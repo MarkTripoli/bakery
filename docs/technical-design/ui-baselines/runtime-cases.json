@@ -927,6 +927,13 @@
       "context": "desktop-light-fine"
     },
     {
+      "id": "ui.lineChart.contract.desktop-light-fine",
+      "catalogId": "ui.lineChart",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-linechart--contract",
+      "context": "desktop-light-fine"
+    },
+    {
       "id": "ui.segmentedBar.contract.desktop-light-fine",
       "catalogId": "ui.segmentedBar",
       "requiredCaseId": "contract",
@@ -2208,6 +2215,13 @@
       "context": "desktop-light-fine"
     },
     {
+      "id": "ui.spinner.contract.desktop-light-fine",
+      "catalogId": "ui.spinner",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-atoms-spinner--contract",
+      "context": "desktop-light-fine"
+    },
+    {
       "id": "ui.spacer.contract.desktop-light-fine",
       "catalogId": "ui.spacer",
       "requiredCaseId": "contract",
@@ -2407,6 +2421,13 @@
       "catalogId": "ui.taskQueue",
       "requiredCaseId": "contract",
       "storyId": "bakery-organisms-taskqueue--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.taskSetupNotice.contract.desktop-light-fine",
+      "catalogId": "ui.taskSetupNotice",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-tasksetupnotice--contract",
       "context": "desktop-light-fine"
     },
     {

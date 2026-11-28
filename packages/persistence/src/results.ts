@@ -387,7 +387,9 @@ async function finalizeRunStep(
     ? "completed"
     : advanced;
   const terminal = (value: string) =>
-    ["completed", "failed", "canceled", "blocked"].includes(value);
+    ["completed", "failed", "canceled", "blocked", "needs_human"].includes(
+      value,
+    );
   if (terminal(currentRun.status) && nextRunStatus !== currentRun.status) {
     throw new StandardError({ code: "STATE_CONFLICT" });
   }
@@ -401,7 +403,7 @@ async function finalizeRunStep(
              then current_timestamp else finished_at end,
            updated_at = current_timestamp, version = version + 1
        where organization_id = $1 and id = $2
-         and status not in ('completed', 'failed', 'canceled', 'blocked')
+         and status not in ('completed', 'failed', 'canceled', 'blocked', 'needs_human')
        returning version`,
       [attempt.organizationId, jobRow.run_id, nextRunStatus],
     );

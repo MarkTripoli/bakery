@@ -1,9 +1,9 @@
 import { assertEquals } from "@std/assert";
 import {
+  nodeIdAt,
   problemSentence,
   problemsOf,
   SKILL_PROBLEM_SENTENCE,
-  stepIndexOf,
   stepProblemLine,
   stepProblemLines,
   unboundActionsOf,
@@ -16,32 +16,51 @@ const problem = (
   message = "That is not right.",
 ): ValidationProblem => ({ path, code: "rejected", message });
 
-Deno.test("a pointer names the step it points into", () => {
-  assertEquals(stepIndexOf("/steps/2/uses"), 2);
-  assertEquals(stepIndexOf("/steps/0"), 0);
-  assertEquals(stepIndexOf("/steps/12/agentVersionId"), 12);
+const GROUPED = {
+  steps: [
+    {
+      id: "flow",
+      steps: [{ id: "brief" }, { id: "check", with: { items: [{ id: "x" }] } }],
+    },
+    { id: "repair", repeat: { max: 2, steps: [{ id: "repair_check" }] } },
+  ],
+};
+
+Deno.test("a pointer names the deepest node it points into", () => {
+  assertEquals(nodeIdAt("/steps/0/steps/1/with", GROUPED), "check");
+  assertEquals(nodeIdAt("/steps/0/steps/1/with/items/0/id", GROUPED), "check");
+  assertEquals(nodeIdAt("/steps/0", GROUPED), "flow");
+  assertEquals(
+    nodeIdAt("/steps/1/repeat/steps/0/uses", GROUPED),
+    "repair_check",
+  );
 });
 
-Deno.test("a pointer that names no single step names the workflow", () => {
-  assertEquals(stepIndexOf(""), null);
-  assertEquals(stepIndexOf("/steps"), null);
-  assertEquals(stepIndexOf("/name"), null);
-  assertEquals(stepIndexOf("/steps/uses"), null);
-  assertEquals(stepIndexOf("/steps/-1"), null);
-  assertEquals(stepIndexOf("/steps/01"), null);
-  assertEquals(stepIndexOf("/steps/1/uses/2"), 1);
+Deno.test("a pointer that names no node names none", () => {
+  for (
+    const path of [
+      "",
+      "/steps",
+      "/name",
+      "/steps/uses",
+      "/steps/-1",
+      "/steps/01",
+    ]
+  ) assertEquals(nodeIdAt(path, GROUPED), null, path);
 });
 
-Deno.test("problems sort into their step and into the workflow", () => {
+Deno.test("problems sort into their node, the workflow and the undrawn", () => {
   const sorted = problemsOf([
-    problem("/steps/1/uses"),
+    problem("/steps/0/steps/1/uses"),
     problem(""),
-    problem("/steps/1/agentVersionId", "Two messages or the same step."),
+    problem("/steps/0/steps/1/with", "Two messages on the same step."),
     problem("/name"),
-  ]);
+    problem("/steps/9/uses"),
+  ], GROUPED);
   assertEquals(sorted.workflow.length, 2);
-  assertEquals(sorted.byStep.get(1)?.length, 2);
-  assertEquals(sorted.byStep.has(0), false);
+  assertEquals(sorted.byStep.get("check")?.length, 2);
+  assertEquals(sorted.byStep.has("brief"), false);
+  assertEquals(sorted.unmapped.length, 1);
 });
 
 Deno.test("a step's line is its first sentence, with no count", () => {

@@ -602,3 +602,196 @@ Deno.test("expired global failures and offline machines stop advertising capacit
     assertEquals(assignment.attemptId.length > 0, true);
     assert(assignment.fence !== undefined);
   }));
+
+Deno.test("a Claude machine enrolled before the tool gateway reports and claims with it", () =>
+  withWorkerFixture(async (fixture) => {
+    const claude = await registeredWorker(fixture, {
+      name: "issue70-claude-pre-gateway",
+      capabilities: ["git", "shell", "claude"],
+    });
+    const report = await reportInventory(
+      fixture,
+      claude.credential,
+      claude.registration.registrationGeneration,
+      1,
+      [
+        { checkId: "capability:git", status: "pass" },
+        { checkId: "capability:tool-gateway", status: "pass" },
+      ],
+    );
+    assertEquals(report.status, 200, await report.clone().text());
+    const claimed = await claimRaw(fixture, claude, [
+      "git",
+      "claude",
+      "tool-gateway",
+    ]);
+    assert(
+      claimed.status === 200 || claimed.status === 204,
+      `a pre-gateway Claude machine claims with tool-gateway: ${claimed.status}`,
+    );
+    await claimed.body?.cancel();
+
+    const codex = await registeredWorker(fixture, {
+      name: "issue70-codex-no-gateway",
+      capabilities: ["git", "shell", "codex"],
+    });
+    const refused = await claimRaw(fixture, codex, [
+      "git",
+      "codex",
+      "tool-gateway",
+    ]);
+    assertEquals(refused.status, 403);
+  }));
+
+Deno.test("a machine read lists every check with its result and when, and who retired it", () =>
+  withWorkerFixture(async (fixture) => {
+    const worker = await registeredWorker(fixture, { name: "issue70-checks" });
+    const hostId = worker.registration.workerHostId;
+    const report = await reportInventory(
+      fixture,
+      worker.credential,
+      worker.registration.registrationGeneration,
+      1,
+      [
+        { checkId: "capability:git", status: "pass" },
+        { checkId: "capability:shell", status: "fail" },
+        { checkId: "protocol_compatible", status: "not_applicable" },
+        { checkId: "spool_access", status: "unknown" },
+      ],
+    );
+    assertEquals(report.status, 200, await report.clone().text());
+    const read = async () => {
+      const response = await adminRequest(
+        fixture,
+        `/v1/workers/${hostId}`,
+        undefined,
+        { method: "GET" },
+      );
+      assertEquals(response.status, 200, await response.clone().text());
+      return contractSchemas.WorkerHost.parse(await response.json());
+    };
+    const before = await read();
+    assertEquals(
+      before.checks?.map((check) => [check.checkId, check.result]),
+      [
+        ["capability:git", "pass"],
+        ["capability:shell", "fail"],
+        ["protocol_compatible", "not_applicable"],
+        ["spool_access", "unknown"],
+      ],
+    );
+    assert(before.checks?.every((check) => check.observedAt === OBSERVED));
+    assertEquals(before.retirement, null);
+
+    await fixture.pgDatabase.query(
+      `update bakery.worker_checks set expires_at = now() - interval '1 second'
+        where worker_host_id = $1 and check_id = 'capability:git'`,
+      [hostId],
+    );
+    const stale = await read();
+    assertEquals(
+      stale.checks?.find((check) => check.checkId === "capability:git")
+        ?.result,
+      "unknown",
+      "a result past its window could not be checked",
+    );
+
+    const revoked = await adminRequest(
+      fixture,
+      `/v1/workers/${hostId}/revocations`,
+      {},
+      { method: "POST", idempotencyKey: crypto.randomUUID() },
+    );
+    assertEquals(revoked.status, 200);
+    const retired = await read();
+    const person = await fixture.pgDatabase.query<{ display_name: string }>(
+      "select display_name from bakery.principals where id = $1",
+      [fixture.principalId],
+    );
+    assertEquals(retired.retirement?.principalId, fixture.principalId);
+    assertEquals(retired.retirement?.name, person.rows[0]!.display_name);
+    assert(retired.retirement?.at);
+  }));
+
+Deno.test("an administrator reads a signed-in account through the real route", () =>
+  withWorkerFixture(async (fixture) => {
+    const id = crypto.randomUUID();
+    await fixture.pgDatabase.query(
+      `insert into bakery.model_provider_accounts (
+         id, organization_id, provider, billing_identity, identity_hash,
+         billing_route, display_identity, verified_at, auth_state
+       ) values ($1, $2, 'anthropic', 'account-70', $3, 'subscription',
+         'a***@example.com', now(), 'signed_in')`,
+      [id, fixture.organizationId, `h-${id}`],
+    );
+    const response = await adminRequest(
+      fixture,
+      "/v1/model-provider-accounts",
+      undefined,
+      { method: "GET" },
+    );
+    assertEquals(response.status, 200, await response.clone().text());
+    const page = await response.json() as {
+      items: { id: string; displayIdentity: string }[];
+    };
+    contractSchemas["Page<ModelProviderAccount>"].parse(page);
+    assertEquals(
+      page.items.map((account) => [account.id, account.displayIdentity]),
+      [[id, "a***@example.com"]],
+    );
+  }));
+
+Deno.test("an expired repair code no longer blocks Set up again", () =>
+  withWorkerFixture(async (fixture) => {
+    const worker = await registeredWorker(fixture, {
+      name: "issue70-expired-repair",
+    });
+    const hostId = worker.registration.workerHostId;
+    const revoked = await adminRequest(
+      fixture,
+      `/v1/workers/${hostId}/revocations`,
+      {},
+      { method: "POST", idempotencyKey: crypto.randomUUID() },
+    );
+    assertEquals(revoked.status, 200);
+    const repair = () =>
+      adminRequest(
+        fixture,
+        `/v1/workers/${hostId}/enrollments`,
+        {},
+        { method: "POST", idempotencyKey: crypto.randomUUID() },
+      );
+    const first = await repair();
+    assertEquals(first.status, 201, await first.clone().text());
+    const firstId = (await first.json() as { enrollmentId: string })
+      .enrollmentId;
+    const blocked = await repair();
+    assertEquals(
+      blocked.status,
+      409,
+      "a live repair code still holds the slot",
+    );
+    await blocked.body?.cancel();
+    await fixture.pgDatabase.query(
+      `update bakery.worker_enrollments set expires_at = now() - interval '1 second'
+        where id = $1`,
+      [firstId],
+    );
+    const second = await repair();
+    assertEquals(second.status, 201, await second.clone().text());
+    const secondId = (await second.json() as { enrollmentId: string })
+      .enrollmentId;
+    assert(secondId !== firstId);
+    const canceledEvents = await fixture.pgDatabase.query<{ count: number }>(
+      `select count(*)::int as count from bakery.domain_events
+        where aggregate_id = $1 and payload ->> 'state' = 'canceled'`,
+      [firstId],
+    );
+    assertEquals(canceledEvents.rows[0]!.count, 1);
+    const audits = await fixture.pgDatabase.query<{ count: number }>(
+      `select count(*)::int as count from bakery.audit_events
+        where resource_id = $1 and operation = 'workerEnrollments.cancel'`,
+      [firstId],
+    );
+    assertEquals(audits.rows[0]!.count, 1);
+  }));
