@@ -17,8 +17,6 @@ async function still(page: Page, name: string) {
       (value) => document.documentElement.setAttribute("data-theme", value),
       theme,
     );
-    // The whole page from its top: the window is made as tall as the page, so the sidebar and the
-    // top bar frame it instead of being cut part-way down.
     const width = page.viewportSize()!.width;
     const tall = await page.evaluate(() => {
       for (const element of document.querySelectorAll("*")) {
