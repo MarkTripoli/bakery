@@ -434,8 +434,16 @@ for (
       )
         .toBeVisible();
       await page.keyboard.press("Escape");
-      await page.getByRole("button", { name: "What a fingerprint is" })
-        .click();
+      const fingerprintHelp = page.getByRole("button", {
+        name: "What a fingerprint is",
+      });
+      await fingerprintHelp.scrollIntoViewIfNeeded();
+      await page.evaluate(() =>
+        new Promise((done) =>
+          requestAnimationFrame(() => requestAnimationFrame(done))
+        )
+      );
+      await fingerprintHelp.click();
       await expect(
         page.getByText("A fingerprint identifies the exact files", {
           exact: false,
