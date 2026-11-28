@@ -5152,7 +5152,7 @@
   "machines.retire.ifRunning": "If it is running tasks, retiring now cuts them off. Bakery marks each one \"Lost contact\" when its time runs out.",
   "machines.retire.finishFirst": "To let them finish first, choose Finish and stop.",
   "machines.repair.title": "Set up {name} again",
-  "machines.repair.leave": "If you leave this page the setup code is lost. Select Set up again to get a new one.",
+  "machines.repair.byHand": "Set up by hand instead",
   "machines.repair.failed": "Bakery could not start the setup. Try again.",
   "machines.retire.dialogAgain": "The machine can be set up again later.",
   "machines.retire.dialogNoAgain": "Bakery has no installer for this system yet, so it cannot be set up again.",

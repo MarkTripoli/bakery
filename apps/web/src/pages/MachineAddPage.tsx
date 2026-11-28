@@ -16,7 +16,6 @@ import { MACHINES_HOME, WORK_HOME } from "../shell/breadcrumb-paths.ts";
 import { ShellActiveNavigation, ShellSlot } from "../shell/shell-slots.tsx";
 import {
   type AddAnswers,
-  clockText,
   commandInput,
   initialAddAnswers,
 } from "./machine-add.ts";
@@ -25,9 +24,9 @@ import {
   MachineStatusLine,
   useMachineArrival,
 } from "./machine-arrival.tsx";
+import { MachineCommand } from "./MachineCommand.tsx";
 import { MachineSettingsFields } from "./MachineSettingsFields.tsx";
 import { type CodingAgent, codingAgents } from "./machine-state.ts";
-import { supportedRows } from "./machine-systems.ts";
 
 type EnrollmentRow = WorkerEnrollmentListResponse["items"][number];
 
@@ -36,12 +35,6 @@ type Issued = Readonly<{
   command: string;
   expiresAt: string;
 }>;
-
-function systemsText(translate: Translator): string {
-  return supportedRows().map((row) =>
-    `${translate(`machines.os.${row.os}` as never)} ${row.processor}`
-  ).join(` ${translate("machines.add.or" as never)} `);
-}
 
 function settingsLine(
   answers: { name: string; slots: number; agent: CodingAgent | null },
@@ -54,45 +47,6 @@ function settingsLine(
       ? null
       : translate(`machines.agent.${answers.agent}` as never),
   ].filter((part): part is string => part !== null).join(" · ");
-}
-
-function CommandBox(
-  { command, translate }: { command: string; translate: Translator },
-) {
-  const [copied, setCopied] = useState(false);
-  return (
-    <UI.Stack gap="compact">
-      <UI.CodeBlock
-        code={command}
-        language="bash"
-        variant="command"
-        state="overflowing"
-        role="region"
-        aria-label={translate("machines.add.commandLabel" as never)}
-      />
-      <UI.Inline gap="compact">
-        <UI.Button
-          variant="primary"
-          onClick={() => {
-            void (async () => {
-              try {
-                await navigator.clipboard.writeText(command);
-                setCopied(true);
-              } catch {
-                setCopied(false);
-              }
-            })();
-          }}
-        >
-          {translate(
-            (copied
-              ? "machines.wizard.copied"
-              : "machines.wizard.copy") as never,
-          )}
-        </UI.Button>
-      </UI.Inline>
-    </UI.Stack>
-  );
 }
 
 export function MachineAddPage({ finishId }: { finishId?: string }) {
@@ -358,21 +312,12 @@ export function MachineAddPage({ finishId }: { finishId?: string }) {
         : null}
       {hasCommand
         ? (
-          <>
-            <CommandBox
-              command={issued.command}
-              translate={translate}
-            />
-            <UI.Text variant="muted">
-              {translate("machines.add.terminal" as never)}
-            </UI.Text>
-            <UI.Text variant="muted">
-              {translate("machines.add.once" as never, {
-                clock: clockText(issued.expiresAt, now),
-                systems: systemsText(translate),
-              })}
-            </UI.Text>
-          </>
+          <MachineCommand
+            command={issued.command}
+            expiresAt={issued.expiresAt}
+            now={now}
+            translate={translate}
+          />
         )
         : null}
       {issued === null && progress?.kind === "waiting"
