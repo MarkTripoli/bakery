@@ -714,4 +714,16 @@ Deno.test("an expired repair code no longer blocks Set up again", () =>
     const secondId = (await second.json() as { enrollmentId: string })
       .enrollmentId;
     assert(secondId !== firstId);
+    const canceledEvents = await fixture.pgDatabase.query<{ count: number }>(
+      `select count(*)::int as count from bakery.domain_events
+        where aggregate_id = $1 and payload ->> 'state' = 'canceled'`,
+      [firstId],
+    );
+    assertEquals(canceledEvents.rows[0]!.count, 1);
+    const audits = await fixture.pgDatabase.query<{ count: number }>(
+      `select count(*)::int as count from bakery.audit_events
+        where resource_id = $1 and operation = 'workerEnrollments.cancel'`,
+      [firstId],
+    );
+    assertEquals(audits.rows[0]!.count, 1);
   }));
