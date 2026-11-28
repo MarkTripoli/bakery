@@ -30,7 +30,11 @@ import { useI18n } from "../i18n/I18nProvider.tsx";
 import { MACHINES_HOME, WORK_HOME } from "../shell/breadcrumb-paths.ts";
 import { formatMachineDate } from "./MachinesPage.tsx";
 import { ShellActiveNavigation, ShellSlot } from "../shell/shell-slots.tsx";
-import { machineLine } from "./MachineList.tsx";
+import {
+  bannerBodyKey,
+  bannerTitle,
+  RetireWarning,
+} from "./machine-wording.tsx";
 import { SetupInstructions } from "./SetupInstructions.tsx";
 import {
   CodingAgentBanner,
@@ -510,7 +514,7 @@ export function MachineDetailPage(
                 },
               )
               : machineId}
-            summary={workerData && !reason && !bannerAgent
+            summary={workerData
               ? (
                 <UI.Badge tone={machineBadgeTone(headerBadge)}>
                   {message(translate, `machines.badge.${headerBadge}`)}
@@ -608,17 +612,20 @@ export function MachineDetailPage(
                   >
                     <UI.Stack gap="compact">
                       <UI.Text variant="strong">
-                        {machineLine(workerData, translate)}
+                        {bannerTitle(reason, workerData, translate)}
                       </UI.Text>
                       {BANNER_BODY.has(reason.kind)
                         ? (
                           <UI.Text>
                             {message(
                               translate,
-                              reason.kind === "retired" && !canSetUpAgain
-                                ? "machines.banner.body.retiredNoSteps"
-                                : `machines.banner.body.${reason.kind}`,
+                              bannerBodyKey(
+                                reason,
+                                workerData.unsettledAttemptCount,
+                                canSetUpAgain,
+                              ),
                               {
+                                count: workerData.unsettledAttemptCount ?? 0,
                                 time: formatDate(
                                   workerData.lastHeartbeatAt ?? "",
                                 ),
@@ -967,7 +974,9 @@ export function MachineDetailPage(
                                 <UI.Text variant="muted">
                                   {message(
                                     translate,
-                                    "machines.retire.description",
+                                    canSetUpAgain
+                                      ? "machines.retire.description"
+                                      : "machines.retire.descriptionNoAgain",
                                   )}
                                 </UI.Text>
                                 <UI.Inline gap="compact">
@@ -1005,16 +1014,20 @@ export function MachineDetailPage(
                                           "machines.retire.cancel",
                                         )}
                                       </UI.Button>
-                                      <UI.Button
-                                        variant="secondary"
-                                        loading={modeBusy}
-                                        onClick={() => void finishInstead()}
-                                      >
-                                        {message(
-                                          translate,
-                                          "machines.retire.finishInstead",
+                                      {requestedMode(workerData) === "draining"
+                                        ? null
+                                        : (
+                                          <UI.Button
+                                            variant="secondary"
+                                            loading={modeBusy}
+                                            onClick={() => void finishInstead()}
+                                          >
+                                            {message(
+                                              translate,
+                                              "machines.retire.finishInstead",
+                                            )}
+                                          </UI.Button>
                                         )}
-                                      </UI.Button>
                                     </UI.Inline>
                                   }
                                   confirmAction={
@@ -1036,26 +1049,13 @@ export function MachineDetailPage(
                                         "machines.retire.dialogBody",
                                       )}
                                     </UI.Text>
-                                    {(workerData.unsettledAttemptCount ?? 0) > 0
-                                      ? (
-                                        <UI.Text>
-                                          {message(
-                                            translate,
-                                            "machines.retire.dialogRunning",
-                                            {
-                                              count: workerData
-                                                .unsettledAttemptCount ?? 0,
-                                            },
-                                          )}
-                                        </UI.Text>
-                                      )
-                                      : null}
-                                    <UI.Text>
-                                      {message(
-                                        translate,
-                                        "machines.retire.dialogWork",
-                                      )}
-                                    </UI.Text>
+                                    <RetireWarning
+                                      unfinished={workerData
+                                        .unsettledAttemptCount}
+                                      finishing={requestedMode(workerData) ===
+                                        "draining"}
+                                      translate={translate}
+                                    />
                                     <UI.Text>
                                       {message(
                                         translate,
