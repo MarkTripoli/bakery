@@ -116,7 +116,6 @@ export type LinkIo = Readonly<{
     root: string,
     repairOf: string | null,
   ) => Promise<void>;
-  /** Which machine this computer's worker registered as, as far as link can see. */
   registeredHost: (root: string) => Promise<RegisteredHost>;
 }>;
 
@@ -323,7 +322,6 @@ const SERVICE_NOTICE =
 const CONNECTION_CHECKS = 8;
 const CONNECTION_CHECK_MS = 5_000;
 
-/** Links with a code: inspect, show, ask once, install, record, start, wait. */
 function alreadyLinked(existing: PairingBinding): string {
   return `This computer is already linked to ${existing.organizationName} as ${existing.name}. Nothing was changed.\n`;
 }
