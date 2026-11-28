@@ -39494,6 +39494,9 @@ const transportSchemas = {
         "expiresAt": "timestamp",
         "repair": "boolean"
       },
+      "optionalFields": [
+        "repair"
+      ],
       "description": "What a link code would do, shown in the terminal before its one question: the organization, machine name, slots and capabilities it binds, and whether this machine's system is supported. Never contains the code, its hash or any credential.",
       "fieldDescriptions": {
         "organizationName": "Display name of the organization the machine would join.",
