@@ -376,10 +376,6 @@
   margin-block-end: var(--space-0);
 }
 
-/* The step panel beside the diagram is the width the owner's spec names: the
-   work surface gives its second column that width, so no component needs a
-   one-off class. The diagram takes what is left and the panel sits at the top
-   of it; on a phone the columns wrap and the panel takes the full width. */
 [data-ui-region="editor-work-surface"] {
   align-items: flex-start;
 }
@@ -389,7 +385,7 @@
   max-inline-size: 100%;
 }
 [data-ui-region="editor-work-surface"] > *:first-child {
-  flex: 1 1 0;
+  flex: 1 1 var(--layout-section-rail);
   min-inline-size: 0;
 }
 [data-ui-region="workflow-view-switch"] {

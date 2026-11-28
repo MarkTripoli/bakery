@@ -1,4 +1,4 @@
-import type { HTMLAttributes, ReactNode } from "react";
+import { type HTMLAttributes, type ReactNode, useEffect, useRef } from "react";
 import type { SemanticNativeProps } from "../foundations/semantic-native-props.ts";
 import "../feedback.css";
 
@@ -9,6 +9,7 @@ export type ToastProps =
     children: ReactNode;
     onDismiss?: () => void;
     state?: "entering" | "visible" | "dismissed";
+    placement?: "inline" | "floating";
     tone?: "success" | "information" | "warning" | "error";
   };
 
@@ -18,11 +19,31 @@ export function Toast(
     action,
     children,
     onDismiss,
+    placement = "inline",
     state = "visible",
     tone = "information",
     ...props
   }: ToastProps,
 ) {
+  const floating = placement === "floating" && state !== "dismissed";
+  const toast = useRef<HTMLDivElement>(null);
+  const room = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const shown = toast.current;
+    const held = room.current;
+    if (!floating || shown === null || held === null) return;
+    const measure = () => {
+      const below = globalThis.innerHeight - shown.getBoundingClientRect().top;
+      held.style.setProperty("min-block-size", `${Math.ceil(below)}px`);
+    };
+    const reserve = new ResizeObserver(measure);
+    reserve.observe(shown);
+    globalThis.addEventListener("resize", measure);
+    return () => {
+      reserve.disconnect();
+      globalThis.removeEventListener("resize", measure);
+    };
+  }, [floating]);
   if (state === "dismissed") {
     return (
       <div
@@ -36,12 +57,14 @@ export function Toast(
       />
     );
   }
-  return (
+  const message = (
     <div
+      ref={toast}
       aria-busy={state === "entering" || undefined}
       className={["ui-toast", `ui-toast--${tone}`].filter(Boolean).join(" ")}
       role={tone === "error" ? "alert" : "status"}
       {...props}
+      data-placement={placement}
       data-state={state}
       data-ui-component="toast"
       data-variant={tone}
@@ -62,4 +85,12 @@ export function Toast(
         : null}
     </div>
   );
+  return floating
+    ? (
+      <>
+        <div aria-hidden="true" className="ui-toast-room" ref={room} />
+        {message}
+      </>
+    )
+    : message;
 }

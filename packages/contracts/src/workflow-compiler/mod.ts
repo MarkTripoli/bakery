@@ -27,7 +27,11 @@ export type {
 export { parseDuration, WORKFLOW_COMPILER_LIMITS } from "./limits.ts";
 export type { ChildWorkflows, WorkflowCallNode } from "./call.ts";
 export { inputTypesOf } from "./passes/references.ts";
-export { decodeWorkflowYaml, encodeWorkflowYaml } from "./yaml.ts";
+export {
+  decodeWorkflowYaml,
+  encodeWorkflowYaml,
+  rewriteWorkflowYaml,
+} from "./yaml.ts";
 export type { WorkflowYamlEncodeResult } from "./yaml.ts";
 export {
   WORKFLOW_COMPARE_OPERATORS,
