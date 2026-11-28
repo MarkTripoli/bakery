@@ -7873,5 +7873,12 @@
   "tasks.run.revision.changeSummary": "⟦{files, plural, one {# file} other {# files}}, +{added} −{removed} ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧ⟧",
   "tasks.run.revision.patchSummary": "⟦Þàŧçĥ: {files, plural, one {# file} other {# files}} · +{added} −{removed} ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
   "machines.models.adminChangeOnly": "⟦Ôñļÿ àðɱïñïšŧŕàŧôŕš çàñ çĥàñĝë ɱôðëļš. ŧëšŧ çôþÿ ŧ⟧",
-  "machines.models.note.revokedMember": "⟦Ïŧ çàññôŧ ƀë ŧûŕñëð ôñ àĝàïñ. Àñ àðɱïñïšŧŕàŧôŕ çàñ àðð ïŧ àš à ñëŵ ɱôðëļ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧"
+  "machines.models.note.revokedMember": "⟦Ïŧ çàññôŧ ƀë ŧûŕñëð ôñ àĝàïñ. Àñ àðɱïñïšŧŕàŧôŕ çàñ àðð ïŧ àš à ñëŵ ɱôðëļ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
+  "library.editor.published.used": "⟦Ṽëŕšïôñ {version} ïš þûƀļïšĥëð àñð ïñ ûšë. ŧëšŧ çôþÿ ŧë⟧",
+  "library.editor.published.notUsed": "⟦Ṽëŕšïôñ {version} ïš þûƀļïšĥëð. Ïŧ ïš ñôŧ ûšëð ûñŧïļ ÿôû çĥôôšë Ûšë ŧĥïš ṽëŕšïôñ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ ç⟧",
+  "library.editor.conflict": "⟦Šôɱëôñë ëļšë çĥàñĝëð ŧĥïš ðŕàƒŧ. Ŕëļôàð ŧô šëë ŧĥëïŕ çĥàñĝëš. ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧",
+  "library.editor.conflictReload": "⟦Ŕëļôàð…⟧",
+  "library.editor.publishAway": "⟦Ÿôû àŕë ôƒƒļïñë. Þûƀļïšĥ ŵĥëñ ÿôû àŕë ƀàçķ. ŧëšŧ çôþÿ ŧëš⟧",
+  "library.editor.publishConflict": "⟦Ŕëļôàð ŧô šëë ŧĥëïŕ çĥàñĝëš, ŧĥëñ þûƀļïšĥ. ŧëšŧ çôþÿ ŧë⟧",
+  "library.editor.offlineEditing": "⟦Ÿôû àŕë ôƒƒļïñë. Çĥàñĝëš àŕë ķëþŧ ôñ ŧĥïš þàĝë àñð šàṽëð ŵĥëñ ÿôû àŕë ƀàçķ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ⟧"
 }

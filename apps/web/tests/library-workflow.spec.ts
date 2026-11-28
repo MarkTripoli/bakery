@@ -2881,6 +2881,28 @@ for (
       await expect.poll(() => savedSkills(seen).skills).toEqual([uuid(7000)]);
     });
 
+    test("a skill added after a removal takes that Undo offer away", async ({ page }) => {
+      const { seen, skills } = await openSkills(page, {
+        skills: { items: [skill({ stepPath: "/steps/1" })] },
+        catalog: [
+          catalogSkill({}),
+          catalogSkill({
+            id: uuid(8003),
+            slug: "release-notes",
+            name: "Release notes",
+            activeVersionId: uuid(8101),
+            activeRevision: 3,
+          }),
+        ],
+      });
+      await skills.getByRole("button", { name: "Remove Code style" }).click();
+      const offer = page.getByRole("button", { name: "Undo", exact: true });
+      await expect(offer).toBeVisible();
+      await pickSkill(skills, "Release notes · Version 3");
+      await expect(offer).toHaveCount(0);
+      await expect.poll(() => savedSkills(seen).skills).toEqual([uuid(8101)]);
+    });
+
     test("removing someone else's private skill that a published version uses says so", async ({ page }) => {
       const { skills } = await openSkills(page, {
         skills: {
