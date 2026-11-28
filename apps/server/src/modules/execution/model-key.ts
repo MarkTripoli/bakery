@@ -2,6 +2,10 @@ import type { Context } from "hono";
 import { StandardError } from "@bakery/contracts/http";
 import { sha256Hex } from "../../platform/canonical-json.ts";
 import { appendAudit } from "@bakery/persistence/event-audit";
+import {
+  coveringModelKey,
+  readJobKeyScope,
+} from "@bakery/persistence/model-key-coverage";
 import { decryptSecret, loadSecretKey } from "../secrets/crypto.ts";
 import {
   MODEL_KEY_PROVIDERS,
@@ -34,19 +38,6 @@ type ReleasedModelKey = { provider: ModelKeyProvider; apiKey: string };
 
 const DECIMAL = /^(?:0|[1-9][0-9]*)$/;
 const LIVE_ATTEMPT_STATUSES = new Set(["leased", "running"]);
-export const MODEL_KEY_ACTION = "model.inference";
-const HARNESS_COMPONENT_KEYS: Readonly<Record<string, string>> = {
-  claude_code: "harness.claude",
-  codex: "harness.codex",
-  pi: "harness.pi",
-};
-
-function textList(value: unknown): readonly string[] {
-  return Array.isArray(value)
-    ? value.filter((item): item is string => typeof item === "string")
-    : [];
-}
-
 function isModelKeyProvider(value: string): value is ModelKeyProvider {
   return (MODEL_KEY_PROVIDERS as readonly string[]).includes(value);
 }
@@ -93,109 +84,22 @@ async function releasedModelKey(
       if (!LIVE_ATTEMPT_STATUSES.has(attempt.status)) {
         throw modelKeyRefusal("model_key_attempt_ending");
       }
-      const jobs = await transaction.query<{
-        harness: string | null;
-        provider: string | null;
-        billingRoute: string | null;
-        applicationId: string | null;
-        requestedBy: string | null;
-        requesterActive: boolean;
-      }>(
-        `select job.agent_config->>'harness' as harness,
-                job.billing->>'provider' as provider,
-                job.billing->>'billingRoute' as "billingRoute",
-                run.application_id as "applicationId",
-                run.requested_by as "requestedBy",
-                coalesce(
-                  membership.status = 'active' and requester.disabled_at is null,
-                  false
-                ) as "requesterActive"
-           from bakery.jobs as job
-           join bakery.run_steps as step
-             on step.organization_id = job.organization_id
-            and step.id = job.run_step_id
-           join bakery.workflow_runs as run
-             on run.organization_id = step.organization_id
-            and run.id = step.run_id
-           left join bakery.principals as requester
-             on requester.id = run.requested_by
-           left join bakery.organization_memberships as membership
-             on membership.organization_id = job.organization_id
-            and membership.principal_id = run.requested_by
-          where job.organization_id = $1 and job.id = $2`,
-        [attempt.organization_id, attempt.job_id],
+      const job = await readJobKeyScope(
+        transaction,
+        attempt.organization_id,
+        attempt.job_id,
       );
-      const job = jobs.rows[0];
-      if (job === undefined || job.billingRoute !== "api") {
-        throw modelKeyRefusal("model_key_not_metered");
-      }
-      const componentKey = job.harness === null
-        ? undefined
-        : HARNESS_COMPONENT_KEYS[job.harness];
-      if (componentKey === undefined || job.provider === null) {
+      const coverage = await coveringModelKey(
+        transaction,
+        attempt.organization_id,
+        identity.host.id,
+        job,
+      );
+      if (!coverage.ok) throw modelKeyRefusal(coverage.reason);
+      const key = coverage.key;
+      if (!isModelKeyProvider(key.provider)) {
         throw modelKeyRefusal("model_key_unbound");
       }
-      const keys = await transaction.query<{
-        bindingId: string;
-        secretId: string;
-        applicationId: string;
-        provider: string;
-        allowedPrincipals: unknown;
-        allowedActions: unknown;
-        secretExpiresAt: Date | string | null;
-        revision: number;
-        keyId: string;
-        ciphertext: Uint8Array<ArrayBuffer>;
-        nonce: Uint8Array<ArrayBuffer>;
-      }>(
-        `select binding.id as "bindingId", secret.id as "secretId",
-                secret.application_id as "applicationId",
-                secret.provider,
-                secret.allowed_principals as "allowedPrincipals",
-                secret.allowed_actions as "allowedActions",
-                secret.expires_at as "secretExpiresAt",
-                version.revision, version.key_id as "keyId",
-                version.ciphertext, version.nonce
-           from bakery.worker_provider_bindings as binding
-           join bakery.secrets as secret
-             on secret.organization_id = binding.organization_id
-            and secret.id = binding.secret_id
-           join bakery.secret_versions as version
-             on version.organization_id = secret.organization_id
-            and version.id = secret.active_version_id
-          where binding.organization_id = $1
-            and binding.worker_host_id = $2
-            and binding.component_key = $3
-            and binding.provider = $4
-            and binding.billing_route = 'api_metered'
-            and binding.auth_mode = 'api_secret'
-            and binding.enabled
-            and secret.provider = binding.provider
-            and secret.application_id is not null
-            and secret.revoked_at is null
-            and (secret.expires_at is null or secret.expires_at > clock_timestamp())
-            and (version.expires_at is null or version.expires_at > clock_timestamp())
-          order by binding.created_at, binding.id
-          limit 1`,
-        [
-          attempt.organization_id,
-          identity.host.id,
-          componentKey,
-          job.provider,
-        ],
-      );
-      const key = keys.rows[0];
-      if (key === undefined || !isModelKeyProvider(key.provider)) {
-        throw modelKeyRefusal("model_key_unbound");
-      }
-      if (key.applicationId !== job.applicationId) {
-        throw modelKeyRefusal("model_key_project_mismatch");
-      }
-      if (
-        job.requestedBy === null || !job.requesterActive ||
-        !textList(key.allowedPrincipals).includes(job.requestedBy) ||
-        !textList(key.allowedActions).includes(MODEL_KEY_ACTION)
-      ) throw modelKeyRefusal("model_key_not_allowed");
       const apiKey = await decryptModelKey(options, {
         organizationId: attempt.organization_id,
         applicationId: key.applicationId,
@@ -216,7 +120,7 @@ async function releasedModelKey(
         details: {
           attemptId: attempt.id,
           workerHostId: identity.host.id,
-          startedBy: job.requestedBy,
+          startedBy: job?.requestedBy ?? null,
           bindingId: key.bindingId,
           provider: key.provider,
           revision: key.revision,

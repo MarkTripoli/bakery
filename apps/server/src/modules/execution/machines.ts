@@ -43,6 +43,10 @@ import {
 } from "./shared.ts";
 import { linkCodeHash, mintShortCode, withLinkCommand } from "./link-codes.ts";
 import { hasAsciiControlCharacter } from "../../platform/control-characters.ts";
+import {
+  hostHoldsModelKey,
+  meteredModelWorkOnly,
+} from "@bakery/persistence/model-key-coverage";
 
 const WORKER_UPDATE_STATUS_DESIRED_MODE: Record<string, string> = {
   online: "accepting",
@@ -916,12 +920,20 @@ export async function dispatchBlockers(
           expiresAt: row.expires_at,
         })),
       });
+      const meteredModelReady = projection.blockedCapabilities.includes(
+        "model",
+      ) &&
+        meteredModelWorkOnly(
+          projection,
+          await hostHoldsModelKey(transaction, organization, workerHostId),
+        );
       const response = contractSchemas.DispatchBlockers.parse({
         workerHostId,
         ...projection,
         connectivity,
         credentialGeneration: host.credential_generation,
         inventoryRevision: host.inventory_revision,
+        meteredModelReady,
       });
       return jsonResponse(response, 200, false);
     },
