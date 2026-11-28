@@ -2,6 +2,7 @@ import {
   assert,
   assertEquals,
   assertFalse,
+  assertMatch,
   assertRejects,
   assertStringIncludes,
 } from "@std/assert";
@@ -752,7 +753,7 @@ Deno.test("the package never elevates, evals, shells out beyond its read-only pr
       "",
     );
     const sudoCommands = source.match(
-      /["'`]sudo\s|\[\s*["'`]sudo["'`]\s*,/g,
+      /["'`]sudo\s|\[\s*["'`]sudo["'`]\s*,|\(\s*["'`]sudo["'`]/g,
     ) ?? [];
     if (name === "service-start.ts") {
       assertEquals(
@@ -760,9 +761,9 @@ Deno.test("the package never elevates, evals, shells out beyond its read-only pr
         1,
         `${name}: sudo only for the confirmed Linux service step`,
       );
-      assertStringIncludes(
+      assertMatch(
         source,
-        '["sudo", "sh", "-c", linuxLinkScript(binding, host.root)]',
+        /\["sudo", "sh", "-c", linuxLinkScript\(binding, host\.root(?:, \w+)?\)\]/,
         `${name}: the one sudo runs only the service link script`,
       );
     } else {
@@ -773,7 +774,24 @@ Deno.test("the package never elevates, evals, shells out beyond its read-only pr
       /shell:\s*true|execSync|spawnSync/.test(source),
       `${name}: no shell`,
     );
-    if (!["probes.ts", "process-main.ts"].includes(name)) {
+    if (name === "process-main.ts") {
+      assertEquals(
+        [...source.matchAll(/child_process|execFile|Deno\.Command|spawn\(/g)]
+          .map((match) => match[0]),
+        ["child_process", "spawn("],
+        `${name}: one process start, the service runner`,
+      );
+      assertMatch(
+        source,
+        /import \{ spawn \} from "node:child_process";/,
+        `${name}: imports only spawn`,
+      );
+      assertMatch(
+        source,
+        /spawn\(program, args, \{/,
+        `${name}: spawns only the argv the service step chose`,
+      );
+    } else if (name !== "probes.ts") {
       assertFalse(
         /child_process|execFile|Deno\.Command/.test(source),
         `${name}: starts no process`,
