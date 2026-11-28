@@ -7926,5 +7926,6 @@
   "machines.offline.lastUpdated": "⟪You are offline. Last updated {time}.⟫",
   "machines.agents.signedInAs": "⟪Signed in as {account}.⟫",
   "machines.checks.showMore": "⟪Show more⟫",
-  "machines.checks.showLess": "⟪Show less⟫"
+  "machines.checks.showLess": "⟪Show less⟫",
+  "machines.offline.now": "⟪You are offline.⟫"
 }
