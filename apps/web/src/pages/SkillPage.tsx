@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import * as UI from "@bakery/ui";
@@ -27,6 +27,7 @@ import { useI18n } from "../i18n/I18nProvider.tsx";
 import { WORK_HOME } from "../shell/breadcrumb-paths.ts";
 import { ShellSlot } from "../shell/shell-slots.tsx";
 import { SkillToast, useSkillActions } from "./library/SkillActions.tsx";
+import { SkillFileView } from "./library/SkillFileView.tsx";
 import { SkillGrantRow } from "./library/SkillGrantRow.tsx";
 import { SkillSourceCheckControl } from "./library/SkillSourceCheckControl.tsx";
 import { SkillUseVersion } from "./library/SkillUseVersion.tsx";
@@ -37,6 +38,7 @@ import {
   fingerprint,
   licenseShownInFiles,
   manifestFiles,
+  middleTruncated,
   pinnedRevisions,
   scopeWords,
   skillOrigin,
@@ -128,6 +130,7 @@ function FilesCard(
     ),
     enabled: origin.kind === "source",
   });
+  const [opened, setOpened] = useState<string | null>(null);
   if (skill.activeVersionId === null) {
     return (
       <Card id="skill-files" title={title}>
@@ -181,9 +184,18 @@ function FilesCard(
           description={files.entry === null
             ? active.entryPath
             : (
-              <UI.Stack gap="none">
-                <UI.DataText>{files.entry.path}</UI.DataText>
-                <UI.Text variant="caption">{line(files.entry)}</UI.Text>
+              <UI.Stack gap="compact">
+                <UI.Stack gap="none">
+                  <UI.DataText title={files.entry.path}>
+                    {middleTruncated(files.entry.path)}
+                  </UI.DataText>
+                  <UI.Text variant="caption">{line(files.entry)}</UI.Text>
+                </UI.Stack>
+                <SkillFileView
+                  versionId={active.id}
+                  file={files.entry}
+                  instructions
+                />
               </UI.Stack>
             )}
         />
@@ -198,9 +210,29 @@ function FilesCard(
               >
                 {files.others.map((file) => (
                   <div key={file.path} role="listitem">
-                    <UI.Stack gap="none">
-                      <UI.DataText>{file.path}</UI.DataText>
-                      <UI.Text variant="caption">{line(file)}</UI.Text>
+                    <UI.Stack gap="compact">
+                      <UI.Stack gap="none">
+                        <UI.Inline gap="compact">
+                          <UI.Button
+                            variant="text"
+                            title={file.path}
+                            aria-label={middleTruncated(file.path) === file.path
+                              ? undefined
+                              : file.path}
+                            aria-expanded={opened === file.path}
+                            onClick={() =>
+                              setOpened(
+                                opened === file.path ? null : file.path,
+                              )}
+                          >
+                            {middleTruncated(file.path)}
+                          </UI.Button>
+                        </UI.Inline>
+                        <UI.Text variant="caption">{line(file)}</UI.Text>
+                      </UI.Stack>
+                      {opened === file.path
+                        ? <SkillFileView versionId={active.id} file={file} />
+                        : null}
                     </UI.Stack>
                   </div>
                 ))}

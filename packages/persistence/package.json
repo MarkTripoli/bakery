@@ -16,6 +16,7 @@
     "./results": "./src/results.ts",
     "./coordination": "./src/coordination.ts",
     "./secret-identity": "./src/secret-identity.ts",
+    "./model-key-coverage": "./src/model-key-coverage.ts",
     "./budget-release": "./src/budget-release.ts",
     "./external-effect-holds": "./src/external-effect-holds.ts"
   },

@@ -148,3 +148,44 @@ Deno.test("rotating a model API key checks the new key with the same provider", 
     await f.cleanup();
   }
 });
+
+Deno.test("a model API key longer than the worker can redact is refused on save and rotation", async () => {
+  const f = await openSecretsFixture();
+  try {
+    f.setProvider(() => Promise.resolve(Response.json({ data: [] })));
+    const tooLong = "k".repeat(4_097);
+    const refusedCreate = await f.request("/v1/secrets", {
+      applicationId: f.applicationId,
+      name: "Too long model key",
+      provider: "openai",
+      value: tooLong,
+    }, crypto.randomUUID());
+    assertEquals(
+      refusedCreate.status >= 400 && refusedCreate.status < 500,
+      true,
+    );
+    await refusedCreate.body?.cancel();
+    const created = await f.client.actions["secrets.create"]({
+      applicationId: f.applicationId,
+      name: "Model key to rotate",
+      provider: "openai",
+      value: "k".repeat(4_096),
+    }, { idempotencyKey: crypto.randomUUID() });
+    const calls = f.calls();
+    const refused = await f.request(
+      `/v1/secrets/${created.id}/versions`,
+      { applicationId: f.applicationId, value: tooLong },
+      crypto.randomUUID(),
+      undefined,
+      { method: "POST", ifMatch: '"v1"' },
+    );
+    assertEquals(refused.status, 422, await refused.clone().text());
+    const problem = await refused.json() as { issues?: { code: string }[] };
+    assertEquals(problem.issues?.map((issue) => issue.code), [
+      "model_key_too_long",
+    ]);
+    assertEquals(f.calls(), calls, "the provider never sees the long key");
+  } finally {
+    await f.cleanup();
+  }
+});

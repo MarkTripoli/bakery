@@ -73,6 +73,7 @@ import {
 } from "./machine-state.ts";
 import { installState } from "./machine-wizard.ts";
 import { hasSetupSteps, processorLabel } from "./machine-systems.ts";
+import { isUuid } from "@bakery/contracts/contracts";
 
 function message(
   translate: Translator,
@@ -265,7 +266,8 @@ export function MachineDetailPage(
     attention.data?.pages.flatMap((page) => page.items).length ??
       0;
   const needsLookHasMore = attention.hasNextPage;
-  const missing = worker.isError && failureStatus(worker.error) === 404;
+  const missing = !isUuid(machineId) ||
+    (worker.isError && failureStatus(worker.error) === 404);
   const blocking = worker.data && worker.data.status !== "revoked"
     ? checkCounts(worker.data)
     : { failed: 0, unchecked: 0 };

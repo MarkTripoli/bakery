@@ -176,6 +176,7 @@ async function open(page: Page, w: World, path = `/machines/${MACHINE_ID}`) {
         failedChecks: w.failedChecks,
         credentialGeneration: 1,
         inventoryRevision: 1,
+        meteredModelReady: false,
       }));
     }
     if (path.endsWith("/components")) {

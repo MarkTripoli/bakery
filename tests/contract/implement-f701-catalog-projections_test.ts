@@ -128,6 +128,7 @@ Deno.test("F7.01 catalog projections are typed, implemented and scoped", () => {
     failedChecks: [{ checkId: "capability:git", reason: "missing binary" }],
     credentialGeneration: 3,
     inventoryRevision: 7,
+    meteredModelReady: false,
   });
   assertEquals(blockers.failedChecks[0]?.reason, "missing binary");
   assertEquals(blockers.reason, "check_failed");

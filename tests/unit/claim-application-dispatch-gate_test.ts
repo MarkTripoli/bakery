@@ -62,6 +62,7 @@ function claimWith(host: FakeHost, checks: Array<{
       });
       return Promise.resolve(gate);
     },
+    holdsModelKey: () => Promise.resolve(false),
     findClaimableJob: () => {
       calls.jobLookups += 1;
       return Promise.resolve(null);

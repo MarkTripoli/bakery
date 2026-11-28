@@ -27489,7 +27489,8 @@ const transportSchemas = {
         "blockedCapabilities",
         "failedChecks",
         "credentialGeneration",
-        "inventoryRevision"
+        "inventoryRevision",
+        "meteredModelReady"
       ],
       "fieldTypes": {
         "workerHostId": "uuid",
@@ -27499,7 +27500,8 @@ const transportSchemas = {
         "blockedCapabilities": "string[]",
         "failedChecks": "DispatchBlocker[]",
         "credentialGeneration": "integer",
-        "inventoryRevision": "integer"
+        "inventoryRevision": "integer",
+        "meteredModelReady": "boolean"
       },
       "nullableFields": [
         "reason"
@@ -27513,7 +27515,8 @@ const transportSchemas = {
         "blockedCapabilities": "Sorted capabilities blocked by fresh failed or unknown capability checks.",
         "failedChecks": "Sorted fresh failed or unknown checks with bounded safe reasons; stale or superseded checks are excluded.",
         "credentialGeneration": "Current credential generation used to judge check freshness.",
-        "inventoryRevision": "Current inventory revision used to judge check freshness."
+        "inventoryRevision": "Current inventory revision used to judge check freshness.",
+        "meteredModelReady": "Whether the machine still takes model work paid by API key although its model check fails: the only blocked capability is model and the machine has an enabled api_secret binding to a live key that allows model.inference. The claim gate then admits only api-route jobs that such a key covers."
       }
     },
     "WorkerEnrollmentSummary": {

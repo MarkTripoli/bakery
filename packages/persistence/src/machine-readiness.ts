@@ -1068,6 +1068,13 @@ export function createMachineReadinessWorkflows(
       ) {
         throw new StandardError({ code: "STATE_CONFLICT" });
       }
+      await transaction.query(
+        `update bakery.worker_enrollments
+         set canceled_at = current_timestamp, updated_at = current_timestamp,
+             version = version + 1
+         where organization_id = $1 and id = $2`,
+        [organizationId, predecessor.id],
+      );
       const successor = await insertEnrollment({
         organizationId,
         principalId,
@@ -1079,18 +1086,11 @@ export function createMachineReadinessWorkflows(
           slots: predecessor.slots,
         },
         replacementOfId: predecessor.id,
-        targetWorkerHostId: null,
-        expectedCredentialGeneration: null,
+        targetWorkerHostId: predecessor.targetWorkerHostId,
+        expectedCredentialGeneration: predecessor.expectedCredentialGeneration,
         metadata,
         now,
       });
-      await transaction.query(
-        `update bakery.worker_enrollments
-         set canceled_at = current_timestamp, updated_at = current_timestamp,
-             version = version + 1
-         where organization_id = $1 and id = $2`,
-        [organizationId, predecessor.id],
-      );
       await appendEnrollmentEvent(
         organizationId,
         predecessor.id,

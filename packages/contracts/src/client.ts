@@ -146,7 +146,7 @@ export type BinaryArtifactClientResponse =
     contentRange: string;
   };
 export type ClientOutputMap = {
-  [Name in ClientSchemaName]: Name extends "BinaryArtifact"
+  [Name in ClientSchemaName]: Name extends "BinaryArtifact" | "BinarySkillFile"
     ? BinaryArtifactClientResponse
     : ClientInputMap[Name];
 };
@@ -756,7 +756,8 @@ export function createBakeryClient(options: BakeryClientOptions): BakeryClient {
         path = path.replace(`{${name}}`, encodeURIComponent(value));
       }
 
-      const binaryOutput = descriptor.output === "BinaryArtifact";
+      const binaryOutput = descriptor.output === "BinaryArtifact" ||
+        descriptor.output === "BinarySkillFile";
       const headers = new Headers({
         Accept: binaryOutput ? "application/octet-stream" : "application/json",
         "X-Request-Id": requestOptions.requestId ?? createRequestId(),

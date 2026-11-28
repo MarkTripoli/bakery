@@ -132,6 +132,7 @@ import type {
   ScimConnection,
   SkillDraftFileResponse,
   SkillDraftResponse,
+  SkillFileBytes,
   SkillListResponse,
   SkillResponse,
   SkillScope,
@@ -3571,6 +3572,29 @@ export function skillVersionsQueryOptions(
         }),
       ),
     enabled: Boolean(scope.organizationId) && skillId !== "",
+    retry: retryNetworkOnce,
+  });
+}
+
+export function skillFileQueryOptions(
+  client: Pick<BakeryApiClient, "readSkillFile">,
+  scope: ApiScope,
+  versionId: string,
+  path: string,
+) {
+  return queryOptions<SkillFileBytes, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "skillFiles.get", { versionId, path }),
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await client.readSkillFile({
+          organizationId: requireOrganization(scope),
+          versionId,
+          path,
+          signal,
+        }),
+      ),
+    enabled: Boolean(scope.organizationId),
+    staleTime: Number.POSITIVE_INFINITY,
     retry: retryNetworkOnce,
   });
 }
