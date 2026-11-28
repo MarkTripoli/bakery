@@ -462,7 +462,7 @@ export function LibraryPage() {
   const newSkillButton = tab === "skills"
     ? (
       <UI.Inline gap="compact">
-        {canManage
+        {canManage || access.data?.role === "developer"
           ? (
             <UI.Button
               variant="secondary"

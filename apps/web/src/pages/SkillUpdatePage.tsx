@@ -165,7 +165,8 @@ function Consequences(
 }
 
 function Review(
-  { skill, check, address, onStale }: {
+  { skill, check, address, archive, onStale }: {
+    readonly archive: boolean;
     readonly skill: SkillResponse;
     readonly check: SkillSourceCheck & { readonly latestRevision: string };
     readonly address: string;
@@ -291,7 +292,12 @@ function Review(
   const failed = outcome?.state === "failed"
     ? translate(
       `library.skills.add.failure.${
-        importFailureKind(outcome.failureCode, address, check.latestRevision)
+        importFailureKind(
+          outcome.failureCode,
+          address,
+          check.latestRevision,
+          archive,
+        )
       }`,
       {
         address,
@@ -472,8 +478,11 @@ function UpdateBody({ skill }: { readonly skill: SkillResponse }) {
     return frame(
       <>
         <UI.InlineNotice role="status" tone="warning">
-          {problemSentence(result, address)}{" "}
-          {translate("library.skills.update.stillWorks")}
+          {problemSentence(
+            result,
+            address,
+            source.data?.sourceType === "url",
+          )} {translate("library.skills.update.stillWorks")}
         </UI.InlineNotice>
         <UI.Inline gap="compact">
           {back}
@@ -498,6 +507,7 @@ function UpdateBody({ skill }: { readonly skill: SkillResponse }) {
   return frame(
     <Review
       address={address}
+      archive={source.data?.sourceType === "url"}
       check={{ ...result, latestRevision: result.latestRevision }}
       onStale={() => queryClient.invalidateQueries({ queryKey: ["protected"] })}
       skill={skill}

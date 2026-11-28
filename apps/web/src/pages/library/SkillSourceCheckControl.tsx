@@ -24,8 +24,13 @@ export function useCheckedWhen() {
 
 export function useSourceProblemSentence() {
   const { translate } = useI18n();
-  return (check: SkillSourceCheck, address: string) => {
-    const kind = importFailureKind(check.problem, "", check.requestedRevision);
+  return (check: SkillSourceCheck, address: string, archive: boolean) => {
+    const kind = importFailureKind(
+      check.problem,
+      "",
+      check.requestedRevision,
+      archive,
+    );
     const host = URL.canParse(address) ? new URL(address).host : address;
     return translate(
       `library.skills.add.failure.${
@@ -42,9 +47,10 @@ export function useSourceProblemSentence() {
 }
 
 export function SkillSourceCheckControl(
-  { skill, address }: {
+  { skill, address, archive }: {
     readonly skill: SkillResponse & { readonly activeVersionId: string };
     readonly address: string;
+    readonly archive: boolean;
   },
 ) {
   const api = useBakeryApi();
@@ -109,7 +115,7 @@ export function SkillSourceCheckControl(
     return (
       <UI.Stack gap="compact">
         <UI.InlineNotice role="status" tone="warning">
-          {problemSentence(result, address)}{" "}
+          {problemSentence(result, address, archive)}{" "}
           {translate("library.skills.update.stillWorks")}
         </UI.InlineNotice>
         {checkButton(translate("library.skills.update.checkAgain"))}

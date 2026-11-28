@@ -7,6 +7,7 @@ export type SourceForm = {
   readonly sourceId: string;
   readonly revision: string;
   readonly folder: string;
+  readonly label: string;
 };
 
 export const EMPTY_SOURCE_FORM: SourceForm = {
@@ -16,6 +17,7 @@ export const EMPTY_SOURCE_FORM: SourceForm = {
   sourceId: "",
   revision: "",
   folder: "",
+  label: "",
 };
 
 export type SourceProblem =
@@ -43,6 +45,7 @@ export function httpsAddress(value: string): URL | null {
 export function sourceProblems(
   form: SourceForm,
   saved: boolean,
+  archive: boolean,
 ): SourceProblems {
   const empty = (value: string) => value.trim() === "";
   const repository: SourceProblems = saved
@@ -58,7 +61,7 @@ export function sourceProblems(
     };
   return {
     ...repository,
-    ...(empty(form.revision) ? { revision: "revision" } : {}),
+    ...(!archive && empty(form.revision) ? { revision: "revision" } : {}),
   };
 }
 
@@ -73,7 +76,10 @@ export function importedName(folder: string): string {
 export type ImportFailure =
   | "invalid"
   | "invalidAtTop"
+  | "invalidArchive"
+  | "invalidArchiveAtTop"
   | "unavailable"
+  | "unavailableArchive"
   | "timeout"
   | "origin"
   | "limit"
@@ -101,8 +107,15 @@ export function importFailureKind(
   code: string | null,
   folder: string,
   revision: string,
+  archive: boolean,
 ): ImportFailure {
   const kind = FAILURE_KINDS[code ?? ""] ?? "other";
+  if (archive && kind === "unavailable") return "unavailableArchive";
+  if (archive && kind === "invalid") {
+    return cleanFolder(folder) === ""
+      ? "invalidArchiveAtTop"
+      : "invalidArchive";
+  }
   if (kind === "missingRevision" && SHORT_COMMIT.test(revision)) {
     return "shortCommit";
   }

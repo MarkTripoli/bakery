@@ -7947,5 +7947,19 @@
   "library.skill.files.cannotShow": "⟦Ŧĥïš ƒïļë çàññôŧ ƀë šĥôŵñ ĥëŕë. ŧëšŧ çôþ⟧",
   "library.skill.files.fileError": "⟦Ŧĥïš ƒïļë ðïð ñôŧ ļôàð. ŧëšŧ ç⟧",
   "library.skill.files.contents": "⟦Ƒïļë çôñŧëñŧš ŧë⟧",
-  "library.skill.files.empty": "⟦Ŧĥïš ƒïļë ïš ëɱþŧÿ. ŧëšŧ⟧"
+  "library.skill.files.empty": "⟦Ŧĥïš ƒïļë ïš ëɱþŧÿ. ŧëšŧ⟧",
+  "library.skills.add.webAddress": "⟦À ŵëƀ àððŕëšš ŧë⟧",
+  "library.skills.add.webAddressHint": "⟦À .ŧàŕ.ĝž àŕçĥïṽë ôƒ ŧĥë šķïļļ'š ƒïļëš. ŧëšŧ çôþÿ ŧ⟧",
+  "library.skills.add.noSource": "⟦Ñô šôûŕçë ŧô àðð ƒŕôɱ ÿëŧ ŧëšŧ ç⟧",
+  "library.skills.add.noSourceHint": "⟦Àñ ôŕĝàñïžàŧïôñ àðɱïñïšŧŕàŧôŕ šàṽëš à šôûŕçë ƒïŕšŧ. Ÿôû çàñ ŧĥëñ àðð à þŕïṽàŧë šķïļļ ƒŕôɱ ïŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧",
+  "library.skills.add.field.webAddress": "⟦Ŵëƀ àððŕëšš ŧ⟧",
+  "library.skills.add.field.label": "⟦Ṽëŕšïôñ ñàɱë (ôþŧïôñàļ) ŧëšŧ ç⟧",
+  "library.skills.add.hint.webAddress": "⟦Ŵĥëŕë ŧĥë àŕçĥïṽë ïš. Ïŧ ɱûšŧ ƀë àñ àððŕëšš ŧĥïš ïñšŧàļļàŧïôñ ïš àļļôŵëð ŧô ŕëàð. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ ç⟧",
+  "library.skills.add.hint.label": "⟦Šĥôŵñ ŵïŧĥ ŧĥë ṽëŕšïôñ. Ŵïŧĥôûŧ ôñë, ŧĥë ṽëŕšïôñ ïš ķñôŵñ ƀÿ ŧĥë àŕçĥïṽë'š ƒïñĝëŕþŕïñŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
+  "library.skills.add.hint.archiveFolder": "⟦Ŵĥëŕë ŧĥë šķïļļ ïš ïñ ŧĥë àŕçĥïṽë. Ļëàṽë ëɱþŧÿ ŵĥëñ ïŧ ïš àŧ ŧĥë ŧôþ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧",
+  "library.skills.add.problem.archiveAddress": "⟦Ëñŧëŕ ŧĥë ŵëƀ àððŕëšš. ŧëšŧŧ⟧",
+  "library.skills.add.failure.invalidArchive": "⟦Ŵĥàŧ ïš ïñ {folder} ôƒ ŧĥë àŕçĥïṽë ïš ñôŧ à šķïļļ Ɓàķëŕÿ çàñ ûšë. À šķïļļ ñëëðš àñ ïñšŧŕûçŧïôñš ƒïļë, ûšûàļļÿ ŠĶÏĻĻ.ɱð. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧",
+  "library.skills.add.failure.invalidArchiveAtTop": "⟦Ŧĥë ƒïļë àŧ {address} ïš ñôŧ à šķïļļ Ɓàķëŕÿ çàñ ûšë. Ïŧ ñëëðš ŧô ƀë à .ŧàŕ.ĝž àŕçĥïṽë ŵïŧĥ àñ ïñšŧŕûçŧïôñš ƒïļë, ûšûàļļÿ ŠĶÏĻĻ.ɱð, àŧ ŧĥë ŧôþ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧",
+  "library.skills.add.failure.unavailableArchive": "⟦Ɓàķëŕÿ çôûļð ñôŧ ŕëàð {address}. Çĥëçķ ŧĥë àððŕëšš àñð ŧĥàŧ ŧĥïš ïñšŧàļļàŧïôñ çàñ ŕëàð ïŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧",
+  "library.skills.add.failure.savedArchive": "⟦Ŧĥïš àððŕëšš ïš àļŕëàðÿ šàṽëð. Çĥôôšë ïŧ ûñðëŕ À šôûŕçë àððëð ƀëƒôŕë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧"
 }
