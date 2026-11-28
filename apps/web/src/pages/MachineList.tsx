@@ -7,6 +7,7 @@ import {
   formatMachineDate,
   machineBadge,
   machineBadgeTone,
+  type MachineReason,
   machineReason,
   machineRowAction,
 } from "./machine-state.ts";
@@ -23,13 +24,7 @@ export function machineLine(
   translate: Translator,
 ): string {
   const reason = machineReason(row);
-  if (reason !== null) {
-    return reason.kind === "checkFailed"
-      ? translate("machines.reason.checkFailed" as never, {
-        count: reason.count,
-      })
-      : translate(`machines.reason.${reason.kind}` as never);
-  }
+  if (reason !== null) return reasonText(reason, translate);
   const agents = codingAgents(row.capabilities).map((agent) =>
     translate(`machines.agent.${agent}` as never)
   );
@@ -65,12 +60,26 @@ function machineReasonLine(
   translate: Translator,
 ): string | undefined {
   const reason = machineReason(row);
-  if (reason === null) return undefined;
-  return reason.kind === "checkFailed"
-    ? translate("machines.reason.checkFailed" as never, {
+  return reason === null ? undefined : reasonText(reason, translate);
+}
+
+function reasonText(reason: MachineReason, translate: Translator): string {
+  if (reason.kind !== "checkFailed") {
+    return translate(`machines.reason.${reason.kind}` as never);
+  }
+  if (reason.unchecked === undefined) {
+    return translate("machines.reason.checkFailed" as never, {
       count: reason.count,
+    });
+  }
+  return reason.count === 0
+    ? translate("machines.reason.checkUnchecked" as never, {
+      count: reason.unchecked,
     })
-    : translate(`machines.reason.${reason.kind}` as never);
+    : translate("machines.reason.checkMixed" as never, {
+      failed: reason.count,
+      unchecked: reason.unchecked,
+    });
 }
 
 function MachineBadge(
