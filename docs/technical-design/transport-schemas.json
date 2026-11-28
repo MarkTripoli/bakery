@@ -15473,13 +15473,22 @@
           "type": "boolean",
           "required": false,
           "description": "true also lists archived (revoked and retired) machines; omitted or false lists only machines that are not archived."
+        },
+        {
+          "name": "query",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 200
+          },
+          "description": "Text to find in a machine's name, matched case-insensitively as a substring; wildcard characters match literally. Omitted or blank lists every machine. A cursor is good only with the same query."
         }
       ],
       "pagination": "pagination",
       "rules": [
-        "Cursor pagination only: reject page, offset and skip. Order is createdAt then id ascending; a cursor is good only with the same includeArchived value."
+        "Cursor pagination only: reject page, offset and skip. Order is createdAt then id ascending; a cursor is good only with the same includeArchived and query values."
       ],
-      "description": "Page window for the machine list, with an explicit opt-in to include archived machines that are hidden by default."
+      "description": "Page window for the machine list, with an optional name search and an explicit opt-in to include archived machines that are hidden by default."
     },
     "WorkerLinkCodeInspect": {
       "fields": [
