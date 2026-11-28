@@ -38,6 +38,7 @@ import {
   RetireWarning,
 } from "./machine-wording.tsx";
 import { MachineRepair, type RepairIssued } from "./MachineRepair.tsx";
+import { issueRepair } from "./machine-repair.ts";
 import {
   CodingAgentBanner,
   CodingAgentRow,
@@ -225,11 +226,7 @@ export function MachineDetailPage(
   const repair = async () => {
     if (!organizationId) return;
     setRepairFailed(false);
-    const result = await api.workers.repairEnrollment({
-      organizationId,
-      id: machineId,
-      idempotencyKey: crypto.randomUUID(),
-    });
+    const result = await issueRepair(api, organizationId, machineId);
     if (!result.ok) {
       setRepairFailed(true);
       return;

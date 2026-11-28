@@ -41,6 +41,8 @@ type Fixture = {
   repairs: Request[];
   /** What a read of the re-pair setup says. */
   repairState: "pending" | "consumed" | "expired";
+  pendingRepair: boolean;
+  cancels: number;
   /** The next update is refused with this status. */
   refuseWith: number | null;
   /** The machine's system and processor. */
@@ -70,6 +72,8 @@ function fixture(
     revokes: [],
     repairs: [],
     repairState: "pending",
+    pendingRepair: false,
+    cancels: 0,
     refuseWith: null,
     // The server stores x86_64 as x64: that is what a real machine carries.
     system: { os: "linux", architecture: "x64" },
@@ -127,6 +131,22 @@ async function open(
     (url) => url.pathname === `/v1/workers/${MACHINE_ID}/enrollments`,
     (route) => {
       f.repairs.push(route.request());
+      if (f.pendingRepair) {
+        return route.fulfill({
+          status: 409,
+          contentType: "application/problem+json",
+          body: JSON.stringify({
+            type: "https://bakery.example/problems/x",
+            title: "x",
+            status: 409,
+            code: "STATE_CONFLICT",
+            retryable: false,
+            detail: "A repair code is already pending.",
+            requestId: "00000000-0000-4000-8000-00000000f002",
+            traceId: "00000000000000000000000000000002",
+          }),
+        });
+      }
       return route.fulfill(json({
         enrollmentId: REPAIR_ID,
         enrollmentToken: REPAIR_CODE,
@@ -138,9 +158,47 @@ async function open(
     },
   );
   await page.route(
-    (url) => url.pathname === `/v1/worker-enrollments/${REPAIR_ID}`,
+    (url) => url.pathname === "/v1/worker-enrollments",
     (route) =>
       route.fulfill(json({
+        items: f.pendingRepair
+          ? [{
+            enrollmentId: REPAIR_ID,
+            state: "pending",
+            name: "fixture-host",
+            os: "linux",
+            architecture: "x64",
+            capabilities: ["git", "claude"],
+            slots: 2,
+            expiresAt: new Date(Date.now() + 10 * 60_000).toISOString(),
+            consumedAt: null,
+            canceledAt: null,
+            workerHostId: null,
+            replacementOfId: null,
+            targetWorkerHostId: MACHINE_ID,
+            version: 1,
+          }]
+          : [],
+        nextCursor: null,
+      })),
+  );
+  await page.route(
+    (url) => url.pathname === `/v1/worker-enrollments/${REPAIR_ID}`,
+    (route) => {
+      if (route.request().method() === "PATCH") {
+        f.pendingRepair = false;
+        f.cancels += 1;
+        return route.fulfill(json({
+          enrollmentId: REPAIR_ID,
+          organizationId: MOCK_ORGANIZATION_ID,
+          state: "canceled",
+          expiresAt: new Date(Date.now() + 10 * 60_000).toISOString(),
+          workerHostId: null,
+          worker: null,
+          version: 2,
+        }));
+      }
+      return route.fulfill(json({
         enrollmentId: REPAIR_ID,
         organizationId: MOCK_ORGANIZATION_ID,
         state: f.repairState,
@@ -149,7 +207,8 @@ async function open(
         worker: null,
         version: 1,
         snapshotCursor: null,
-      })),
+      }));
+    },
   );
   await page.route(
     (url) => url.pathname === `/v1/workers/${MACHINE_ID}/revocations`,
@@ -810,6 +869,23 @@ test.describe("machine page: mode and Retire", () => {
         timeout: 2_000,
       });
     }).toPass();
+  });
+
+  test("Set up again with a code still pending replaces it with a new command", async ({ page }) => {
+    const f = fixture({ status: "revoked", desiredMode: "revoked" }, {
+      pendingRepair: true,
+    });
+    await open(page, f);
+    await banner(page).getByRole("button", { name: "Set up again" }).click();
+    await expect(
+      page.getByTestId("machine-repair").locator(
+        "[data-ui-component=codeBlock]",
+      ),
+    ).toBeVisible();
+    expect(f.cancels).toBe(1);
+    expect(f.repairs).toHaveLength(2);
+    await expect(page.getByText("Bakery could not start the setup."))
+      .toHaveCount(0);
   });
 
   test("a command that expired unused is taken away and offers a new one", async ({ page, context }) => {
