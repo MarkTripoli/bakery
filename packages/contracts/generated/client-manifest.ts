@@ -22944,9 +22944,12 @@ export const clientManifest = {
         "provider": {
           "type": "string",
           "enum": [
-            "github"
+            "github",
+            "anthropic",
+            "openai",
+            "openrouter"
           ],
-          "description": "Fixed credential verifier; no caller-selected endpoint."
+          "description": "Fixed credential verifier; no caller-selected endpoint. github is checked against the GitHub user read; anthropic, openai and openrouter (a coding agent's model API key) are checked once against that provider's fixed models read."
         },
         "name": {
           "type": "string",
@@ -52929,20 +52932,43 @@ export const clientManifest = {
               },
               "provider": {
                 "type": "string",
-                "const": "github",
-                "description": "Fixed verified credential provider."
+                "enum": [
+                  "github",
+                  "anthropic",
+                  "openai",
+                  "openrouter"
+                ],
+                "description": "Credential verifier the secret was checked by: github, or anthropic, openai or openrouter for a coding agent's model API key."
               },
               "verifiedProviderAccountId": {
-                "type": "string",
-                "pattern": "^(?:0|[1-9][0-9]*)$",
-                "description": "Positive GitHub account ID selected from bounded authenticated verification."
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^(?:0|[1-9][0-9]*)$",
+                    "description": "GitHub account id the credential authenticated as; null for a model API key, whose provider names no account."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "SecretMetadata.verifiedProviderAccountId may be null in this transport value."
               },
               "verifiedLogin": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 39,
-                "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?$",
-                "description": "Validated GitHub login selected from verification, never caller supplied."
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 39,
+                    "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?$",
+                    "description": "GitHub login the credential authenticated as; null for a model API key."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "SecretMetadata.verifiedLogin may be null in this transport value."
               },
               "activeVersionRevision": {
                 "type": "integer",
@@ -76393,20 +76419,43 @@ export const clientManifest = {
         },
         "provider": {
           "type": "string",
-          "const": "github",
-          "description": "Fixed verified credential provider."
+          "enum": [
+            "github",
+            "anthropic",
+            "openai",
+            "openrouter"
+          ],
+          "description": "Credential verifier the secret was checked by: github, or anthropic, openai or openrouter for a coding agent's model API key."
         },
         "verifiedProviderAccountId": {
-          "type": "string",
-          "pattern": "^(?:0|[1-9][0-9]*)$",
-          "description": "Positive GitHub account ID selected from bounded authenticated verification."
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "GitHub account id the credential authenticated as; null for a model API key, whose provider names no account."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "SecretMetadata.verifiedProviderAccountId may be null in this transport value."
         },
         "verifiedLogin": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 39,
-          "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?$",
-          "description": "Validated GitHub login selected from verification, never caller supplied."
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 39,
+              "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?$",
+              "description": "GitHub login the credential authenticated as; null for a model API key."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "SecretMetadata.verifiedLogin may be null in this transport value."
         },
         "activeVersionRevision": {
           "type": "integer",

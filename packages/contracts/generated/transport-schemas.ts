@@ -4037,9 +4037,12 @@ const transportSchemas = {
           "name": "provider",
           "type": "enum",
           "required": true,
-          "description": "Fixed credential verifier; no caller-selected endpoint.",
+          "description": "Fixed credential verifier; no caller-selected endpoint. github is checked against the GitHub user read; anthropic, openai and openrouter (a coding agent's model API key) are checked once against that provider's fixed models read.",
           "enum": [
-            "github"
+            "github",
+            "anthropic",
+            "openai",
+            "openrouter"
           ]
         },
         {
@@ -25989,9 +25992,9 @@ const transportSchemas = {
         "updatedAt": "timestamp",
         "version": "integer",
         "applicationId": "uuid",
-        "provider": "literal(github)",
-        "verifiedProviderAccountId": "decimalString",
-        "verifiedLogin": "githubLogin",
+        "provider": "enum(github|anthropic|openai|openrouter)",
+        "verifiedProviderAccountId": "decimalString|null",
+        "verifiedLogin": "githubLogin|null",
         "activeVersionRevision": "positiveInteger",
         "generation": "positiveInteger",
         "policyRevision": "positiveInteger",
@@ -26000,7 +26003,9 @@ const transportSchemas = {
       },
       "nullableFields": [
         "activeVersionId",
-        "revokedAt"
+        "revokedAt",
+        "verifiedProviderAccountId",
+        "verifiedLogin"
       ],
       "description": "A secret's identity and access policy without its value: name, the active-version pointer, the allowed-principals/allowed-actions lists (both default-deny), and revokedAt; returned by create, rotate and policy-update so a caller can confirm the change without ever seeing ciphertext.",
       "fieldDescriptions": {
@@ -26014,9 +26019,9 @@ const transportSchemas = {
         "updatedAt": "UTC timestamp when the record was last updated.",
         "version": "Optimistic-concurrency version used when updating the record.",
         "applicationId": "Owning live application UUID; legacy unscoped rows are not returned.",
-        "provider": "Fixed verified credential provider.",
-        "verifiedProviderAccountId": "Positive GitHub account ID selected from bounded authenticated verification.",
-        "verifiedLogin": "Validated GitHub login selected from verification, never caller supplied.",
+        "provider": "Credential verifier the secret was checked by: github, or anthropic, openai or openrouter for a coding agent's model API key.",
+        "verifiedProviderAccountId": "GitHub account id the credential authenticated as; null for a model API key, whose provider names no account.",
+        "verifiedLogin": "GitHub login the credential authenticated as; null for a model API key.",
         "activeVersionRevision": "Immutable revision number of the active encrypted version, distinct from metadata.version.",
         "generation": "Credential lifecycle generation; first creation is one.",
         "policyRevision": "Default-deny policy revision; first creation is one.",
