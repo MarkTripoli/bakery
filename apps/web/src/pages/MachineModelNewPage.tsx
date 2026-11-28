@@ -18,7 +18,7 @@ import { useConnectivity } from "../app/connectivity.ts";
 import { formatMachineDate } from "./MachinesPage.tsx";
 import { MACHINES_HOME, WORK_HOME } from "../shell/breadcrumb-paths.ts";
 import { ShellActiveNavigation, ShellSlot } from "../shell/shell-slots.tsx";
-import { agentRows } from "./machine-agents.ts";
+import { agentRows, paidPerUse } from "./machine-agents.ts";
 import {
   agentChoosable,
   createRefusal,
@@ -374,14 +374,27 @@ export function MachineModelNewPage(
           >
             {chosen === null ? null : (
               <UI.Text>
-                {say("machines.models.new.paidBySubscription", {
-                  agent: say(`machines.agent.${chosen.agent}`),
-                })}
+                {say(
+                  paidPerUse(chosen)
+                    ? "machines.agents.paidPerUse"
+                    : "machines.models.new.paidBySubscription",
+                  { agent: say(`machines.agent.${chosen.agent}`) },
+                )}
               </UI.Text>
             )}
-            <UI.Text variant="muted">
-              {say("machines.agents.apiKeyLater")}
-            </UI.Text>
+            {chosen === null && rows.some(paidPerUse)
+              ? (
+                <UI.Text variant="muted">
+                  {say("machines.models.new.paidChooseAgent")}
+                </UI.Text>
+              )
+              : chosen !== null && paidPerUse(chosen)
+              ? null
+              : (
+                <UI.Text variant="muted">
+                  {say("machines.agents.apiKeyLater")}
+                </UI.Text>
+              )}
           </UI.SettingsSection>
           <UI.InlineNotice tone="information">
             {say("machines.models.new.fixedNotice")}

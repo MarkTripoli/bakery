@@ -51,6 +51,7 @@ import {
   agentOfFailedChecks,
   agentRows,
   pageBadge,
+  paidPerUse,
 } from "./machine-agents.ts";
 import {
   type BannerFix,
@@ -971,7 +972,7 @@ export function MachineDetailPage(
                                       )}
                                     </UI.Text>
                                   )}
-                                {agents.length
+                                {agents.length && !agents.some(paidPerUse)
                                   ? (
                                     <UI.Text variant="muted">
                                       {message(

@@ -1195,9 +1195,34 @@ export function createMachineReadinessWorkflows(
       if (host.status !== "revoked") {
         throw new StandardError({ code: "STATE_CONFLICT" });
       }
-      // A still-unconsumed repair enrollment for this host under a different
-      // idempotency key owns the host's single pending-repair slot (partial
-      // unique index); conflict instead of a raw unique violation.
+      const expired = await transaction.query<{ id: string }>(
+        `update bakery.worker_enrollments
+            set canceled_at = clock_timestamp(),
+                updated_at = clock_timestamp(), version = version + 1
+          where organization_id = $1 and target_worker_host_id = $2
+            and consumed_at is null and canceled_at is null
+            and expires_at <= clock_timestamp()
+          returning id`,
+        [organizationId, workerHostId],
+      );
+      for (const row of expired.rows) {
+        await appendEnrollmentEvent(
+          organizationId,
+          row.id,
+          "canceled",
+          workerHostId,
+          metadata,
+        );
+        await appendAudit(transaction, {
+          organizationId,
+          principalId,
+          operation: "workerEnrollments.cancel",
+          resourceType: "worker_enrollment",
+          resourceId: row.id,
+          requestId: metadata.requestId,
+          traceId: metadata.traceId,
+        });
+      }
       const pendingRepair = await transaction.query<{ id: string }>(
         `select id from bakery.worker_enrollments
          where organization_id = $1 and target_worker_host_id = $2

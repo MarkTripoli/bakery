@@ -183,7 +183,9 @@ async function open(page: Page, w: World, path = `/machines/${MACHINE_ID}`) {
         items: w.components.map((key, index) => ({
           id: `00000000-0000-4000-8000-0000000000c${index}`,
           componentKey: key,
-          paymentMethods: ["subscription"],
+          paymentMethods: key === "harness.pi"
+            ? ["api_metered", "local"]
+            : ["subscription", "api_metered"],
           kind: "harness",
           actualVersion: "1.0.0",
           actualDigest: null,
@@ -203,6 +205,7 @@ async function open(page: Page, w: World, path = `/machines/${MACHINE_ID}`) {
       const made = binding({
         componentKey: body.componentKey,
         provider: body.provider,
+        billingRoute: body.billingRoute as "subscription" | "api_metered",
       });
       w.bindings.push(made);
       return route.fulfill(json(wire(made), 201));
@@ -1126,6 +1129,44 @@ test("a signed-in agent names the account it is signed in as", async ({ page }) 
   );
   expect(organizations).toContain(MOCK_ORGANIZATION_ID);
   await shot(page, "machine-agents-signed-in-as");
+});
+
+test.describe("how a new sign-in is paid for", () => {
+  test("Pi is signed in under a way of paying it accepts", async ({ page }) => {
+    const w = world({
+      capabilities: ["git", "pi"],
+      components: ["harness.pi"],
+      bindings: [],
+    });
+    await open(page, w);
+    const sentence = "Pi is paid per use by its model provider.";
+    await expect(row(page, "pi")).toContainText(sentence);
+    await expect(banner(page)).toContainText(
+      "Sign in so this machine can take Pi work.",
+    );
+    await expect(banner(page)).not.toContainText("subscription");
+    await expect(page.getByText("Paying with an API key is not available yet."))
+      .toHaveCount(0);
+    expect(w.createdBindings).toHaveLength(0);
+    await shot(page, "machine-agents-pi-per-use");
+    await banner(page).getByRole("button", { name: "Sign in", exact: true })
+      .click();
+    await expect(dialog(page)).toContainText(sentence);
+    await shot(page, "machine-agents-pi-per-use-dialog", [], {
+      windowOnly: true,
+    });
+    await expect.poll(() => w.createdBindings).toMatchObject([
+      { componentKey: "harness.pi", billingRoute: "api_metered" },
+    ]);
+  });
+
+  test("Claude Code says nothing about paying per use", async ({ page }) => {
+    await open(page, world());
+    await expect(row(page, "claude")).toBeVisible();
+    await expect(page.getByText("paid per use")).toHaveCount(0);
+    await expect(page.getByText("Paying with an API key is not available yet."))
+      .toBeVisible();
+  });
 });
 
 test.describe("the dialog while it starts", () => {
