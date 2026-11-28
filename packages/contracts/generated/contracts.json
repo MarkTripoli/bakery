@@ -950,7 +950,7 @@
       "action": "runSteps.given",
       "access": "Developer",
       "permission": "runStep:read",
-      "input": "IdPath",
+      "input": "StepGivenQuery",
       "output": "StepGiven",
       "event": "",
       "mcp": "bakery_runSteps_given",
@@ -18818,6 +18818,17 @@
                 "format": "uuid",
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                 "description": "UUID of the path-addressed resource; which entity it identifies is determined by the specific operation invoking this shared schema, not by the field itself."
+              }
+            },
+            {
+              "name": "runStepId",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "description": "Identifier of one pass of the step, from the run's step list. When given, the answer is what that pass was given; when left out, it is the latest pass. A pass of another step or run is not found.",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
               }
             },
             {
@@ -94876,6 +94887,20 @@
           ],
           "additionalProperties": false,
           "description": "Where Bakery's work on one issue stands: the Now card of the task its newest started request owns, reduced to one line for the issue page and the Issues list. Computed on read from the request, its run, the task's open approvals and questions, the newest pull request and the run's newest deployment, in one statement per page."
+        },
+        "StepGivenQuery": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "runStepId": {
+              "description": "Identifier of one pass of the step, from the run's step list. When given, the answer is what that pass was given; when left out, it is the latest pass. A pass of another step or run is not found.",
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            }
+          },
+          "additionalProperties": false,
+          "description": "Chooses which pass of a workflow step to describe; a step that repeats has one pass per iteration, each with its own start time, remembered facts and session."
         },
         "applications": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -340380,6 +340405,20 @@
       ],
       "additionalProperties": false,
       "description": "Where Bakery's work on one issue stands: the Now card of the task its newest started request owns, reduced to one line for the issue page and the Issues list. Computed on read from the request, its run, the task's open approvals and questions, the newest pull request and the run's newest deployment, in one statement per page."
+    },
+    "StepGivenQuery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "runStepId": {
+          "description": "Identifier of one pass of the step, from the run's step list. When given, the answer is what that pass was given; when left out, it is the latest pass. A pass of another step or run is not found.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        }
+      },
+      "additionalProperties": false,
+      "description": "Chooses which pass of a workflow step to describe; a step that repeats has one pass per iteration, each with its own start time, remembered facts and session."
     },
     "applications": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

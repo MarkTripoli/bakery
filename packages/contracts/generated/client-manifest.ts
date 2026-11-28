@@ -951,7 +951,7 @@ export const clientManifest = {
       "action": "runSteps.given",
       "access": "Developer",
       "permission": "runStep:read",
-      "input": "IdPath",
+      "input": "StepGivenQuery",
       "output": "StepGiven",
       "event": "",
       "mcp": "bakery_runSteps_given",
@@ -36795,6 +36795,20 @@ export const clientManifest = {
           ]
         }
       }
+    },
+    "StepGivenQuery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "runStepId": {
+          "description": "Identifier of one pass of the step, from the run's step list. When given, the answer is what that pass was given; when left out, it is the latest pass. A pass of another step or run is not found.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        }
+      },
+      "additionalProperties": false,
+      "description": "Chooses which pass of a workflow step to describe; a step that repeats has one pass per iteration, each with its own start time, remembered facts and session."
     },
     "PluginState": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

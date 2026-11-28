@@ -724,7 +724,7 @@ export function createRunControlRegistry(
     name: ExecutionImplementedAction.RunStepsGiven,
     method: HttpMethod.Get,
     path: "/v1/runs/:id/steps/:stepKey/given",
-    input: contractSchemas.IdPath,
+    input: contractSchemas.StepGivenQuery,
     output: contractSchemas.StepGiven,
     policy: {
       type: ActionKind.Query,
@@ -732,7 +732,7 @@ export function createRunControlRegistry(
       organizationContext:
         OrganizationContextPolicy.RequiredAuthenticatedContext,
     },
-    handler: async (context) => {
+    handler: async (context, input) => {
       const { transaction, organizationId } = requireWorkTransaction(context);
       const runId = context.params.id;
       const stepKey = context.params.stepKey;
@@ -743,6 +743,9 @@ export function createRunControlRegistry(
         organizationId,
         runId,
         stepKey,
+        ...(input.runStepId === undefined
+          ? {}
+          : { runStepId: input.runStepId }),
         readerMayRead: readerMayReadArtifactVersions(context),
       });
       if (given === null) {

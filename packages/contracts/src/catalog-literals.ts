@@ -1257,6 +1257,7 @@ export type ContractInputName =
   | "SlackInteraction"
   | "SplitInput"
   | "SteeringMessage"
+  | "StepGivenQuery"
   | "StorageConnectionExportCreate"
   | "StorageConnectionPathQuery"
   | "StorageConnectionReadQuery"
