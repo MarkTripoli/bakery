@@ -58,7 +58,10 @@ import {
   WorkerShutdownQuiescenceError,
   WorkerSupervisor,
 } from "./supervisor.ts";
-import { forgetModelKeyAfterAttempt, readOncePerAttempt } from "./model-key.ts";
+import {
+  forgetModelKeyWhenAttemptEnds,
+  readOncePerAttempt,
+} from "./model-key.ts";
 
 export type WorkerMainOptions = {
   monitoring?: RuntimeMonitoring;
@@ -472,7 +475,7 @@ export async function main(options: WorkerMainOptions = {}): Promise<void> {
     // value. Doing it here rather than per adapter is what keeps "does this
     // harness clean up" from being a per-harness question.
     const sessionAwareExecutor = withSessionCredentialFile(
-      forgetModelKeyAfterAttempt(workerExecutor, modelKeys),
+      forgetModelKeyWhenAttemptEnds(workerExecutor, modelKeys),
       {
         stateDir: config.stateDir,
       },

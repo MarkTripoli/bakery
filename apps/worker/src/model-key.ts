@@ -45,23 +45,15 @@ export function readOncePerAttempt(read: ReadModelKey): AttemptModelKeys {
   };
 }
 
-export function forgetModelKeyAfterAttempt(
+export function forgetModelKeyWhenAttemptEnds(
   executor: WorkerExecutor,
   keys: AttemptModelKeys,
 ): WorkerExecutor {
   return {
     ...executor,
-    async execute(assignment, signal, output, preparedSkills) {
-      try {
-        return await executor.execute(
-          assignment,
-          signal,
-          output,
-          preparedSkills,
-        );
-      } finally {
-        keys.forget(assignment.attemptId);
-      }
+    attemptEnded(attemptId) {
+      executor.attemptEnded?.(attemptId);
+      keys.forget(attemptId);
     },
   };
 }

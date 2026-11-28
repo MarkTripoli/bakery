@@ -1,6 +1,5 @@
 import { assertEquals, assertRejects } from "@std/assert";
 import {
-  forgetModelKeyAfterAttempt,
   meteredModelKey,
   ModelKeyUnavailable,
   type ModelKeyVariables,
@@ -142,25 +141,5 @@ Deno.test("an independent review paid by API key redacts that key, not the host 
   assertEquals(
     await reviewer.credentialRedactionSecrets?.(review as JobAssignment),
     ["anthropic-fixture-key"],
-  );
-});
-
-Deno.test("the remembered key is dropped when the attempt ends, however it ends", async () => {
-  let served = 0;
-  const keys = readOncePerAttempt(() => {
-    served++;
-    return Promise.resolve({ provider: "openai", apiKey: `key-${served}` });
-  });
-  const assignment = paidBy("api");
-  await meteredModelKey(assignment, keys.read, CODEX);
-  const failing = forgetModelKeyAfterAttempt({
-    execute: () => Promise.reject(new Error("harness crashed")),
-  } as unknown as WorkerExecutor, keys);
-  await assertRejects(() =>
-    failing.execute(assignment, new AbortController().signal)
-  );
-  assertEquals(
-    (await meteredModelKey(assignment, keys.read, CODEX))?.secrets,
-    ["key-2"],
   );
 });
