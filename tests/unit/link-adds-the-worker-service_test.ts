@@ -27,11 +27,13 @@ const BINDING: PairingBinding = {
 
 const SOURCE = "/home/ana/.local/share/bakery-worker";
 
-function fakeRunner(codes: number[] = []) {
+function fakeRunner(codes: number[] = [], existing: readonly string[] = []) {
   const runs: (readonly string[])[] = [];
   const files: { path: string; text: string; mode: number }[] = [];
   const directories: string[] = [];
   const removed: string[] = [];
+  const moved: [string, string][] = [];
+  const present = new Set<string>(existing);
   const runner: ServiceRunner = {
     run: (argv) => {
       runs.push(argv);
@@ -47,10 +49,17 @@ function fakeRunner(codes: number[] = []) {
     },
     remove: (path) => {
       removed.push(path);
+      present.delete(path);
       return Promise.resolve();
     },
+    move: (from, to) => {
+      moved.push([from, to]);
+      if (present.delete(from)) present.add(to);
+      return Promise.resolve();
+    },
+    exists: (path) => Promise.resolve(present.has(path)),
   };
-  return { runner, runs, files, directories, removed };
+  return { runner, runs, files, directories, removed, moved, present };
 }
 
 Deno.test("the Linux service is one sudo script: account, root, worker, settings, unit, start", () => {
@@ -195,22 +204,6 @@ Deno.test("on macOS, link writes the LaunchAgent and loads it in the user's sess
   );
 });
 
-Deno.test("a Linux repair checks the machine id before it changes anything, then drops the registration", () => {
-  const host = "6c1f0c1e-4b0e-4c55-9a59-3c3e8f6b1a01";
-  const lines = linuxLinkScript(BINDING, SOURCE, host).split("\n");
-  assertEquals(lines[0], "set -eu");
-  assertEquals(
-    lines[1],
-    `grep -Eqs '"workerHostId" *: *"${host}"' '/var/lib/bakery-worker/state/registration.json' || exit 3`,
-  );
-  const drop = lines.indexOf(
-    "rm -f '/var/lib/bakery-worker/state/registration.json'",
-  );
-  const copy = lines.findIndex((line) => line.startsWith("cp -a "));
-  assert(drop > copy && copy > 1);
-  assert(!linuxLinkScript(BINDING, SOURCE).includes("registration.json"));
-});
-
 Deno.test("a Linux repair for another machine stops with its own words", async () => {
   const fake = fakeRunner([3]);
   const error = await assertRejects(
@@ -232,21 +225,64 @@ Deno.test("a Linux repair for another machine stops with its own words", async (
   assert(error.message.includes("another machine"));
 });
 
-Deno.test("a macOS repair drops the old registration from the user's root", async () => {
-  const fake = fakeRunner([0, 0]);
+const MAC_ROOT = "/Users/ana/.local/share/bakery-worker";
+const MAC_REGISTRATION = `${MAC_ROOT}/state/registration.json`;
+const MAC_SET_ASIDE = `${MAC_ROOT}/state/registration.before-repair.json`;
+const MAC_HOST = {
+  target: "macos" as const,
+  root: MAC_ROOT,
+  home: "/Users/ana",
+  uid: 501,
+  username: "ana",
+};
+const REPAIRED = "6c1f0c1e-4b0e-4c55-9a59-3c3e8f6b1a01";
+
+Deno.test("a macOS repair sets the old registration aside and drops it once the agent starts", async () => {
+  const fake = fakeRunner([0, 0], [MAC_REGISTRATION]);
   await startLinkedService(
     { ...BINDING, os: "macos" },
-    {
-      target: "macos",
-      root: "/Users/ana/.local/share/bakery-worker",
-      home: "/Users/ana",
-      uid: 501,
-      username: "ana",
-    },
+    MAC_HOST,
     fake.runner,
-    "6c1f0c1e-4b0e-4c55-9a59-3c3e8f6b1a01",
+    REPAIRED,
   );
-  assertEquals(fake.removed, [
-    "/Users/ana/.local/share/bakery-worker/state/registration.json",
-  ]);
+  assertEquals(fake.moved, [[MAC_REGISTRATION, MAC_SET_ASIDE]]);
+  assertEquals(fake.removed, [MAC_SET_ASIDE]);
+  assertEquals([...fake.present], []);
+});
+
+Deno.test("a failed macOS repair puts the old registration back, so the same command can be run again", async () => {
+  const fake = fakeRunner([0, 5], [MAC_REGISTRATION]);
+  await assertRejects(
+    () =>
+      startLinkedService(
+        { ...BINDING, os: "macos" },
+        MAC_HOST,
+        fake.runner,
+        REPAIRED,
+      ),
+    LinkStepFailed,
+  );
+  assertEquals([...fake.present], [MAC_REGISTRATION]);
+  assertEquals(fake.removed, []);
+});
+
+Deno.test("a Linux repair keeps the old registration until the service has restarted", () => {
+  const lines = linuxLinkScript(BINDING, SOURCE, REPAIRED).split("\n");
+  const registration = "'/var/lib/bakery-worker/state/registration.json'";
+  const setAside =
+    "'/var/lib/bakery-worker/state/registration.before-repair.json'";
+  assert(lines[1]!.includes(`${registration} || grep -Eqs`));
+  assert(lines[1]!.includes(`${setAside} || exit 3`));
+  const moveAside = lines.findIndex((line) =>
+    line ===
+      `if [ -e ${registration} ]; then mv -f ${registration} ${setAside}; fi`
+  );
+  const restoreOnFail = lines.findIndex((line) => line.startsWith("trap '"));
+  const restart = lines.indexOf("systemctl restart bakery-worker");
+  const drop = lines.indexOf(`rm -f ${setAside}`);
+  assert(moveAside > 0 && restoreOnFail === moveAside + 1);
+  assert(restart > restoreOnFail && drop === restart + 1);
+  assertEquals(lines[drop + 1], "trap - EXIT");
+  assert(!lines.some((line) => line === `rm -f ${registration}`));
+  assert(!linuxLinkScript(BINDING, SOURCE).includes("registration"));
 });

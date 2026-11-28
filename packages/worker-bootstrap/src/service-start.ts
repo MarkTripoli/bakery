@@ -1,12 +1,18 @@
 import { dirname, join } from "node:path";
 import { LinkStepFailed } from "./link.ts";
 import type { PairingBinding } from "./pairing.ts";
-import { linuxLinkScript, macLinkService } from "./service-link.ts";
+import {
+  linuxLinkScript,
+  macLinkService,
+  REGISTRATION_SET_ASIDE,
+} from "./service-link.ts";
 
 export type ServiceRunner = Readonly<{
   run: (argv: readonly string[], log: string) => Promise<number>;
   writeFile: (path: string, text: string, mode: number) => Promise<void>;
   remove: (path: string) => Promise<void>;
+  move: (from: string, to: string) => Promise<void>;
+  exists: (path: string) => Promise<boolean>;
   makeDirectory: (path: string) => Promise<void>;
 }>;
 
@@ -57,14 +63,20 @@ export async function startLinkedService(
     host.home,
     host.uid,
   );
-  if (repairOf !== null) {
-    await runner.remove(join(host.root, "state", "registration.json"));
+  const registration = join(host.root, "state", "registration.json");
+  const setAside = join(host.root, "state", REGISTRATION_SET_ASIDE);
+  if (repairOf !== null && await runner.exists(registration)) {
+    await runner.move(registration, setAside);
   }
   await runner.makeDirectory(dirname(service.plistPath));
   await runner.writeFile(service.plistPath, service.plist, 0o644);
   const [bootout, bootstrap] = service.commands;
   await runner.run(bootout!, log);
   if ((await runner.run(bootstrap!, log)) !== 0) {
+    if (repairOf !== null && await runner.exists(setAside)) {
+      await runner.move(setAside, registration);
+    }
     throw new LinkStepFailed("The service could not be started.", log);
   }
+  if (repairOf !== null) await runner.remove(setAside);
 }

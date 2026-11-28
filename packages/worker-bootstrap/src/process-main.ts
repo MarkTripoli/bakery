@@ -1,7 +1,14 @@
 import process from "node:process";
 import { isAbsolute, join } from "node:path";
 import { createInterface } from "node:readline/promises";
-import { appendFile, lstat, mkdir, rm, writeFile } from "node:fs/promises";
+import {
+  appendFile,
+  lstat,
+  mkdir,
+  rename,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { spawn } from "node:child_process";
 import { hostname, userInfo } from "node:os";
 import { LinkStepFailed } from "./link.ts";
@@ -10,19 +17,25 @@ import { runBootstrap } from "./main.ts";
 import { systemProbes } from "./probes.ts";
 import { readRecord } from "./bounded-read.ts";
 import { LINUX_UNIT_PATH } from "./service.ts";
+import { REGISTRATION_SET_ASIDE } from "./service-link.ts";
 import { type ServiceRunner, startLinkedService } from "./service-start.ts";
 
-async function registeredHostId(root: string): Promise<string | null> {
+async function hostIdIn(path: string): Promise<string | null> {
   try {
-    const registered = JSON.parse(
-      await readRecord(join(root, "state", "registration.json")),
-    ) as { workerHostId?: unknown };
+    const registered = JSON.parse(await readRecord(path)) as {
+      workerHostId?: unknown;
+    };
     return typeof registered.workerHostId === "string"
       ? registered.workerHostId
       : null;
   } catch {
     return null;
   }
+}
+
+async function registeredHostId(root: string): Promise<string | null> {
+  return await hostIdIn(join(root, "state", "registration.json")) ??
+    await hostIdIn(join(root, "state", REGISTRATION_SET_ASIDE));
 }
 
 async function exists(path: string): Promise<boolean> {
@@ -51,6 +64,8 @@ const systemServiceRunner: ServiceRunner = {
     }),
   writeFile: (path, text, mode) => writeFile(path, text, { mode }),
   remove: (path) => rm(path, { force: true }),
+  move: (from, to) => rename(from, to),
+  exists,
   makeDirectory: async (path) => {
     await mkdir(path, { recursive: true });
   },

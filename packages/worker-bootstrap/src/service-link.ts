@@ -12,6 +12,7 @@ import {
 } from "./service.ts";
 
 export const LINK_LINUX_ACCOUNT = "bakery-worker";
+export const REGISTRATION_SET_ASIDE = "registration.before-repair.json";
 export const LINK_LINUX_ROOT = "/var/lib/bakery-worker";
 
 const HARNESSES: Readonly<Record<string, { prefix: string; program: string }>> =
@@ -100,12 +101,22 @@ export function linuxLinkScript(
   const source = quoted(sourceRoot);
   const target = quoted(root);
   const registration = quoted(join(root, "state", "registration.json"));
+  const setAside = quoted(join(root, "state", REGISTRATION_SET_ASIDE));
+  const hostPattern = repairOf === null
+    ? ""
+    : quoted(`"workerHostId" *: *"${repairOf}"`);
   const repairCheck = repairOf === null ? [] : [
-    `grep -Eqs ${
-      quoted(`"workerHostId" *: *"${repairOf}"`)
-    } ${registration} || exit 3`,
+    `grep -Eqs ${hostPattern} ${registration} || grep -Eqs ${hostPattern} ${setAside} || exit 3`,
   ];
-  const repairDrop = repairOf === null ? [] : [`rm -f ${registration}`];
+  const repairSetAside = repairOf === null ? [] : [
+    `if [ -e ${registration} ]; then mv -f ${registration} ${setAside}; fi`,
+    `trap 'if [ -e ${setAside.replaceAll("'", "'\\''")} ]; then mv -f ${
+      setAside.replaceAll("'", "'\\''")
+    } ${registration.replaceAll("'", "'\\''")}; fi' EXIT`,
+  ];
+  const repairDone = repairOf === null
+    ? []
+    : [`rm -f ${setAside}`, "trap - EXIT"];
   return [
     "set -eu",
     ...repairCheck,
@@ -116,7 +127,6 @@ export function linuxLinkScript(
     `cp -a ${source}/releases ${source}/current ${
       quoted(join(sourceRoot, PAIRING_FILE))
     } ${quoted(join(sourceRoot, TOKEN_FILE))} ${target}/`,
-    ...repairDrop,
     `chown -R ${account}:${account} ${target}`,
     fileFrom(
       environmentFileText(spec),
@@ -125,9 +135,11 @@ export function linuxLinkScript(
       account,
     ),
     fileFrom(renderSystemdUnit(spec), LINUX_UNIT_PATH, "0644", "root"),
+    ...repairSetAside,
     "systemctl daemon-reload",
     `systemctl enable ${LINUX_SERVICE}`,
     `systemctl restart ${LINUX_SERVICE}`,
+    ...repairDone,
     "",
   ].join("\n");
 }
