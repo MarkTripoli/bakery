@@ -46,6 +46,8 @@ type Fixture = {
   /** The machine's system and processor. */
   system: { os: string; architecture: string };
   components?: Record<string, unknown>[];
+  checks?: Record<string, unknown>[];
+  retirement?: Record<string, unknown> | null;
 };
 
 function fixture(
@@ -209,6 +211,8 @@ async function open(
 
 function worker(f: Fixture) {
   return {
+    ...(f.checks ? { checks: f.checks } : {}),
+    ...(f.retirement === undefined ? {} : { retirement: f.retirement }),
     id: MACHINE_ID,
     principalId: "00000000-0000-4000-8000-0000000000a2",
     name: "fixture-host",
@@ -602,6 +606,94 @@ test.describe("machine page: the one banner", () => {
   });
 });
 
+test.describe("machine page: every check and who retired it", () => {
+  const observed = "2026-11-27T15:30:00.000Z";
+  const check = (
+    checkId: string,
+    result: "pass" | "fail" | "unknown" | "not_applicable",
+    reason: string | null = null,
+    componentKey: string | null = null,
+  ) => ({ checkId, componentKey, result, reason, observedAt: observed });
+
+  test("each check has its result, when it ran and what to do", async ({ page }) => {
+    await open(
+      page,
+      fixture({
+        readiness: "needs_attention",
+        readinessReason: "check_failed",
+        failedCheckIds: ["disk_threshold"],
+      }, {
+        failedChecks: [{ checkId: "disk_threshold", reason: "2% free" }],
+        checks: [
+          check("disk_threshold", "fail", "2% free"),
+          check("supervisor_health", "pass"),
+          check("capability:git", "unknown"),
+          check("capability:model", "pass", null, "harness.claude"),
+          check("capability:reviewer", "not_applicable"),
+        ],
+      }),
+    );
+    await openChecks(page);
+    const checks = page.getByTestId("machine-checks");
+    for (
+      const word of [
+        "Passed",
+        "Failed",
+        "Could not be checked",
+        "Does not apply",
+        "Model access (Claude Code)",
+        "Bakery could not run this check. Check again in a moment.",
+        "The machine is low on disk space.",
+        "2% free",
+      ]
+    ) await expect(checks).toContainText(word);
+    await expect(checks).toContainText("Nov 27, 2026");
+    await expect(checks).not.toContainText("No failed checks.");
+    await expect(checks).not.toContainText(
+      "The worker is not running properly.",
+    );
+    if (test.info().project.name === "desktop") {
+      for (const column of ["Check", "Result", "Checked", "What to do"]) {
+        await expect(
+          checks.getByRole("columnheader", { name: column, exact: true })
+            .first(),
+        ).toBeVisible();
+      }
+    }
+    await shot(page, "machine-page-checks-table");
+  });
+
+  test("checks that all pass say there are no failures", async ({ page }) => {
+    await open(
+      page,
+      fixture({}, { checks: [check("disk_threshold", "pass")] }),
+    );
+    await openChecks(page);
+    const checks = page.getByTestId("machine-checks");
+    await expect(checks).toContainText("No failed checks.");
+    await expect(checks).toContainText("Free disk space");
+    await expect(checks).toContainText("Passed");
+  });
+
+  for (
+    const [name, line] of [
+      ["Riley Chen", "Retired by Riley Chen on Nov 27, 2026"],
+      [null, "Retired on Nov 27, 2026"],
+    ] as const
+  ) {
+    test(`a retired machine says ${line.slice(0, 10)}${name ? " who" : " when only"}`, async ({ page }) => {
+      await open(
+        page,
+        fixture({ status: "revoked", desiredMode: "revoked" }, {
+          retirement: { principalId: null, name, at: observed },
+        }),
+      );
+      await expect(page.getByTestId("machine-detail-page")).toContainText(line);
+      if (name) await shot(page, "machine-page-retired-by");
+    });
+  }
+});
+
 test.describe("machine page: mode and Retire", () => {
   test("an administrator changes the mode, and Take work again resumes it", async ({ page }) => {
     const f = fixture();
@@ -858,7 +950,7 @@ test.describe("machine page: mode and Retire", () => {
     await expect(page.getByTestId("machine-about")).toBeVisible();
     await expect(page.getByTestId("machine-checks")).toHaveCount(0);
     await expect(page.getByTestId("machine-agents")).toHaveCount(0);
-    await expect(detail.getByText("No failed checks reported.")).toHaveCount(0);
+    await expect(detail.getByText("No failed checks.")).toHaveCount(0);
     await expect(detail.getByText("No software has been reported."))
       .toHaveCount(0);
   });

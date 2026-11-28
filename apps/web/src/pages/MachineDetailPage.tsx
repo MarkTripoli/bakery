@@ -675,6 +675,22 @@ export function MachineDetailPage(
                   </UI.AlertBanner>
                 )
                 : null}
+              {isRetired && workerData.retirement
+                ? (
+                  <UI.Text variant="muted">
+                    {message(
+                      translate,
+                      workerData.retirement.name
+                        ? "machines.retired.by"
+                        : "machines.retired.on",
+                      {
+                        name: workerData.retirement.name ?? "",
+                        date: formatDate(workerData.retirement.at),
+                      },
+                    )}
+                  </UI.Text>
+                )
+                : null}
               {(!reason && bannerAgent) || signInBanner
                 ? (
                   <CodingAgentBanner
@@ -1178,6 +1194,8 @@ export function MachineDetailPage(
                       ? (
                         <MachineChecks
                           blockers={blockers}
+                          reported={workerData.checks ?? []}
+                          formatDate={formatDate}
                           components={components}
                           componentItems={componentItems}
                           nextComponentCursor={nextComponentCursor}

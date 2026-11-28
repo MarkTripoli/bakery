@@ -1799,7 +1799,6 @@
   "machines.detail.checks": "⟪Readiness checks⟫",
   "machines.detail.components": "⟪Installed components⟫",
   "machines.detail.providers": "⟪Coding agents⟫",
-  "machines.checks.none": "⟪No failed checks reported.⟫",
   "machines.checks.noReason": "⟪No reason supplied.⟫",
   "machines.checks.more": "⟪{count} more failed checks are hidden.⟫",
   "machines.components.empty": "⟪No component inventory has been reported.⟫",
@@ -7923,5 +7922,17 @@
   "machines.offline.lastUpdated": "⟪You are offline. Last updated {time}.⟫",
   "machines.agents.signedInAs": "⟪Signed in as {account}.⟫",
   "machines.checks.showMore": "⟪Show more⟫",
-  "machines.checks.showLess": "⟪Show less⟫"
+  "machines.checks.showLess": "⟪Show less⟫",
+  "machines.checks.passed": "⟪Passed⟫",
+  "machines.checks.unknown": "⟪Could not be checked⟫",
+  "machines.checks.notApplicable": "⟪Does not apply⟫",
+  "machines.checks.col.check": "⟪Check⟫",
+  "machines.checks.col.result": "⟪Result⟫",
+  "machines.checks.col.checked": "⟪Checked⟫",
+  "machines.checks.col.fix": "⟪What to do⟫",
+  "machines.checks.checkedAt": "⟪Checked {time}⟫",
+  "machines.checks.couldNotRun": "⟪Bakery could not run this check. Check again in a moment.⟫",
+  "machines.retired.by": "⟪Retired by {name} on {date}⟫",
+  "machines.retired.on": "⟪Retired on {date}⟫",
+  "machines.checks.none": "⟪No failed checks.⟫"
 }
