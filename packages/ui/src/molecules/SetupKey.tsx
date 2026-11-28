@@ -7,6 +7,7 @@ export type SetupKeyProps =
   & {
     /** The shared secret, already grouped for reading. */
     children: string;
+    variant?: "default" | "pairing";
   };
 
 /**
@@ -15,14 +16,16 @@ export type SetupKeyProps =
  * gesture. Distinct from `DataText` (inline identifiers inside prose) and
  * `CodeBlock` (multi-line source).
  */
-export function SetupKey({ children, ...props }: SetupKeyProps) {
+export function SetupKey(
+  { children, variant = "default", ...props }: SetupKeyProps,
+) {
   return (
     <div
       className="ui-setup-key"
       {...props}
       data-state="default"
       data-ui-component="setupKey"
-      data-variant="default"
+      data-variant={variant}
     >
       {children}
     </div>

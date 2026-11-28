@@ -673,6 +673,10 @@
   padding: var(--space-3); /* auth.css:10 .code 12px */
   user-select: all; /* auth.css:22 .setup-key */
 }
+
+.ui-setup-key[data-variant="pairing"] {
+  font: var(--type-otp);
+}
 .ui-backup-code-list {
   background: var(--color-surface-subtle); /* auth.css:23 .backup-code-list */
   border: var(--border-default) solid var(--color-border);

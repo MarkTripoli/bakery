@@ -7,8 +7,8 @@ import { useBakeryApi } from "../../api/context.tsx";
 import {
   fileFactsQueryOptions,
   fileKindsQueryOptions,
-  filePeopleQueryOptions,
   fileSearchQueryOptions,
+  organizationPeopleQueryOptions,
 } from "../../api/query.ts";
 import { useProtectedScope } from "../../app/query-scope-context.tsx";
 import { useShellViewport } from "../../app/responsive.ts";
@@ -68,7 +68,7 @@ export function FileSearchControls(
   const api = useBakeryApi();
   const scope = useProtectedScope();
   const kinds = useQuery(fileKindsQueryOptions(api, scope));
-  const people = useQuery(filePeopleQueryOptions(api, scope));
+  const people = useQuery(organizationPeopleQueryOptions(api, scope));
   // Facts belong to a kind, so they are only read once a kind is chosen.
   const facts = useQuery({
     ...fileFactsQueryOptions(api, scope, state.kind ?? ""),
