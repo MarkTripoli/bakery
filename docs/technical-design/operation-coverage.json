@@ -207,6 +207,17 @@
         "contains": "worker/claims"
       }
     },
+    "worker.modelKey": {
+      "state": "served-outside-registry",
+      "route": {
+        "file": "apps/server/src/modules/execution/routes.ts",
+        "literal": "/v1/worker/attempts/:id/model-key"
+      },
+      "test": {
+        "file": "tests/integration/deliver-a-model-key-to-the-attempt_test.ts",
+        "contains": "/model-key"
+      }
+    },
     "worker.context": {
       "state": "served-outside-registry",
       "route": {

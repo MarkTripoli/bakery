@@ -21060,6 +21060,7 @@ export const clientManifest = {
             "worker.claim",
             "worker.repositorySource",
             "worker.tools.secrets",
+            "worker.modelKey",
             "worker.context",
             "worker.plugin.broker",
             "worker.plugin.files",
@@ -22987,7 +22988,10 @@ export const clientManifest = {
           "type": "array",
           "items": {
             "type": "string",
-            "const": "identity.read",
+            "enum": [
+              "identity.read",
+              "model.inference"
+            ],
             "description": "Default deny: an empty list grants no action. Each array item follows this format."
           }
         },
@@ -52233,6 +52237,7 @@ export const clientManifest = {
                   "worker.claim",
                   "worker.repositorySource",
                   "worker.tools.secrets",
+                  "worker.modelKey",
                   "worker.context",
                   "worker.plugin.broker",
                   "worker.plugin.files",
@@ -52894,7 +52899,10 @@ export const clientManifest = {
                 "type": "array",
                 "items": {
                   "type": "string",
-                  "const": "identity.read",
+                  "enum": [
+                    "identity.read",
+                    "model.inference"
+                  ],
                   "description": "Actions permitted to use the secret. Each array item follows this format."
                 },
                 "description": "Actions permitted to use the secret."
@@ -75840,6 +75848,7 @@ export const clientManifest = {
             "worker.claim",
             "worker.repositorySource",
             "worker.tools.secrets",
+            "worker.modelKey",
             "worker.context",
             "worker.plugin.broker",
             "worker.plugin.files",
@@ -76381,7 +76390,10 @@ export const clientManifest = {
           "type": "array",
           "items": {
             "type": "string",
-            "const": "identity.read",
+            "enum": [
+              "identity.read",
+              "model.inference"
+            ],
             "description": "Actions permitted to use the secret. Each array item follows this format."
           },
           "description": "Actions permitted to use the secret."

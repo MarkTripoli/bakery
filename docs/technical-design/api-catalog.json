@@ -6889,6 +6889,28 @@
     {
       "group": "Worker protocol",
       "method": "GET",
+      "path": "/v1/worker/attempts/{id}/model-key",
+      "action": "worker.modelKey",
+      "access": "Worker+lease",
+      "permission": null,
+      "input": "IdPath",
+      "output": "WorkerModelKey",
+      "event": "",
+      "mcp": null,
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "LEASE_EXPIRED",
+        "LEASE_FENCED"
+      ]
+    },
+    {
+      "group": "Worker protocol",
+      "method": "GET",
       "path": "/v1/worker/attempts/{id}/context",
       "action": "worker.context",
       "access": "Worker+lease",

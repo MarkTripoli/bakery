@@ -1,13 +1,23 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "b4bf02407bdadc8b109b1ec3cab4f91233af2b86"
+    "d3d57917f149ed2db7dae80fd30bc48f25e61eb0"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:430f74a08ee14e5b73d8dfd8f59f1f6225b351f58d13fa86ddd92fccb2df91c6",
-  "reason": "Rebound onto main b4bf0240: a secret can hold a coding agent model API key (anthropic, openai, openrouter); SecretMetadata.provider widens and the GitHub identity fields become nullable (#70).",
+  "targetCompatibilityDigest": "sha256:494e60e9587aa9c34654b1934db426431ce76def297af370a4ab564ff3fcb56c",
+  "reason": "Rebound onto main d3d57917: a secret may allow model.inference, the action a coding agent's model API key is released under (#70), and the worker reads its key from GET /v1/worker/attempts/{id}/model-key.",
   "priorApprovals": [
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "b4bf02407bdadc8b109b1ec3cab4f91233af2b86"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:430f74a08ee14e5b73d8dfd8f59f1f6225b351f58d13fa86ddd92fccb2df91c6",
+      "reason": "Rebound onto main b4bf0240: a secret can hold a coding agent model API key (anthropic, openai, openrouter); SecretMetadata.provider widens and the GitHub identity fields become nullable (#70)."
+    },
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [

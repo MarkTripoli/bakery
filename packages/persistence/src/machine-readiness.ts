@@ -1567,13 +1567,30 @@ export function createMachineReadinessWorkflows(
         throw new StandardError({ code: "UNPROCESSABLE" });
       }
       if (input.secretId) {
-        const secret = await transaction.query<{ id: string }>(
-          `select id from bakery.secrets
-           where organization_id = $1 and id = $2`,
+        const secret = await transaction.query<{ provider: string | null }>(
+          `select provider from bakery.secrets
+           where organization_id = $1 and id = $2 and revoked_at is null`,
           [organizationId, input.secretId],
         );
-        if (secret.rows.length === 0) {
+        const found = secret.rows[0];
+        if (found === undefined) {
           throw new StandardError({ code: "UNPROCESSABLE" });
+        }
+        if (
+          input.billingRoute !== "api_metered" ||
+          found.provider !== input.provider
+        ) {
+          throw new StandardError({
+            code: "VALIDATION_FAILED",
+            params: {
+              issues: [{
+                path: ["secretId"],
+                code: "model_key_provider_mismatch",
+                message:
+                  "Choose a metered API key saved for this binding's provider.",
+              }],
+            },
+          });
         }
       }
       const inserted = await transaction.query<{ id: string }>(
