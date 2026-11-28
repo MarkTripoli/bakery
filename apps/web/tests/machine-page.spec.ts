@@ -264,6 +264,44 @@ test.describe("machine page: states", () => {
     await shot(page, "machine-page-offline-last-updated");
   });
 
+  test("a retire dialog left open cannot act offline", async ({ page, context }) => {
+    await open(page, fixture());
+    await page.getByRole("button", { name: "Retire this machine" }).first()
+      .click();
+    const dialog = page.getByRole("alertdialog");
+    await expect(dialog.getByRole("button", { name: "Retire now" }))
+      .toBeEnabled();
+    await context.setOffline(true);
+    for (const name of ["Retire now", "Finish and stop instead"]) {
+      await expect(dialog.getByRole("button", { name })).toBeDisabled();
+    }
+    await expect(dialog.getByRole("button", { name: "Cancel" }))
+      .toBeEnabled();
+  });
+
+  test("offline still opens the checks", async ({ page, context }) => {
+    await open(
+      page,
+      fixture(
+        {
+          readiness: "needs_attention",
+          readinessReason: "check_failed",
+          failedCheckIds: ["capability:git"],
+        },
+        {
+          blockedCapabilities: ["git"],
+          failedChecks: [{ checkId: "capability:git", reason: "git missing" }],
+        },
+      ),
+    );
+    await expect(banner(page)).toContainText("1 check failed.");
+    await context.setOffline(true);
+    await expect(page.getByText(/You are offline\. Last updated /))
+      .toBeVisible();
+    await expect(banner(page).getByRole("button", { name: "See the checks" }))
+      .toBeEnabled();
+  });
+
   test("loading shows placeholder rows, not a banner", async ({ page }) => {
     let release = () => {};
     const held = new Promise<void>((resolve) => {

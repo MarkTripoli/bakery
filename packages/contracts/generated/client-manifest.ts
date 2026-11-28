@@ -6355,7 +6355,7 @@ export const clientManifest = {
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN"
       ],
-      "organizationContext": "none",
+      "organizationContext": "required_authenticated_context",
       "implemented": true
     },
     {

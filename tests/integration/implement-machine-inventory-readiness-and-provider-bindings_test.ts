@@ -712,3 +712,86 @@ Deno.test("a machine read lists every check with its result and when, and who re
     assertEquals(retired.retirement?.name, person.rows[0]!.display_name);
     assert(retired.retirement?.at);
   }));
+
+Deno.test("an administrator reads a signed-in account through the real route", () =>
+  withWorkerFixture(async (fixture) => {
+    const id = crypto.randomUUID();
+    await fixture.pgDatabase.query(
+      `insert into bakery.model_provider_accounts (
+         id, organization_id, provider, billing_identity, identity_hash,
+         billing_route, display_identity, verified_at, auth_state
+       ) values ($1, $2, 'anthropic', 'account-70', $3, 'subscription',
+         'a***@example.com', now(), 'signed_in')`,
+      [id, fixture.organizationId, `h-${id}`],
+    );
+    const response = await adminRequest(
+      fixture,
+      "/v1/model-provider-accounts",
+      undefined,
+      { method: "GET" },
+    );
+    assertEquals(response.status, 200, await response.clone().text());
+    const page = await response.json() as {
+      items: { id: string; displayIdentity: string }[];
+    };
+    contractSchemas["Page<ModelProviderAccount>"].parse(page);
+    assertEquals(
+      page.items.map((account) => [account.id, account.displayIdentity]),
+      [[id, "a***@example.com"]],
+    );
+  }));
+
+Deno.test("an expired repair code no longer blocks Set up again", () =>
+  withWorkerFixture(async (fixture) => {
+    const worker = await registeredWorker(fixture, {
+      name: "issue70-expired-repair",
+    });
+    const hostId = worker.registration.workerHostId;
+    const revoked = await adminRequest(
+      fixture,
+      `/v1/workers/${hostId}/revocations`,
+      {},
+      { method: "POST", idempotencyKey: crypto.randomUUID() },
+    );
+    assertEquals(revoked.status, 200);
+    const repair = () =>
+      adminRequest(
+        fixture,
+        `/v1/workers/${hostId}/enrollments`,
+        {},
+        { method: "POST", idempotencyKey: crypto.randomUUID() },
+      );
+    const first = await repair();
+    assertEquals(first.status, 201, await first.clone().text());
+    const firstId = (await first.json() as { enrollmentId: string })
+      .enrollmentId;
+    const blocked = await repair();
+    assertEquals(
+      blocked.status,
+      409,
+      "a live repair code still holds the slot",
+    );
+    await blocked.body?.cancel();
+    await fixture.pgDatabase.query(
+      `update bakery.worker_enrollments set expires_at = now() - interval '1 second'
+        where id = $1`,
+      [firstId],
+    );
+    const second = await repair();
+    assertEquals(second.status, 201, await second.clone().text());
+    const secondId = (await second.json() as { enrollmentId: string })
+      .enrollmentId;
+    assert(secondId !== firstId);
+    const canceledEvents = await fixture.pgDatabase.query<{ count: number }>(
+      `select count(*)::int as count from bakery.domain_events
+        where aggregate_id = $1 and payload ->> 'state' = 'canceled'`,
+      [firstId],
+    );
+    assertEquals(canceledEvents.rows[0]!.count, 1);
+    const audits = await fixture.pgDatabase.query<{ count: number }>(
+      `select count(*)::int as count from bakery.audit_events
+        where resource_id = $1 and operation = 'workerEnrollments.cancel'`,
+      [firstId],
+    );
+    assertEquals(audits.rows[0]!.count, 1);
+  }));
