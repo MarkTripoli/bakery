@@ -54,6 +54,8 @@ const MALFORMED: readonly (readonly [string, string, string])[] = [
     "/v1/worker-enrollments/not-a-uuid/replacements",
     "id",
   ],
+  ["GET", "/v1/workers/%zz", "id"],
+  ["GET", `/v1/workers/${GOOD}/maintenance/%E0%A4%A`, "operationId"],
 ];
 
 Deno.test("every machine route answers a malformed id with a named 400, never a 500", () =>

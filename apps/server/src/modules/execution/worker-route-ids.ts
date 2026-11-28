@@ -21,6 +21,14 @@ const NESTED_COLLECTIONS: Readonly<Record<string, string>> = {
   "auth-attempts": "authAttemptId",
 };
 
+function decoded(segment: string): string {
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return segment;
+  }
+}
+
 export function malformedPathIds(path: string): z.ZodError | null {
   const prefix = ID_PREFIXES.find(([start]) => path.startsWith(start));
   if (prefix === undefined) return null;
@@ -34,10 +42,7 @@ export function malformedPathIds(path: string): z.ZodError | null {
   });
   const parsed = PathIdsSchema.safeParse(
     Object.fromEntries(
-      Object.entries(named).map(([param, value]) => [
-        param,
-        decodeURIComponent(value),
-      ]),
+      Object.entries(named).map(([param, value]) => [param, decoded(value)]),
     ),
   );
   return parsed.success ? null : parsed.error;
