@@ -260,6 +260,7 @@ export function LibraryPage() {
       variant={phone ? "list" : "table"}
     >
       <LibraryRows
+        arrowKeys={tab === "memory"}
         label={label}
         onCopy={(row) =>
           setCopying(

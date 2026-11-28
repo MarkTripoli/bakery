@@ -7947,5 +7947,18 @@
   "library.skill.files.cannotShow": "⟦Ŧĥïš ƒïļë çàññôŧ ƀë šĥôŵñ ĥëŕë. ŧëšŧ çôþ⟧",
   "library.skill.files.fileError": "⟦Ŧĥïš ƒïļë ðïð ñôŧ ļôàð. ŧëšŧ ç⟧",
   "library.skill.files.contents": "⟦Ƒïļë çôñŧëñŧš ŧë⟧",
-  "library.skill.files.empty": "⟦Ŧĥïš ƒïļë ïš ëɱþŧÿ. ŧëšŧ⟧"
+  "library.skill.files.empty": "⟦Ŧĥïš ƒïļë ïš ëɱþŧÿ. ŧëšŧ⟧",
+  "tasks.run.given.open": "⟦Ŵĥàŧ ïŧ ŵàš ĝïṽëñ ŧëš⟧",
+  "tasks.run.given.openNamed": "⟦Ŵĥàŧ ïŧ ŵàš ĝïṽëñ: {step} ŧëšŧ ç⟧",
+  "tasks.run.given.title": "⟦Ĝïṽëñ ŧô ŧĥë àĝëñŧ · {step} ŧëšŧ çô⟧",
+  "tasks.run.given.asOf": "⟦Àš ĝïṽëñ ŵĥëñ ŧĥïš šŧëþ šŧàŕŧëð, {when}. Ïŧ ðôëš ñôŧ çĥàñĝë àƒŧëŕŵàŕðš. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧",
+  "tasks.run.given.facts": "⟦Ŕëɱëɱƀëŕëð ƒàçŧš · {count} ŧëšŧ çô⟧",
+  "tasks.run.given.wordingOf": "⟦Ŵôŕðïñĝ ôƒ {date} ŧëš⟧",
+  "tasks.run.given.corrected": "⟦çôŕŕëçŧëð šïñçë ŧëš⟧",
+  "tasks.run.given.seeFact": "⟦Šëë ŧĥë ƒàçŧ ŧë⟧",
+  "tasks.run.given.stopped": "⟦ñô ļôñĝëŕ ûšëð ŧë⟧",
+  "tasks.run.given.omitted": "⟦{count, plural, one {# more fact was left out to fit the agent's limit. The agent did not see it.} other {# more facts were left out to fit the agent's limit. The agent did not see them.}} ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
+  "tasks.run.given.nothing": "⟦Ñôŧĥïñĝ ƀëšïðëš ŧĥë šŧëþ'š ôŵñ ïñšŧŕûçŧïôñš. ŧëšŧ çôþÿ ŧëš⟧",
+  "tasks.run.given.failed": "⟦Ɓàķëŕÿ çôûļð ñôŧ ŕëàð ŵĥàŧ ŧĥïš šŧëþ ŵàš ĝïṽëñ. ŧëšŧ çôþÿ ŧëšŧ⟧",
+  "tasks.run.given.offline": "⟦Ïŧ ïš ŕëàð àĝàïñ ƀÿ ïŧšëļƒ ŵĥëñ ÿôû àŕë ƀàçķ ôñļïñë. ŧëšŧ çôþÿ ŧëšŧ ç⟧"
 }

@@ -96,6 +96,7 @@ export type RouteContinuationOffersResponse =
 export type RouteContinuationAdmit = ClientInputMap["RouteContinuationAdmit"];
 export type RouteContinuationResponse = ClientOutputMap["RouteContinuation"];
 export type HandoffManifestResponse = ClientOutputMap["HandoffManifestRecord"];
+export type StepGivenResponse = ClientOutputMap["StepGiven"];
 export type HandoffContinueInput = ClientInputMap["HandoffContinue"];
 export type HandoffContinuationResponse =
   ClientOutputMap["HandoffContinuation"];
@@ -2064,6 +2065,12 @@ export type BakeryApiClient = {
     readonly runId: string;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<RunRequestsResponse>>;
+  readonly readStepGiven: (options: {
+    readonly organizationId: string;
+    readonly runId: string;
+    readonly stepKey: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<StepGivenResponse>>;
   readonly restartRunStep: (options: {
     readonly organizationId: string;
     readonly runId: string;
@@ -6948,6 +6955,24 @@ export function createBakeryApiClient({
           },
         );
         if (data.runId !== options.runId) {
+          throw new ApiTransportError("protocol", 200);
+        }
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async readStepGiven(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["runSteps.given"](
+          { id: options.runId, stepKey: options.stepKey },
+          { signal: options.signal },
+        );
+        if (data.stepKey !== options.stepKey) {
           throw new ApiTransportError("protocol", 200);
         }
         return { ok: true, data };

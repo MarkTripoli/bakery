@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as UI from "@bakery/ui";
 import type { MemoryEntryResponse } from "../../api/client.ts";
@@ -61,10 +61,9 @@ export function MemoryFactSheet(
     : entry.status === "retired"
     ? "noLongerUsed"
     : "inUse";
-  const panelRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!phone) panelRef.current?.focus();
-  }, [phone]);
+  const takeFocus = useCallback((panel: HTMLDivElement | null) => {
+    panel?.focus();
+  }, []);
   const title = translate("library.memory.fact.title" as never);
   const close = translate("library.memory.fact.close" as never);
   const source = sourceLine(entry);
@@ -278,7 +277,7 @@ export function MemoryFactSheet(
     <ShellSlot name="inspector" size="medium">
       <UI.InspectorPanel label={title} variant="column">
         <div
-          ref={panelRef}
+          ref={takeFocus}
           tabIndex={-1}
           data-testid="memory-fact"
           onKeyDown={(event) => {

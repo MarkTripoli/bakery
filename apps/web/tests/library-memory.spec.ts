@@ -1049,6 +1049,61 @@ for (
     }
 
     if (viewport.name === "desktop") {
+      test("arrow keys move between facts and Enter opens the one in focus", async ({ page }) => {
+        await memoryFixture(page);
+        await page.goto("/library?tab=memory");
+        const buttons = page.locator("[data-arrow-row] button");
+        await expect(buttons.nth(1)).toBeVisible();
+        await buttons.nth(0).focus();
+        await page.keyboard.press("ArrowUp");
+        await expect(buttons.nth(0)).toBeFocused();
+        await page.keyboard.press("ArrowDown");
+        await expect(buttons.nth(1)).toBeFocused();
+        await page.keyboard.press("ArrowDown");
+        await expect(buttons.nth(2)).toBeFocused();
+        await page.keyboard.press("ArrowUp");
+        await expect(buttons.nth(1)).toBeFocused();
+        await page.keyboard.press("Enter");
+        await expect(page).toHaveURL(/fact=/);
+      });
+
+      test("Enter moves into the fact, and Escape closes it back to its row", async ({ page }) => {
+        await memoryFixture(page);
+        await page.goto("/library?tab=memory");
+        const button = page.locator("[data-arrow-row] button").nth(1);
+        await button.focus();
+        await page.keyboard.press("Enter");
+        await expect(page.getByTestId("memory-fact")).toBeFocused();
+        await page.keyboard.press("Escape");
+        await expect(page.getByTestId("memory-fact")).toHaveCount(0);
+        await expect(button).toBeFocused();
+      });
+
+      test("modified arrows, and arrows past the ends, are left to the browser", async ({ page }) => {
+        await memoryFixture(page);
+        await page.goto("/library?tab=memory");
+        const buttons = page.locator("[data-arrow-row] button");
+        await buttons.nth(0).focus();
+        await page.evaluate(() => {
+          addEventListener("keydown", (event) => {
+            if (!event.key.startsWith("Arrow")) return;
+            document.body.dataset.taken = `${
+              document.body.dataset.taken ?? ""
+            }${event.defaultPrevented ? "y" : "n"}`;
+          });
+        });
+        await page.keyboard.press("ArrowUp");
+        await page.keyboard.press("Control+ArrowDown");
+        await page.keyboard.press("Alt+ArrowDown");
+        await expect(buttons.nth(0)).toBeFocused();
+        await page.keyboard.press("ArrowDown");
+        await expect(buttons.nth(1)).toBeFocused();
+        await expect(page.locator("body")).toHaveAttribute(
+          "data-taken",
+          "nnny",
+        );
+      });
+
       test("on a wide screen the list stays beside the fact; Escape closes it and returns to the row", async ({ page }) => {
         await memoryFixture(page);
         const sheet = await open(page, 1);

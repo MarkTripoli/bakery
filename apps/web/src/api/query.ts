@@ -142,6 +142,7 @@ import type {
   SkillUsageListResponse,
   SkillUseGrantListResponse,
   SkillVersionListResponse,
+  StepGivenResponse,
   StorageFileAtVersion,
   StorageFileUsePage,
   StorageFileVersionPage,
@@ -1407,6 +1408,35 @@ export function runQueryOptions(
         throw { kind: "invalid-response", status: 200 } satisfies ApiFailure;
       }
       return run;
+    },
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
+export function stepGivenQueryOptions(
+  client: Pick<BakeryApiClient, "readStepGiven">,
+  scope: ApiScope,
+  input: Readonly<{ runId: string; stepId: string; stepKey: string }>,
+) {
+  return queryOptions<StepGivenResponse, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "runSteps.given", input),
+    queryFn: async ({ signal }) => {
+      if (!scope.organizationId) {
+        throw { kind: "invalid-response", status: 0 } satisfies ApiFailure;
+      }
+      const given = unwrap(
+        await client.readStepGiven({
+          organizationId: scope.organizationId,
+          runId: input.runId,
+          stepKey: input.stepKey,
+          signal,
+        }),
+      );
+      if (signal.aborted) {
+        throw { kind: "invalid-response", status: 200 } satisfies ApiFailure;
+      }
+      return given;
     },
     enabled: Boolean(scope.organizationId),
     retry: retryNetworkOnce,
