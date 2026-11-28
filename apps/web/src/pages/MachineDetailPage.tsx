@@ -37,7 +37,7 @@ import {
   bannerTitle,
   RetireWarning,
 } from "./machine-wording.tsx";
-import { SetupInstructions } from "./SetupInstructions.tsx";
+import { MachineRepair, type RepairIssued } from "./MachineRepair.tsx";
 import {
   CodingAgentBanner,
   CodingAgentRow,
@@ -69,16 +69,8 @@ import {
   machineReason,
   requestedMode,
 } from "./machine-state.ts";
-import { type EnrollmentInput, installState } from "./machine-wizard.ts";
-import {
-  hasSetupSteps,
-  type MachineSystem,
-  processorLabel,
-} from "./machine-systems.ts";
-import {
-  isUnprovenWithSteps,
-  UnprovenSystemNotice,
-} from "./UnprovenSystemNotice.tsx";
+import { installState } from "./machine-wizard.ts";
+import { hasSetupSteps, processorLabel } from "./machine-systems.ts";
 
 function message(
   translate: Translator,
@@ -98,28 +90,6 @@ const BANNER_BODY: ReadonlySet<string> = new Set([
 ]);
 
 /** What a machine's own record says it is, for the settings a re-pair needs. */
-function repairInput(
-  worker: {
-    name: string;
-    os: string;
-    architecture: string;
-    slots: number;
-    capabilities?: unknown;
-  },
-): EnrollmentInput {
-  return {
-    name: worker.name,
-    os: worker.os as MachineSystem,
-    architecture: worker.architecture,
-    capabilities: Array.isArray(worker.capabilities)
-      ? worker.capabilities.filter((value): value is string =>
-        typeof value === "string"
-      )
-      : [],
-    slots: worker.slots,
-  };
-}
-
 function dateLabel(
   value: string | null | undefined,
   locale: string,
@@ -199,18 +169,11 @@ export function MachineDetailPage(
   useEffect(() => {
     setComponentCursor(null);
   }, [scope.organizationId, machineId]);
-  const [repairToken, setRepairToken] = useState<
-    | Readonly<{
-      enrollmentId: string;
-      enrollmentToken: string;
-      expiresAt: string;
-    }>
-    | null
-  >(null);
+  const [repairToken, setRepairToken] = useState<RepairIssued | null>(null);
   const [repairNow, setRepairNow] = useState(() => Date.now());
   useEffect(() => {
     if (repairToken === null) return;
-    const timer = setInterval(() => setRepairNow(Date.now()), 15_000);
+    const timer = setInterval(() => setRepairNow(Date.now()), 1_000);
     return () => clearInterval(timer);
   }, [repairToken]);
   const [repairEnrollmentId, setRepairEnrollmentId] = useState<string | null>(
@@ -234,6 +197,8 @@ export function MachineDetailPage(
     : null;
   useEffect(() => {
     if (repairEnrollment.data?.state !== "consumed") return;
+    setRepairToken(null);
+    setRepairEnrollmentId(null);
     void queryClient.invalidateQueries({
       queryKey: [
         "protected",
@@ -270,10 +235,13 @@ export function MachineDetailPage(
       return;
     }
     setRepairEnrollmentId(result.data.enrollmentId);
+    setRepairNow(Date.now());
     setRepairToken({
       enrollmentId: result.data.enrollmentId,
       enrollmentToken: result.data.enrollmentToken,
+      command: result.data.command,
       expiresAt: result.data.expiresAt,
+      issuedAt: Date.now(),
     });
     await queryClient.invalidateQueries({
       queryKey: workerQueryOptions(api, scope, machineId).queryKey,
@@ -473,7 +441,8 @@ export function MachineDetailPage(
   // A system with no set-up steps cannot be set up again, so it is not offered, and no setup code is made.
   const canSetUpAgain = workerData ? hasSetupSteps(workerData.os) : true;
   // Taking work again and setting it up again change the machine: administrators only.
-  const fix: BannerFix | null = wantedFix === "setUpAgain" && !canSetUpAgain
+  const fix: BannerFix | null = wantedFix === "setUpAgain" &&
+      (!canSetUpAgain || repairToken !== null)
     ? null
     : wantedFix === "seeChecks" || isAdmin
     ? wantedFix
@@ -700,76 +669,17 @@ export function MachineDetailPage(
                 : null}
               {repairToken
                 ? (
-                  <UI.SettingsSection
-                    title={message(translate, "machines.repair.title", {
-                      name: workerData.name,
-                    })}
-                    variant="stack"
-                    data-testid="machine-repair"
-                  >
-                    {repairState === "connected"
-                      ? (
-                        <UI.AlertBanner tone="success" role="status">
-                          {message(
-                            translate,
-                            "machines.wizard.install.connected",
-                            { name: workerData.name },
-                          )}
-                        </UI.AlertBanner>
-                      )
-                      : repairState === "expired" || repairState === "canceled"
-                      ? (
-                        <UI.Stack gap="standard">
-                          <UI.AlertBanner tone="warning" role="status">
-                            {message(
-                              translate,
-                              "machines.wizard.install.expired",
-                            )}
-                          </UI.AlertBanner>
-                          <UI.Inline gap="compact">
-                            <UI.Button
-                              variant="primary"
-                              disabled={offline}
-                              onClick={() => void repair()}
-                            >
-                              {message(
-                                translate,
-                                "machines.wizard.install.newSettings",
-                              )}
-                            </UI.Button>
-                          </UI.Inline>
-                        </UI.Stack>
-                      )
-                      : (
-                        <UI.Stack gap="standard">
-                          {isUnprovenWithSteps(
-                              workerData.os,
-                              workerData.architecture,
-                            )
-                            ? (
-                              <UnprovenSystemNotice
-                                os={workerData.os}
-                                architecture={workerData.architecture}
-                                translate={translate}
-                              />
-                            )
-                            : null}
-                          <SetupInstructions
-                            input={repairInput(workerData)}
-                            agent={codingAgents(workerData.capabilities)[0] ??
-                              null}
-                            code={repairToken.enrollmentToken}
-                            expiresAt={repairToken.expiresAt}
-                            now={repairNow}
-                            serverUrl={globalThis.location?.origin ?? ""}
-                            translate={translate}
-                          />
-                          <UI.Text variant="muted">
-                            {message(translate, "machines.repair.leave")}
-                          </UI.Text>
-                        </UI.Stack>
-                      )}
-                  </UI.SettingsSection>
+                  <MachineRepair
+                    key={repairToken.enrollmentId}
+                    machine={workerData}
+                    issued={repairToken}
+                    expired={repairState === "expired" ||
+                      repairState === "canceled"}
+                    now={repairNow}
+                    offline={offline}
+                    onNewCommand={() => void repair()}
+                    translate={translate}
+                  />
                 )
                 : null}
               {isAdmin && controlMode(requestedMode(workerData)) !== null

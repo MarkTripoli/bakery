@@ -151,9 +151,6 @@ export function SetupInstructions(
           />
         )
         : null}
-      <UI.AlertBanner tone="information" role="status" aria-live="polite">
-        {translate("machines.wizard.install.waiting" as never)}
-      </UI.AlertBanner>
     </>
   );
 }
