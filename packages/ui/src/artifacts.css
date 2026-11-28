@@ -198,9 +198,15 @@
   border-width: var(--space-0);
   border-block-start: var(--border-default) solid var(--color-border);
 }
+.ui-artifact-viewer__table {
+  inline-size: var(--space-0);
+  min-inline-size: 100%;
+  overflow-x: auto;
+}
 .ui-artifact-viewer__markdown table {
   border-collapse: collapse;
-  max-inline-size: 100%;
+  overflow-wrap: normal;
+  word-break: normal;
 }
 .ui-artifact-viewer__markdown th,
 .ui-artifact-viewer__markdown td {
@@ -208,7 +214,6 @@
   padding: var(--space-1) var(--space-2);
   text-align: start;
   vertical-align: top;
-  overflow-wrap: anywhere;
 }
 @media (pointer: coarse) {
   .ui-artifact-viewer__markdown a {

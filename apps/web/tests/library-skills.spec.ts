@@ -346,6 +346,17 @@ for (
               "---\n\nNever publish without approval.\n\n---\n\n| Rule | Why |\n| --- | --- |\n| Ask first | Mistakes |\n",
           },
           { path: "empty.txt", mediaType: "text/plain", words: "" },
+          {
+            path: "wide.md",
+            mediaType: "text/markdown",
+            words: `| ${
+              Array.from({ length: 12 }, (_, i) => `Column ${i + 1}`).join(
+                " | ",
+              )
+            } |\n|${" --- |".repeat(12)}\n| ${
+              Array.from({ length: 12 }, () => "measurement").join(" | ")
+            } |\n`,
+          },
           { path: longName, mediaType: "text/markdown", words: "Short." },
         ],
       });
@@ -368,6 +379,24 @@ for (
       await expect(files.getByRole("cell", { name: "Ask first" }))
         .toBeVisible();
       await still(page, "skill-files-table");
+      await files.getByRole("button", { name: "wide.md" }).click();
+      const wide = files.getByRole("group", { name: /^Column 1, / });
+      await expect(wide).toBeVisible();
+      expect(
+        await page.evaluate(() =>
+          document.documentElement.scrollWidth - globalThis.innerWidth
+        ),
+      ).toBeLessThanOrEqual(0);
+      expect(
+        await files.getByRole("cell", { name: "measurement" }).first()
+          .evaluate((cell) => cell.getBoundingClientRect().width),
+      ).toBeGreaterThan(60);
+      if (test.info().project.name === "mobile") {
+        expect(
+          await wide.evaluate((box) => box.scrollWidth > box.clientWidth),
+        ).toBe(true);
+      }
+      await still(page, "skill-files-wide-table");
       await files.getByRole("button", { name: "empty.txt" }).click();
       await expect(files).toContainText("This file is empty.");
       const long = files.getByRole("button", { name: longName });

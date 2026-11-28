@@ -6,6 +6,12 @@ import {
   useId,
 } from "react";
 import "../artifacts.css";
+import {
+  INLINE_LINK,
+  INLINE_TOKEN,
+  startsTable,
+  tableCells,
+} from "../markdown-lines.ts";
 
 export type ArtifactViewerContent =
   | {
@@ -60,7 +66,7 @@ export type ArtifactViewerProps = {
 };
 
 function inlineMarkdown(text: string): ReactNode[] {
-  return text.split(/(`[^`]+`|\*\*[^*]+\*\*|\*[^*]+\*|\[[^\]]+\]\([^\s)]+\))/g)
+  return text.split(INLINE_TOKEN)
     .map((part, index) => {
       if (part.startsWith("`") && part.endsWith("`")) {
         return <code key={index}>{part.slice(1, -1)}</code>;
@@ -71,7 +77,7 @@ function inlineMarkdown(text: string): ReactNode[] {
       if (part.startsWith("*") && part.endsWith("*")) {
         return <em key={index}>{part.slice(1, -1)}</em>;
       }
-      const link = /^\[([^\]]+)\]\(([^\s)]+)\)$/.exec(part);
+      const link = INLINE_LINK.exec(part);
       if (link?.[1] && link[2] && /^(https?:\/\/|mailto:|#)/i.test(link[2])) {
         return (
           <a key={index} href={link[2]} rel="noopener noreferrer">{link[1]}</a>
@@ -82,20 +88,6 @@ function inlineMarkdown(text: string): ReactNode[] {
 }
 
 const RULE_LINE = /^(-{3,}|\*{3,}|_{3,})\s*$/;
-
-const TABLE_RULE = /^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/;
-
-function startsTable(lines: readonly string[], index: number): boolean {
-  const rule = lines[index + 1] ?? "";
-  return (lines[index] ?? "").includes("|") && rule.includes("|") &&
-    TABLE_RULE.test(rule);
-}
-
-function tableCells(line: string): string[] {
-  return line.trim().replace(/^\|/, "").replace(/(?<!\\)\|$/, "")
-    .split(/(?<!\\)\|/)
-    .map((cell) => cell.trim().replaceAll("\\|", "|"));
-}
 
 // Markdown is constructed exclusively from React text nodes and an allowlist of elements.
 // Raw HTML, embedded media, and non-web link schemes never become executable markup.
@@ -137,24 +129,32 @@ function markdown(text: string): ReactNode[] {
         rows.push(tableCells(lines[index++] ?? ""));
       }
       blocks.push(
-        <table key={key}>
-          <thead>
-            <tr>
-              {header.map((cell, column) => (
-                <th key={column} scope="col">{inlineMarkdown(cell)}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row, at) => (
-              <tr key={at}>
-                {header.map((_, column) => (
-                  <td key={column}>{inlineMarkdown(row[column] ?? "")}</td>
+        <div
+          className="ui-artifact-viewer__table"
+          key={key}
+          role="group"
+          aria-label={header.join(", ")}
+          tabIndex={0}
+        >
+          <table>
+            <thead>
+              <tr>
+                {header.map((cell, column) => (
+                  <th key={column} scope="col">{inlineMarkdown(cell)}</th>
                 ))}
               </tr>
-            ))}
-          </tbody>
-        </table>,
+            </thead>
+            <tbody>
+              {rows.map((row, at) => (
+                <tr key={at}>
+                  {header.map((_, column) => (
+                    <td key={column}>{inlineMarkdown(row[column] ?? "")}</td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>,
       );
       continue;
     }
