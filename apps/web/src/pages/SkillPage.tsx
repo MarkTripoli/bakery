@@ -38,6 +38,7 @@ import {
   fingerprint,
   licenseShownInFiles,
   manifestFiles,
+  middleTruncated,
   pinnedRevisions,
   scopeWords,
   skillOrigin,
@@ -185,10 +186,16 @@ function FilesCard(
             : (
               <UI.Stack gap="compact">
                 <UI.Stack gap="none">
-                  <UI.DataText>{files.entry.path}</UI.DataText>
+                  <UI.DataText title={files.entry.path}>
+                    {middleTruncated(files.entry.path)}
+                  </UI.DataText>
                   <UI.Text variant="caption">{line(files.entry)}</UI.Text>
                 </UI.Stack>
-                <SkillFileView versionId={active.id} file={files.entry} />
+                <SkillFileView
+                  versionId={active.id}
+                  file={files.entry}
+                  instructions
+                />
               </UI.Stack>
             )}
         />
@@ -208,13 +215,17 @@ function FilesCard(
                         <UI.Inline gap="compact">
                           <UI.Button
                             variant="text"
+                            title={file.path}
+                            aria-label={middleTruncated(file.path) === file.path
+                              ? undefined
+                              : file.path}
                             aria-expanded={opened === file.path}
                             onClick={() =>
                               setOpened(
                                 opened === file.path ? null : file.path,
                               )}
                           >
-                            {file.path}
+                            {middleTruncated(file.path)}
                           </UI.Button>
                         </UI.Inline>
                         <UI.Text variant="caption">{line(file)}</UI.Text>

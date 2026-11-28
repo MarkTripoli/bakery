@@ -7946,5 +7946,6 @@
   "machines.repair.byHand": "⟦Šëŧ ûþ ƀÿ ĥàñð ïñšŧëàð ŧëšŧŧ⟧",
   "library.skill.files.cannotShow": "⟦Ŧĥïš ƒïļë çàññôŧ ƀë šĥôŵñ ĥëŕë. ŧëšŧ çôþ⟧",
   "library.skill.files.fileError": "⟦Ŧĥïš ƒïļë ðïð ñôŧ ļôàð. ŧëšŧ ç⟧",
-  "library.skill.files.contents": "⟦Ƒïļë çôñŧëñŧš ŧë⟧"
+  "library.skill.files.contents": "⟦Ƒïļë çôñŧëñŧš ŧë⟧",
+  "library.skill.files.empty": "⟦Ŧĥïš ƒïļë ïš ëɱþŧÿ. ŧëšŧ⟧"
 }

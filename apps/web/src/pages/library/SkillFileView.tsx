@@ -13,9 +13,10 @@ import {
 } from "./skills-state.ts";
 
 export function SkillFileView(
-  { versionId, file }: {
+  { versionId, file, instructions = false }: {
     readonly versionId: string;
     readonly file: ManifestFile;
+    readonly instructions?: boolean;
   },
 ) {
   const { translate } = useI18n();
@@ -50,13 +51,22 @@ export function SkillFileView(
   if (bytes.data === undefined) return <UI.Skeleton shape="row" />;
   const words = skillFileWords(bytes.data.content);
   if (words === null) return cannot;
-  return isMarkdownFile(file)
-    ? (
-      <UI.ArtifactViewer
-        label={translate("library.skill.files.contents")}
-        size="full"
-        content={{ kind: "markdown", text: withoutFrontMatter(words) }}
-      />
-    )
-    : <UI.CodeBlock aria-label={file.path} code={words} />;
+  const shownWords = instructions ? withoutFrontMatter(words) : words;
+  if (shownWords.trim() === "") {
+    return (
+      <UI.Text variant="muted">
+        {translate("library.skill.files.empty")}
+      </UI.Text>
+    );
+  }
+  return (
+    <UI.ArtifactViewer
+      label={translate("library.skill.files.contents")}
+      size="full"
+      content={{
+        kind: isMarkdownFile(file) ? "markdown" : "text",
+        text: shownWords,
+      }}
+    />
+  );
 }

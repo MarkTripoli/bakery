@@ -91,10 +91,17 @@ const skill = (
   ...extra,
 });
 
+type ExtraFile = {
+  readonly path: string;
+  readonly mediaType: string;
+  readonly words: string;
+};
+
 function versionsOf(
   entry: Skill,
   count: number,
   licenses: Readonly<Record<string, string>>,
+  extra: readonly ExtraFile[] = [],
 ) {
   return Array.from({ length: count }, (_, index) => {
     const revision = index + 1;
@@ -112,6 +119,13 @@ function versionsOf(
           ? {}
           : { license: licenses[entry.id] }),
         files: [
+          ...extra.map((file) => ({
+            path: file.path,
+            mediaType: file.mediaType,
+            sizeBytes: Buffer.byteLength(file.words),
+            sha256: "d".repeat(64),
+            isExecutable: false,
+          })),
           {
             path: "SKILL.md",
             mediaType: "text/markdown",
@@ -162,6 +176,7 @@ function versionsOf(
 }
 
 export type SkillsOptions = {
+  readonly extraFiles?: readonly ExtraFile[];
   /** No skill at all. */
   readonly empty?: boolean;
   /** Scopes that have no skills. */
@@ -477,7 +492,15 @@ export async function skillsFixture(page: Page, options: SkillsOptions = {}) {
         case "versions":
           return json(
             route,
-            pageOf(versionsOf(entry, versionCount(entry), licenses), url),
+            pageOf(
+              versionsOf(
+                entry,
+                versionCount(entry),
+                licenses,
+                options.extraFiles,
+              ),
+              url,
+            ),
           );
         case "used-by": {
           if (options.usedByStatus !== undefined) {
@@ -565,7 +588,8 @@ export async function skillsFixture(page: Page, options: SkillsOptions = {}) {
       const path = decodeURIComponent(
         new URL(route.request().url()).pathname.split("/files/")[1]!,
       );
-      const body = SKILL_FILE_WORDS[path];
+      const body = SKILL_FILE_WORDS[path] ??
+        options.extraFiles?.find((file) => file.path === path)?.words;
       if (body === undefined) return route.fulfill({ status: 500 });
       return route.fulfill({
         status: 200,

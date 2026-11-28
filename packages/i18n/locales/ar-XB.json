@@ -7946,5 +7946,6 @@
   "machines.repair.byHand": "⟪Set up by hand instead⟫",
   "library.skill.files.cannotShow": "⟪This file cannot be shown here.⟫",
   "library.skill.files.fileError": "⟪This file did not load.⟫",
-  "library.skill.files.contents": "⟪File contents⟫"
+  "library.skill.files.contents": "⟪File contents⟫",
+  "library.skill.files.empty": "⟪This file is empty.⟫"
 }

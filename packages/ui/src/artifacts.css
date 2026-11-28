@@ -192,6 +192,18 @@
 .ui-artifact-viewer__markdown a {
   color: var(--color-selection);
 }
+.ui-artifact-viewer__markdown table {
+  border-collapse: collapse;
+  max-inline-size: 100%;
+}
+.ui-artifact-viewer__markdown th,
+.ui-artifact-viewer__markdown td {
+  border: var(--border-default) solid var(--color-border);
+  padding: var(--space-1) var(--space-2);
+  text-align: start;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
 @media (pointer: coarse) {
   .ui-artifact-viewer__markdown a {
     display: inline-flex;
