@@ -1,7 +1,7 @@
 // The `link` command (#70) against a fake Bakery and a fake terminal: the
 // design's terminal text verbatim, both paths (a code in the command, and a
 // code an Admin approves), and every case where it stops.
-import { assert, assertEquals } from "@std/assert";
+import { assert, assertEquals, assertRejects } from "@std/assert";
 import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -10,6 +10,7 @@ import {
   type LinkIo,
   LinkStepFailed,
   parseLinkCommand,
+  type RegisteredHost,
   runLink,
 } from "../../packages/worker-bootstrap/src/index.ts";
 
@@ -42,7 +43,7 @@ async function harness(options: {
   arch?: string;
   install?: () => Promise<void>;
   startService?: () => Promise<void>;
-  registeredHost?: string | null;
+  registeredHost?: RegisteredHost;
 }) {
   const root = await mkdtemp(join(tmpdir(), "bakery-link-"));
   const out: string[] = [];
@@ -91,15 +92,12 @@ async function harness(options: {
       events.push("install");
       return Promise.resolve();
     }),
-    startService: options.startService ?? (() => {
-      events.push("service");
+    startService: options.startService ?? ((_binding, _root, repairOf) => {
+      events.push(repairOf === null ? "service" : `repair:${repairOf}`);
       return Promise.resolve();
     }),
-    forgetRegistration: () => {
-      events.push("forget");
-      return Promise.resolve();
-    },
-    registeredHost: () => Promise.resolve(options.registeredHost ?? null),
+    registeredHost: () =>
+      Promise.resolve(options.registeredHost ?? { kind: "none" }),
   };
   return {
     root,
@@ -302,6 +300,48 @@ Deno.test("a computer already linked is not changed", async () => {
 
 const THIS_HOST = "6c1f0c1e-4b0e-4c55-9a59-3c3e8f6b1a01";
 const OTHER_HOST = "0b2d6f43-5c1e-4f8e-8d2a-7e9a1c4b2f02";
+const known = (workerHostId: string): RegisteredHost => ({
+  kind: "known",
+  workerHostId,
+});
+
+Deno.test("after a failed service step, running the same command again adds the service", async () => {
+  let failures = 1;
+  const h = await harness({
+    routes: {
+      [INSPECT]: [
+        { status: 200, body: preview() },
+        { status: 200, body: preview() },
+        { status: 200, body: preview() },
+        { status: 409, body: { reason: "used" } },
+      ],
+    },
+    startService: () => {
+      if (failures > 0) {
+        failures -= 1;
+        return Promise.reject(
+          new LinkStepFailed(
+            "The service could not be added.",
+            "/tmp/service.log",
+          ),
+        );
+      }
+      h.events.push("service");
+      return Promise.resolve();
+    },
+  });
+  try {
+    assertEquals(await h.run(), 2);
+    assert(h.text().includes("Fix it, then run the same command again."));
+    await assertRejects(() => stat(join(h.root, "pairing.json")));
+    await assertRejects(() => stat(join(h.root, "enrollment-token")));
+    assertEquals(await h.run(), 0, h.text());
+    assert(h.events.includes("service"));
+    assert(!h.text().includes("already linked"));
+  } finally {
+    await h.close();
+  }
+});
 
 Deno.test("a repair code for this machine re-links it: new pairing and code, the old registration dropped", async () => {
   const h = await harness({
@@ -315,7 +355,7 @@ Deno.test("a repair code for this machine re-links it: new pairing and code, the
   try {
     assertEquals(await h.run(), 0);
     const repair = await harness({
-      registeredHost: THIS_HOST,
+      registeredHost: { kind: "known", workerHostId: THIS_HOST },
       routes: {
         [INSPECT]: [
           { status: 200, body: preview({ repairsWorkerHostId: THIS_HOST }) },
@@ -329,7 +369,7 @@ Deno.test("a repair code for this machine re-links it: new pairing and code, the
         repair.io,
       );
       assertEquals(again, 0, repair.text());
-      assertEquals(repair.events, ["install", "forget", "service"]);
+      assertEquals(repair.events, ["install", `repair:${THIS_HOST}`]);
       assertEquals(
         (await readFile(join(h.root, "enrollment-token"), "utf8")).trim(),
         "AAAA-BBBB",
@@ -356,11 +396,11 @@ Deno.test("a linked computer refuses a repair code for any other machine, even o
     assertEquals(await h.run(), 0);
     for (
       const [registeredHost, body] of [
-        [THIS_HOST, preview({ repairsWorkerHostId: OTHER_HOST })],
-        [THIS_HOST, preview({ repairsWorkerHostId: null })],
-        [null, preview({ repairsWorkerHostId: THIS_HOST })],
+        [known(THIS_HOST), preview({ repairsWorkerHostId: OTHER_HOST })],
+        [known(THIS_HOST), preview({ repairsWorkerHostId: null })],
+        [{ kind: "none" }, preview({ repairsWorkerHostId: THIS_HOST })],
         [
-          THIS_HOST,
+          known(THIS_HOST),
           preview({
             repairsWorkerHostId: THIS_HOST,
             organizationName: "Other Org",
@@ -461,6 +501,97 @@ Deno.test("rerunning the used command on a linked computer says it is linked", a
       );
     } finally {
       await again.close();
+    }
+  } finally {
+    await h.close();
+  }
+});
+
+Deno.test("a Linux machine running the service passes the repair to the service step", async () => {
+  const h = await harness({
+    routes: {
+      [INSPECT]: [
+        { status: 200, body: preview() },
+        { status: 409, body: { reason: "used" } },
+      ],
+    },
+  });
+  try {
+    assertEquals(await h.run(), 0);
+    const repair = await harness({
+      registeredHost: { kind: "in-service" },
+      routes: {
+        [INSPECT]: [
+          { status: 200, body: preview({ repairsWorkerHostId: THIS_HOST }) },
+          { status: 409, body: { reason: "used" } },
+        ],
+      },
+    });
+    try {
+      assertEquals(
+        await runLink(
+          { server: SERVER, code: "AAAA-BBBB", root: h.root },
+          repair.io,
+        ),
+        0,
+        repair.text(),
+      );
+      assertEquals(repair.events, ["install", `repair:${THIS_HOST}`]);
+    } finally {
+      await repair.close();
+    }
+  } finally {
+    await h.close();
+  }
+});
+
+Deno.test("a failed repair keeps this computer's link as it was", async () => {
+  const h = await harness({
+    routes: {
+      [INSPECT]: [
+        { status: 200, body: preview() },
+        { status: 409, body: { reason: "used" } },
+      ],
+    },
+  });
+  try {
+    assertEquals(await h.run(), 0);
+    const before = await readFile(join(h.root, "pairing.json"), "utf8");
+    const repair = await harness({
+      registeredHost: { kind: "in-service" },
+      routes: {
+        [INSPECT]: [{
+          status: 200,
+          body: preview({ repairsWorkerHostId: OTHER_HOST }),
+        }],
+      },
+      startService: () =>
+        Promise.reject(
+          new LinkStepFailed(
+            "This repair command is for another machine. The service was not changed.",
+            "/tmp/service.log",
+          ),
+        ),
+    });
+    try {
+      assertEquals(
+        await runLink(
+          { server: SERVER, code: "AAAA-BBBB", root: h.root },
+          repair.io,
+        ),
+        2,
+      );
+      assert(repair.text().includes("for another machine"));
+      assertEquals(
+        (await readFile(join(h.root, "enrollment-token"), "utf8")).trim(),
+        CODE,
+      );
+      assertEquals(
+        JSON.parse(await readFile(join(h.root, "pairing.json"), "utf8")).name,
+        JSON.parse(before).name,
+      );
+    } finally {
+      await repair.close();
     }
   } finally {
     await h.close();

@@ -57,7 +57,12 @@ export const REGISTER_LINK_PER_CODE = { max: 10, windowMs: TEN_MINUTES_MS };
 
 const RATE_LIMIT_PREFIX = "bakery:worker-link";
 
-export type LinkRefusalReason = "not_found" | "expired" | "used" | "declined";
+export type LinkRefusalReason =
+  | "not_found"
+  | "expired"
+  | "used"
+  | "declined"
+  | "unsupported_system";
 
 /** Unknown is a 404, the rest a 409; each names its reason and nothing about the organization. */
 export function linkRefusal(reason: LinkRefusalReason): StandardError {
@@ -314,13 +319,18 @@ async function loadLinkRequest(
   where: string,
   value: string,
 ): Promise<LinkRequestRow | undefined> {
+  await transaction.query(
+    `select 1 from bakery.worker_link_requests r
+     where ${where} = $1
+     for update`,
+    [value],
+  );
   const rows = await transaction.query<LinkRequestRow>(
     `select ${LINK_REQUEST_COLUMNS}
      from bakery.worker_link_requests r
      left join bakery.worker_enrollments e
        on e.organization_id = r.organization_id and e.id = r.enrollment_id
-     where ${where} = $1
-     for update of r`,
+     where ${where} = $1`,
     [value],
   );
   return rows.rows[0];
@@ -527,6 +537,9 @@ async function decideLinkRequest(
         });
       }
       if (row.expires_at <= row.now) throw linkRefusal("expired");
+      if (decision === "approved" && !row.supported) {
+        throw linkRefusal("unsupported_system");
+      }
       let enrollmentId: string | null = null;
       if (decision === "approved" && input !== null) {
         if (

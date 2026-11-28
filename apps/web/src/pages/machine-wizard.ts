@@ -1,3 +1,4 @@
+import { TOOL_GATEWAY_CAPABILITY } from "@bakery/contracts/workflow-action-registry";
 import { type CodingAgent, codingAgents } from "./machine-state.ts";
 import {
   defaultSystemRow,
@@ -68,12 +69,15 @@ export function parsedSlots(text: string): number | null {
   return value >= 1 && value <= SLOTS_MAX ? value : null;
 }
 
-/**
- * The capability ceiling of a machine that runs coding agents: what a coding
- * job asks of the machine (a working copy, a shell, the web and a model), and
- * the agent the person chose. The worker may later ask for any subset.
- */
 const CODING_CAPABILITIES = ["git", "shell", "web", "model"] as const;
+
+export function enrollmentCapabilities(agent: CodingAgent): string[] {
+  return [
+    ...CODING_CAPABILITIES,
+    agent,
+    ...(agent === "claude" ? [TOOL_GATEWAY_CAPABILITY] : []),
+  ];
+}
 
 export type EnrollmentInput = Readonly<{
   name: string;
@@ -97,7 +101,7 @@ export function enrollmentInput(
     name: answers.name.trim(),
     os: answers.os,
     architecture: answers.architecture.trim(),
-    capabilities: [...CODING_CAPABILITIES, answers.agent],
+    capabilities: enrollmentCapabilities(answers.agent),
     slots,
   };
 }

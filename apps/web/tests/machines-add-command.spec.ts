@@ -230,6 +230,7 @@ test.describe("add a machine with one command", () => {
       "web",
       "model",
       "claude",
+      "tool-gateway",
     ]);
     await expect(page.getByText("build-box-01 · 2 tasks at once · Claude Code"))
       .toBeVisible();
@@ -239,8 +240,10 @@ test.describe("add a machine with one command", () => {
       "Waiting for the machine · this page updates by itself",
     );
     await expect(page.getByTestId("machine-add-other")).toHaveText(
-      "Or set up by hand.",
+      "Someone else is at the machine? Enter their code. Or set up by hand.",
     );
+    await expect(page.getByRole("link", { name: "Enter their code" }))
+      .toHaveAttribute("href", "/machines/link");
     const axe = await new AxeBuilder({ page }).include(
       '[data-testid="machine-add"]',
     ).analyze();

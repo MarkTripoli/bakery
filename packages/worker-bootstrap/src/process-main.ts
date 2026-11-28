@@ -1,12 +1,60 @@
 import process from "node:process";
 import { isAbsolute, join } from "node:path";
 import { createInterface } from "node:readline/promises";
-import { lstat, readFile, rm } from "node:fs/promises";
-import { hostname } from "node:os";
+import { appendFile, lstat, mkdir, rm, writeFile } from "node:fs/promises";
+import { spawn } from "node:child_process";
+import { hostname, userInfo } from "node:os";
 import { LinkStepFailed } from "./link.ts";
 import type { ReleaseConfig } from "./bootstrap.ts";
 import { runBootstrap } from "./main.ts";
 import { systemProbes } from "./probes.ts";
+import { readRecord } from "./bounded-read.ts";
+import { LINUX_UNIT_PATH } from "./service.ts";
+import { type ServiceRunner, startLinkedService } from "./service-start.ts";
+
+async function registeredHostId(root: string): Promise<string | null> {
+  try {
+    const registered = JSON.parse(
+      await readRecord(join(root, "state", "registration.json")),
+    ) as { workerHostId?: unknown };
+    return typeof registered.workerHostId === "string"
+      ? registered.workerHostId
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+async function exists(path: string): Promise<boolean> {
+  try {
+    await lstat(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const systemServiceRunner: ServiceRunner = {
+  run: (argv, log) =>
+    new Promise((resolve) => {
+      const [program, ...args] = argv;
+      if (program === undefined) return resolve(127);
+      const child = spawn(program, args, {
+        stdio: ["inherit", "pipe", "pipe"],
+      });
+      const record = (chunk: Uint8Array) =>
+        void appendFile(log, chunk, { mode: 0o600 }).catch(() => undefined);
+      child.stdout.on("data", record);
+      child.stderr.on("data", record);
+      child.on("error", () => resolve(127));
+      child.on("close", (code) => resolve(code ?? 1));
+    }),
+  writeFile: (path, text, mode) => writeFile(path, text, { mode }),
+  remove: (path) => rm(path, { force: true }),
+  makeDirectory: async (path) => {
+    await mkdir(path, { recursive: true });
+  },
+};
 
 /**
  * The command line around `runBootstrap`: the real terminal, the real clock and
@@ -62,20 +110,12 @@ export async function main(
     operation: { write, probes: systemProbes(target), target, home },
     link: {
       isTerminal: process.stdin.isTTY === true,
-      forgetRegistration: async (root) => {
-        await rm(join(root, "state", "registration.json"), { force: true });
-      },
       registeredHost: async (root) => {
-        try {
-          const registered = JSON.parse(
-            await readFile(join(root, "state", "registration.json"), "utf8"),
-          ) as { workerHostId?: unknown };
-          return typeof registered.workerHostId === "string"
-            ? registered.workerHostId
-            : null;
-        } catch {
-          return null;
-        }
+        const known = await registeredHostId(root);
+        if (known !== null) return { kind: "known", workerHostId: known };
+        return target === "linux" && await exists(LINUX_UNIT_PATH)
+          ? { kind: "in-service" }
+          : { kind: "none" };
       },
       ask,
       waitForEnter: async () => {
@@ -109,14 +149,19 @@ export async function main(
           );
         }
       },
-      // Adding the service needs the administrator steps `bakery-worker plan`
-      // lists; this build prints them rather than running them.
-      startService: () => {
-        throw new LinkStepFailed(
-          "The service was not added: this build cannot add it yet. Run bakery-worker plan to see the steps.",
-          join(home, ".local", "share", "bakery-worker", "service.log"),
-        );
-      },
+      startService: (binding, root, repairOf) =>
+        startLinkedService(
+          binding,
+          {
+            target,
+            root,
+            home,
+            uid: typeof process.getuid === "function" ? process.getuid() : null,
+            username: userInfo().username,
+          },
+          systemServiceRunner,
+          repairOf,
+        ),
     },
   });
 }

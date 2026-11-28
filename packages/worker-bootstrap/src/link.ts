@@ -1,9 +1,11 @@
 import { BootstrapError } from "./errors.ts";
 import {
+  forgetLink,
   hasUnsafeCharacter,
   hasVisibleCharacter,
   normalizeServerOrigin,
   type PairingBinding,
+  readLinkCode,
   readPairingBinding,
   recordLink,
 } from "./pairing.ts";
@@ -90,6 +92,11 @@ export class LinkStepFailed extends Error {
   }
 }
 
+export type RegisteredHost =
+  | Readonly<{ kind: "known"; workerHostId: string }>
+  | Readonly<{ kind: "in-service" }>
+  | Readonly<{ kind: "none" }>;
+
 export type LinkIo = Readonly<{
   /** Whether a person can answer here: a script or a pipe cannot. */
   isTerminal: boolean;
@@ -104,11 +111,13 @@ export type LinkIo = Readonly<{
   /** Installs the verified worker into the root; throws LinkStepFailed. */
   install: (root: string) => Promise<void>;
   /** Writes the settings, adds the service and starts it; throws LinkStepFailed. */
-  startService: (binding: PairingBinding) => Promise<void>;
-  /** Drops the worker's own registration, so it registers again with the new code. */
-  forgetRegistration: (root: string) => Promise<void>;
-  /** The machine this computer's worker registered as, or null when it has not. */
-  registeredHost: (root: string) => Promise<string | null>;
+  startService: (
+    binding: PairingBinding,
+    root: string,
+    repairOf: string | null,
+  ) => Promise<void>;
+  /** Which machine this computer's worker registered as, as far as link can see. */
+  registeredHost: (root: string) => Promise<RegisteredHost>;
 }>;
 
 const AGENT_NAMES: Readonly<Record<string, string>> = {
@@ -323,12 +332,16 @@ function repairsThisLink(
   existing: PairingBinding,
   inspection: Inspection,
   origin: string,
-  registeredHost: string | null,
+  registered: RegisteredHost,
 ): boolean {
-  return registeredHost !== null &&
-    inspection.repairsWorkerHostId === registeredHost.toLowerCase() &&
-    existing.serverOrigin === origin &&
-    existing.organizationName === inspection.organizationName;
+  const repairs = inspection.repairsWorkerHostId;
+  if (
+    repairs === null || existing.serverOrigin !== origin ||
+    existing.organizationName !== inspection.organizationName
+  ) return false;
+  return registered.kind === "in-service" ||
+    (registered.kind === "known" &&
+      registered.workerHostId.toLowerCase() === repairs);
 }
 
 async function linkWithCode(
@@ -402,7 +415,9 @@ async function linkWithCode(
   try {
     await io.install(command.root);
     io.write("✓ Installed\n");
-    if (existing !== null) await io.forgetRegistration(command.root);
+    const previousCode = existing === null
+      ? null
+      : await readLinkCode(command.root);
     const binding = await recordLink(command.root, {
       serverOrigin: origin,
       organizationName: inspection.organizationName,
@@ -413,7 +428,21 @@ async function linkWithCode(
       capabilities: inspection.capabilities,
       boundAt: io.now().toISOString(),
     }, code);
-    await io.startService(binding);
+    try {
+      await io.startService(
+        binding,
+        command.root,
+        existing === null ? null : inspection.repairsWorkerHostId,
+      );
+    } catch (error) {
+      if (existing === null || previousCode === null) {
+        await forgetLink(command.root);
+      } else {
+        const { version: _, enrollmentId: __, ...previous } = existing;
+        await recordLink(command.root, previous, previousCode);
+      }
+      throw error;
+    }
     io.write("✓ Service started\n");
   } catch (error) {
     if (error instanceof LinkStepFailed) {

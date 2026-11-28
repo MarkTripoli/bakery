@@ -53,6 +53,7 @@ import { MachinesPage } from "./pages/MachinesPage.tsx";
 import { MachineDetailPage } from "./pages/MachineDetailPage.tsx";
 import { MachineModelNewPage } from "./pages/MachineModelNewPage.tsx";
 import { MachineAddPage } from "./pages/MachineAddPage.tsx";
+import { MachineLinkPage } from "./pages/MachineLinkPage.tsx";
 import { MachineWizardPage } from "./pages/MachineWizardPage.tsx";
 import { TaskCoordinationPage } from "./pages/task-coordination/TaskCoordinationPage.tsx";
 import { WorkflowEditorPage } from "./pages/library/WorkflowEditorPage.tsx";
@@ -541,6 +542,19 @@ export const routeCoverage = [
   {
     id: "machine-new",
     path: "/machines/new",
+    classification: "production",
+    states: [
+      "loading",
+      "ready",
+      "reconnecting",
+      "error",
+      "forbidden",
+      "offline",
+    ],
+  },
+  {
+    id: "machine-link",
+    path: "/machines/link",
     classification: "production",
     states: [
       "loading",
@@ -1827,6 +1841,15 @@ const machineNewRoute = createRoute({
   errorComponent: ProtectedRouteError,
 });
 
+const machineLinkRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/machines/link",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: MachineLinkPage,
+  errorComponent: ProtectedRouteError,
+});
+
 const machineNewByHandRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/machines/new/by-hand",
@@ -3097,6 +3120,7 @@ const routeTree = rootRoute.addChildren([
   evaluationRunRoute,
   machineNewRoute,
   machineNewByHandRoute,
+  machineLinkRoute,
   machineDetailRoute,
   machineChecksRoute,
   machineWorkRoute,
