@@ -2,6 +2,7 @@ import {
   assert,
   assertEquals,
   assertFalse,
+  assertMatch,
   assertRejects,
   assertStringIncludes,
 } from "@std/assert";
@@ -751,18 +752,46 @@ Deno.test("the package never elevates, evals, shells out beyond its read-only pr
       /^\s*\/\/.*$/gm,
       "",
     );
-    // `sudo` as a command (a string that starts with it, or the head of an
-    // argument list); the account refusals name it as a group, which is not one.
-    assertFalse(
-      /["'`]sudo\s|\[\s*["'`]sudo["'`]\s*,/.test(source),
-      `${name}: no sudo in code`,
-    );
+    const sudoCommands = source.match(
+      /["'`]sudo\s|\[\s*["'`]sudo["'`]\s*,|\(\s*["'`]sudo["'`]/g,
+    ) ?? [];
+    if (name === "service-start.ts") {
+      assertEquals(
+        sudoCommands.length,
+        1,
+        `${name}: sudo only for the confirmed Linux service step`,
+      );
+      assertMatch(
+        source,
+        /\["sudo", "sh", "-c", linuxLinkScript\(binding, host\.root(?:, \w+)?\)\]/,
+        `${name}: the one sudo runs only the service link script`,
+      );
+    } else {
+      assertEquals(sudoCommands, [], `${name}: no sudo in code`);
+    }
     assertFalse(/\beval\(|new Function\(/.test(source), `${name}: no eval`);
     assertFalse(
       /shell:\s*true|execSync|spawnSync/.test(source),
       `${name}: no shell`,
     );
-    if (!["probes.ts"].includes(name)) {
+    if (name === "process-main.ts") {
+      assertEquals(
+        [...source.matchAll(/child_process|execFile|Deno\.Command|spawn\(/g)]
+          .map((match) => match[0]),
+        ["child_process", "spawn("],
+        `${name}: one process start, the service runner`,
+      );
+      assertMatch(
+        source,
+        /import \{ spawn \} from "node:child_process";/,
+        `${name}: imports only spawn`,
+      );
+      assertMatch(
+        source,
+        /spawn\(program, args, \{/,
+        `${name}: spawns only the argv the service step chose`,
+      );
+    } else if (name !== "probes.ts") {
       assertFalse(
         /child_process|execFile|Deno\.Command/.test(source),
         `${name}: starts no process`,

@@ -1404,7 +1404,6 @@ export type BakeryApiClient = {
       readonly signal?: AbortSignal;
     }) => Promise<ApiResult<WorkerResponse>>;
   };
-  /** The models work may be sent to (`/v1/provider-routes`). The server lists them for the whole organization. */
   readonly modelProviderAccounts: {
     readonly list: (options: {
       readonly organizationId: string;
@@ -1412,6 +1411,7 @@ export type BakeryApiClient = {
       readonly signal?: AbortSignal;
     }) => Promise<ApiResult<ModelProviderAccountListResponse>>;
   };
+  /** The models work may be sent to (`/v1/provider-routes`). The server lists them for the whole organization. */
   readonly providerRoutes: {
     readonly list: (options: {
       readonly organizationId: string;

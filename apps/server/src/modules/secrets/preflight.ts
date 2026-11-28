@@ -18,8 +18,9 @@ import {
 } from "../../platform/command-replay.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
 import {
-  VerifiedGitHubIdentitySchema,
-  verifyGitHubCredential,
+  MODEL_KEY_PROVIDERS,
+  VerifiedSecretIdentitySchema,
+  verifySecretCredential,
 } from "./broker.ts";
 import {
   encryptSecret,
@@ -29,6 +30,11 @@ import {
 } from "./crypto.ts";
 import { assertSecretApplication } from "./postgres.ts";
 import { rejectCredentialMetadataFields } from "./redaction.ts";
+
+const ROTATABLE_PROVIDERS: ReadonlySet<string> = new Set([
+  "github",
+  ...MODEL_KEY_PROVIDERS,
+]);
 
 const preparationSlot = Symbol("private secret preparation");
 const SecretPreparationSchema = SecretCipherBindingSchema.extend({
@@ -52,7 +58,7 @@ const SecretPreparationSchema = SecretCipherBindingSchema.extend({
   expires: z.number().int().positive().describe(
     "Request-private preparation expiry in Unix milliseconds; 30-second TTL.",
   ),
-  identity: VerifiedGitHubIdentitySchema.describe(
+  identity: VerifiedSecretIdentitySchema.describe(
     "Selected fixed-provider verification identity, no raw provider data.",
   ),
   cipher: SecretCipherSchema.describe(
@@ -162,7 +168,10 @@ export function createSecretsAuthorityRunner(
               [organizationId, parsed.applicationId, context.params.id],
             );
             const row = current.rows[0];
-            if (!row || row.revoked_at !== null || row.provider !== "github") {
+            if (
+              !row || row.revoked_at !== null ||
+              !ROTATABLE_PROVIDERS.has(row.provider)
+            ) {
               throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
             }
             rejectCredentialMetadataFields(
@@ -174,6 +183,7 @@ export function createSecretsAuthorityRunner(
               principalId,
               secretId: context.params.id!,
               revision: row.active_version_revision + 1,
+              provider: row.provider,
             };
           },
         ) as {
@@ -182,6 +192,7 @@ export function createSecretsAuthorityRunner(
           principalId: string;
           secretId: string;
           revision: number;
+          provider: string;
         };
         if (probe.replay) return probe.replay;
         rejectCredentialMetadataFields(
@@ -190,7 +201,8 @@ export function createSecretsAuthorityRunner(
         );
         context.signal.throwIfAborted();
         const key = await loadSecretKey(config);
-        const identity = await verifyGitHubCredential(
+        const identity = await verifySecretCredential(
+          probe.provider,
           parsed.value,
           context.signal,
           fetcher,
@@ -284,7 +296,8 @@ export function createSecretsAuthorityRunner(
       rejectCredentialMetadataFields(safeInput, value);
       context.signal.throwIfAborted();
       const key = await loadSecretKey(config);
-      const identity = await verifyGitHubCredential(
+      const identity = await verifySecretCredential(
+        parsed.provider,
         parsed.value,
         context.signal,
         fetcher,
@@ -347,7 +360,7 @@ export async function requireSecretRotationPreparation(
     prepared.applicationId !== input.applicationId ||
     prepared.secretId !== context.params.id ||
     prepared.revision < 2 ||
-    prepared.identity.provider !== "github" ||
+    !ROTATABLE_PROVIDERS.has(prepared.identity.provider) ||
     prepared.fingerprint !== await commandFingerprint({ metadata, input })
   ) throw new StandardError({ code: "AUTH_FORBIDDEN" });
   return prepared;

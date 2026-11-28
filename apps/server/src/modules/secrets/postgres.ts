@@ -42,7 +42,9 @@ const scope =
 function toMetadata(row: SecretRow): SecretMetadata {
   const parsed = contractSchemas.SecretMetadata.parse(row.metadata);
   rejectCredentialMetadata(parsed.name);
-  rejectCredentialMetadata(parsed.verifiedLogin);
+  if (parsed.verifiedLogin !== null) {
+    rejectCredentialMetadata(parsed.verifiedLogin);
+  }
   return parsed;
 }
 export async function assertSecretApplication(
