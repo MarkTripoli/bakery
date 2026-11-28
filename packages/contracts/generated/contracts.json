@@ -7155,6 +7155,30 @@
     {
       "group": "Worker protocol",
       "method": "GET",
+      "path": "/v1/worker/attempts/{id}/model-key",
+      "action": "worker.modelKey",
+      "access": "Worker+lease",
+      "permission": null,
+      "input": "IdPath",
+      "output": "WorkerModelKey",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "LEASE_EXPIRED",
+        "LEASE_FENCED"
+      ],
+      "organizationContext": "none",
+      "implemented": false
+    },
+    {
+      "group": "Worker protocol",
+      "method": "GET",
       "path": "/v1/worker/attempts/{id}/context",
       "action": "worker.context",
       "access": "Worker+lease",
@@ -36313,6 +36337,57 @@
                   "$ref": "#/components/schemas/SecretIdentityToolRequest"
                 }
               }
+            }
+          }
+        }
+      },
+      "/v1/worker/attempts/{id}/model-key": {
+        "get": {
+          "operationId": "worker.modelKey",
+          "parameters": [
+            {
+              "name": "id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID of the path-addressed resource; which entity it identifies is determined by the specific operation invoking this shared schema, not by the field itself."
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/WorkerModelKey"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request."
+            },
+            "401": {
+              "description": "Authentication required (AUTH_REQUIRED)."
+            },
+            "403": {
+              "description": "Forbidden (AUTH_FORBIDDEN)."
+            },
+            "404": {
+              "description": "Resource not found (RESOURCE_NOT_FOUND)."
+            },
+            "409": {
+              "description": "Conflict (STATE_CONFLICT, LEASE_EXPIRED, LEASE_FENCED)."
+            },
+            "412": {
+              "description": "Precondition failed (PRECONDITION_FAILED)."
+            },
+            "500": {
+              "description": "Internal server error."
             }
           }
         }
@@ -67413,6 +67488,7 @@
                 "worker.claim",
                 "worker.repositorySource",
                 "worker.tools.secrets",
+                "worker.modelKey",
                 "worker.context",
                 "worker.plugin.broker",
                 "worker.plugin.files",
@@ -70565,7 +70641,10 @@
               "type": "array",
               "items": {
                 "type": "string",
-                "const": "identity.read",
+                "enum": [
+                  "identity.read",
+                  "model.inference"
+                ],
                 "description": "Default deny: an empty list grants no action. Each array item follows this format."
               }
             },
@@ -121262,6 +121341,7 @@
                 "worker.claim",
                 "worker.repositorySource",
                 "worker.tools.secrets",
+                "worker.modelKey",
                 "worker.context",
                 "worker.plugin.broker",
                 "worker.plugin.files",
@@ -121990,6 +122070,7 @@
                 "worker.claim",
                 "worker.repositorySource",
                 "worker.tools.secrets",
+                "worker.modelKey",
                 "worker.context",
                 "worker.plugin.broker",
                 "worker.plugin.files",
@@ -122718,6 +122799,7 @@
                 "worker.claim",
                 "worker.repositorySource",
                 "worker.tools.secrets",
+                "worker.modelKey",
                 "worker.context",
                 "worker.plugin.broker",
                 "worker.plugin.files",
@@ -123173,7 +123255,10 @@
               "type": "array",
               "items": {
                 "type": "string",
-                "const": "identity.read",
+                "enum": [
+                  "identity.read",
+                  "model.inference"
+                ],
                 "description": "Actions permitted to use the secret. Each array item follows this format."
               },
               "description": "Actions permitted to use the secret."
@@ -123343,7 +123428,10 @@
               "type": "array",
               "items": {
                 "type": "string",
-                "const": "identity.read",
+                "enum": [
+                  "identity.read",
+                  "model.inference"
+                ],
                 "description": "Actions permitted to use the secret. Each array item follows this format."
               },
               "description": "Actions permitted to use the secret."
@@ -123513,7 +123601,10 @@
               "type": "array",
               "items": {
                 "type": "string",
-                "const": "identity.read",
+                "enum": [
+                  "identity.read",
+                  "model.inference"
+                ],
                 "description": "Actions permitted to use the secret. Each array item follows this format."
               },
               "description": "Actions permitted to use the secret."
@@ -154196,6 +154287,32 @@
           "additionalProperties": false,
           "description": "The pinned input context of the attempt that asked for it, fenced by the lease it presented: every declared input with its bytes and the server-computed digest, so a worker materializes exactly what admission pinned without re-fetching an artifact."
         },
+        "WorkerModelKey": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "provider": {
+              "type": "string",
+              "enum": [
+                "anthropic",
+                "openai",
+                "openrouter"
+              ],
+              "description": "The model provider the key belongs to; the worker hands it to the harness under that provider's own variable."
+            },
+            "apiKey": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The decrypted key from the binding's secret; the worker passes it to the coding agent's process and redacts it from every output."
+            }
+          },
+          "required": [
+            "provider",
+            "apiKey"
+          ],
+          "additionalProperties": false,
+          "description": "The model API key a coding agent pays with on a metered route, read by the worker holding the attempt's live lease. It comes from the enabled api_secret binding of this machine, the job's harness and the job's provider, and is never stored by the worker or shown in output."
+        },
         "CoordinationPlan": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
@@ -170531,6 +170648,7 @@
                       "worker.claim",
                       "worker.repositorySource",
                       "worker.tools.secrets",
+                      "worker.modelKey",
                       "worker.context",
                       "worker.plugin.broker",
                       "worker.plugin.files",
@@ -171192,7 +171310,10 @@
                     "type": "array",
                     "items": {
                       "type": "string",
-                      "const": "identity.read",
+                      "enum": [
+                        "identity.read",
+                        "model.inference"
+                      ],
                       "description": "Actions permitted to use the secret. Each array item follows this format."
                     },
                     "description": "Actions permitted to use the secret."
@@ -190735,7 +190856,10 @@
               "type": "array",
               "items": {
                 "type": "string",
-                "const": "identity.read",
+                "enum": [
+                  "identity.read",
+                  "model.inference"
+                ],
                 "description": "Actions permitted to use the secret. Each array item follows this format."
               },
               "description": "Actions permitted to use the secret."
@@ -312773,6 +312897,7 @@
             "worker.claim",
             "worker.repositorySource",
             "worker.tools.secrets",
+            "worker.modelKey",
             "worker.context",
             "worker.plugin.broker",
             "worker.plugin.files",
@@ -315931,7 +316056,10 @@
           "type": "array",
           "items": {
             "type": "string",
-            "const": "identity.read",
+            "enum": [
+              "identity.read",
+              "model.inference"
+            ],
             "description": "Default deny: an empty list grants no action. Each array item follows this format."
           }
         },
@@ -366806,6 +366934,7 @@
             "worker.claim",
             "worker.repositorySource",
             "worker.tools.secrets",
+            "worker.modelKey",
             "worker.context",
             "worker.plugin.broker",
             "worker.plugin.files",
@@ -367534,6 +367663,7 @@
             "worker.claim",
             "worker.repositorySource",
             "worker.tools.secrets",
+            "worker.modelKey",
             "worker.context",
             "worker.plugin.broker",
             "worker.plugin.files",
@@ -368262,6 +368392,7 @@
             "worker.claim",
             "worker.repositorySource",
             "worker.tools.secrets",
+            "worker.modelKey",
             "worker.context",
             "worker.plugin.broker",
             "worker.plugin.files",
@@ -368717,7 +368848,10 @@
           "type": "array",
           "items": {
             "type": "string",
-            "const": "identity.read",
+            "enum": [
+              "identity.read",
+              "model.inference"
+            ],
             "description": "Actions permitted to use the secret. Each array item follows this format."
           },
           "description": "Actions permitted to use the secret."
@@ -368887,7 +369021,10 @@
           "type": "array",
           "items": {
             "type": "string",
-            "const": "identity.read",
+            "enum": [
+              "identity.read",
+              "model.inference"
+            ],
             "description": "Actions permitted to use the secret. Each array item follows this format."
           },
           "description": "Actions permitted to use the secret."
@@ -369057,7 +369194,10 @@
           "type": "array",
           "items": {
             "type": "string",
-            "const": "identity.read",
+            "enum": [
+              "identity.read",
+              "model.inference"
+            ],
             "description": "Actions permitted to use the secret. Each array item follows this format."
           },
           "description": "Actions permitted to use the secret."
@@ -399854,6 +399994,32 @@
       "additionalProperties": false,
       "description": "The pinned input context of the attempt that asked for it, fenced by the lease it presented: every declared input with its bytes and the server-computed digest, so a worker materializes exactly what admission pinned without re-fetching an artifact."
     },
+    "WorkerModelKey": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "provider": {
+          "type": "string",
+          "enum": [
+            "anthropic",
+            "openai",
+            "openrouter"
+          ],
+          "description": "The model provider the key belongs to; the worker hands it to the harness under that provider's own variable."
+        },
+        "apiKey": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The decrypted key from the binding's secret; the worker passes it to the coding agent's process and redacts it from every output."
+        }
+      },
+      "required": [
+        "provider",
+        "apiKey"
+      ],
+      "additionalProperties": false,
+      "description": "The model API key a coding agent pays with on a metered route, read by the worker holding the attempt's live lease. It comes from the enabled api_secret binding of this machine, the job's harness and the job's provider, and is never stored by the worker or shown in output."
+    },
     "CoordinationPlan": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -416225,6 +416391,7 @@
                   "worker.claim",
                   "worker.repositorySource",
                   "worker.tools.secrets",
+                  "worker.modelKey",
                   "worker.context",
                   "worker.plugin.broker",
                   "worker.plugin.files",
@@ -416886,7 +417053,10 @@
                 "type": "array",
                 "items": {
                   "type": "string",
-                  "const": "identity.read",
+                  "enum": [
+                    "identity.read",
+                    "model.inference"
+                  ],
                   "description": "Actions permitted to use the secret. Each array item follows this format."
                 },
                 "description": "Actions permitted to use the secret."
@@ -436463,7 +436633,10 @@
           "type": "array",
           "items": {
             "type": "string",
-            "const": "identity.read",
+            "enum": [
+              "identity.read",
+              "model.inference"
+            ],
             "description": "Actions permitted to use the secret. Each array item follows this format."
           },
           "description": "Actions permitted to use the secret."

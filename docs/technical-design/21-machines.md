@@ -368,7 +368,13 @@ per-machine/harness binding:
   unsupported harness. State/PKCE and callback validation remain adapter-owned
   where applicable.
 - API credentials use existing encrypted secret records and an explicit
-  host/harness grant. Prefer brokered access when supported. Direct harness
+  host/harness grant. Prefer brokered access when supported. A coding agent's
+  model API key is released to an attempt only when three things hold: the
+  machine has an enabled `api_secret` binding for the job's harness and
+  provider that names the key; the key belongs to the job's project; and the
+  key's own policy allows `model.inference` for the person who started the
+  run. Only the worker holding the attempt's live lease can read it, each
+  release is audited, and an attempt that is being canceled gets nothing. Direct harness
   credentials must be restricted to the work they can perform; an arbitrary
   shell running with those credentials can read them. They never inherit the
   supervisor's worker credential or privileged integration secrets.

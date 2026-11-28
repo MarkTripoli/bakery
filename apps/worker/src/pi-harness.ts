@@ -67,6 +67,13 @@ import { provenCanceledOutcome, type PublishArtifact } from "./task-brief.ts";
 import type { JobAssignment, JsonValue } from "./types.ts";
 import { WORKER_RESULT_MAX_BYTES } from "./types.ts";
 import { RepositoryExecutionContextSchema } from "../../../packages/contracts/src/repository-inspection.ts";
+import {
+  type HarnessCredentials,
+  harnessCredentials,
+  meteredModelKey,
+  type ModelKeyVariables,
+  type ReadModelKey,
+} from "./model-key.ts";
 
 const PI_ACTION = "harness.implement";
 const MAX_STREAM_LINE_BYTES = 64 * 1024;
@@ -131,6 +138,7 @@ export type PiHarnessOptions = {
   designToolAvailable?: boolean;
   /** Reads the attempt's pinned inputs; required only when a step declares inputs. */
   readonly readAttemptContext?: ReadAttemptContext;
+  readonly readModelKey?: ReadModelKey;
   /** Configured output redaction secrets; also withheld from published patches. */
   readonly redactionSecrets?: readonly string[];
   /** Test seam: absolute group-kill helper used when Deno.kill is not granted. */
@@ -1633,46 +1641,17 @@ async function executePiHarness(
         context.retryable,
       );
     }
-    try {
-      await preparePiAuth(options.piAgentSourceDir, config.agentDir);
-    } catch (error) {
-      if (
-        error instanceof Error &&
-        error.message === "PI_HARNESS_AUTH_UNAVAILABLE"
-      ) {
-        return harnessCredentialUnavailable(
-          "PI",
-          "Pi",
-          "The Pi harness could not complete the bounded task",
-        );
-      }
-      return piHarnessFault(
-        "PI_HARNESS_INPUT_INVALID",
-        "Pi native authentication preparation was unavailable.",
-        500,
-        false,
-      );
-    }
-    // Pi's read tool can open its auth copy: redact every token in it from
-    // output and withhold them from patches.
-    let credentialSecrets: readonly string[];
-    try {
-      credentialSecrets = await harnessCredentialSecrets(
-        join(options.piAgentSourceDir, PI_AUTH_FILE),
-      );
-    } catch {
-      return harnessCredentialUnavailable(
-        "PI",
-        "Pi",
-        "The Pi harness could not complete the bounded task",
-      );
-    }
+    const credentials = await piCredentials(
+      options,
+      config.agentDir,
+      assignment,
+    );
+    if (!credentials.ok) return credentials.outcome;
+    const credentialSecrets = credentials.secrets;
     const childEnvironment = {
       ...piChildEnvironment(config, assignment),
-      // The session's credential is a path and the gateway's address, never
-      // the credential itself: the worker writes the value to an owner-only
-      // file and the `bakery` command inside the session reads that.
       ...sessionEnvironment(options.stateDir, options.gatewayUrl, assignment),
+      ...credentials.environment,
     };
     const versionProbe = await probeHarnessVersion(
       options.piExecutable ?? "pi",
@@ -2078,44 +2057,17 @@ async function executePiFreeform(
         context.retryable,
       );
     }
-    try {
-      await preparePiAuth(options.piAgentSourceDir, config.agentDir);
-    } catch (error) {
-      if (
-        error instanceof Error &&
-        error.message === "PI_HARNESS_AUTH_UNAVAILABLE"
-      ) {
-        return harnessCredentialUnavailable(
-          "PI",
-          "Pi",
-          "The Pi harness could not complete the bounded task",
-        );
-      }
-      return piHarnessFault(
-        "PI_HARNESS_INPUT_INVALID",
-        "Pi native authentication preparation was unavailable.",
-        500,
-        false,
-      );
-    }
-    let credentialSecrets: readonly string[];
-    try {
-      credentialSecrets = await harnessCredentialSecrets(
-        join(options.piAgentSourceDir, PI_AUTH_FILE),
-      );
-    } catch {
-      return harnessCredentialUnavailable(
-        "PI",
-        "Pi",
-        "The Pi harness could not complete the bounded task",
-      );
-    }
+    const credentials = await piCredentials(
+      options,
+      config.agentDir,
+      assignment,
+    );
+    if (!credentials.ok) return credentials.outcome;
+    const credentialSecrets = credentials.secrets;
     const childEnvironment = {
       ...piChildEnvironment(config, assignment),
-      // The session's credential is a path and the gateway's address, never
-      // the credential itself: the worker writes the value to an owner-only
-      // file and the `bakery` command inside the session reads that.
       ...sessionEnvironment(options.stateDir, options.gatewayUrl, assignment),
+      ...credentials.environment,
     };
     const versionProbe = await probeHarnessVersion(
       options.piExecutable ?? "pi",
@@ -2324,6 +2276,41 @@ async function executePiFreeform(
   }
 }
 
+const PI_MODEL_KEY_VARIABLES: ModelKeyVariables = {
+  anthropic: "ANTHROPIC_API_KEY",
+  openai: "OPENAI_API_KEY",
+  openrouter: "OPENROUTER_API_KEY",
+};
+
+function piCredentials(
+  options: PiHarnessOptions,
+  destination: string,
+  assignment: JobAssignment,
+): Promise<HarnessCredentials> {
+  return harnessCredentials({
+    assignment,
+    readModelKey: options.readModelKey,
+    variables: PI_MODEL_KEY_VARIABLES,
+    prepareNative: () => preparePiAuth(options.piAgentSourceDir, destination),
+    nativeSecrets: () =>
+      harnessCredentialSecrets(join(options.piAgentSourceDir, PI_AUTH_FILE)),
+    unavailable: () =>
+      harnessCredentialUnavailable(
+        "PI",
+        "Pi",
+        "The Pi harness could not complete the bounded task",
+      ),
+    nativeUnavailableMessage: "PI_HARNESS_AUTH_UNAVAILABLE",
+    nativeFailed: () =>
+      piHarnessFault(
+        "PI_HARNESS_INPUT_INVALID",
+        "Pi native authentication preparation was unavailable.",
+        500,
+        false,
+      ),
+  });
+}
+
 /** Opt-in Pi RPC executor; all non-Pi actions delegate to the wrapped executor. */
 export function createPiHarnessExecutor(
   options: PiHarnessOptions,
@@ -2364,6 +2351,12 @@ export function createPiHarnessExecutor(
       ) {
         return await inner?.credentialRedactionSecrets?.(assignment) ?? [];
       }
+      const metered = await meteredModelKey(
+        assignment,
+        options.readModelKey,
+        PI_MODEL_KEY_VARIABLES,
+      );
+      if (metered !== null) return metered.secrets;
       return await harnessCredentialSecrets(
         join(options.piAgentSourceDir, PI_AUTH_FILE),
       );

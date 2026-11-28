@@ -1227,6 +1227,7 @@ export async function executeAssignment(
       error instanceof Error ? error.message : "ASSIGNMENT_EXECUTION_FAILED",
     );
   } finally {
+    executor.attemptEnded?.(assignment.attemptId);
     clearAbandonmentTimer(state, active);
     active.executionSettled = true;
     const serverTerminalObserved = state.serverTerminalObservations.has(

@@ -21486,6 +21486,21 @@
         "inputs": "Every input pinned for this attempt's run, ordered as the pins were created."
       }
     },
+    "WorkerModelKey": {
+      "fields": [
+        "provider",
+        "apiKey"
+      ],
+      "fieldTypes": {
+        "provider": "enum(anthropic|openai|openrouter)",
+        "apiKey": "string"
+      },
+      "description": "The model API key a coding agent pays with on a metered route, read by the worker holding the attempt's live lease. It comes from the enabled api_secret binding of this machine, the job's harness and the job's provider, and is never stored by the worker or shown in output.",
+      "fieldDescriptions": {
+        "provider": "The model provider the key belongs to; the worker hands it to the harness under that provider's own variable.",
+        "apiKey": "The decrypted key from the binding's secret; the worker passes it to the coding agent's process and redacts it from every output."
+      }
+    },
     "CoordinationPlan": {
       "projection": "coordination_plans",
       "fields": [

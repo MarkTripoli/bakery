@@ -103,6 +103,7 @@ import { listMachineAttempts } from "./machine-attempt-read.ts";
 import { createSessionRoutes } from "./session-routes.ts";
 import { createOutputReadApp } from "./output-read.ts";
 import { secretIdentityToolRoute } from "./secret-identity.ts";
+import { workerModelKeyRoute } from "./model-key.ts";
 import type { ExecutionRouteOptions } from "./shared.ts";
 import type { SkillSourceAdapter } from "../catalog/source-adapters.ts";
 import type { SkillImportProcessHooks } from "../catalog/import-workflow.ts";
@@ -478,6 +479,13 @@ export function createExecutionRoutes(
   app.get(
     "/v1/worker/attempts/:id/context",
     workerRouteHandler(options, (context) => inputReadRoute(context, options)),
+  );
+  app.get(
+    "/v1/worker/attempts/:id/model-key",
+    workerRouteHandler(
+      options,
+      (context) => workerModelKeyRoute(context, options),
+    ),
   );
   app.post(
     "/v1/worker/attempts/:id/output-bindings/close",

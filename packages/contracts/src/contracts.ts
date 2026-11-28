@@ -870,8 +870,8 @@ function namedFormat(base: string): Schema | undefined {
         "Git commit identifier.",
       );
     case "secretAction":
-      return z.literal("identity.read").describe(
-        "Only supported GitHub credential-use operation; not a metadata action grant.",
+      return z.enum(["identity.read", "model.inference"]).describe(
+        "A credential-use operation the secret allows: identity.read for a GitHub token, model.inference for a coding agent's model API key; not a metadata action grant.",
       );
     case "secretName":
       return z.string().min(1).max(200).regex(
