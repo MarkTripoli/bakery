@@ -35,6 +35,7 @@ Deno.test("F7.01 projections are permission bounded and organization scoped", ()
       "credentialGeneration",
       "failedChecks",
       "inventoryRevision",
+      "meteredModelReady",
       "reason",
       "workerHostId",
     ]);

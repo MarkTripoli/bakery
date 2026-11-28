@@ -199,6 +199,7 @@ export function createSecretsAuthorityRunner(
           { expiresAt: parsed.expiresAt },
           parsed.value,
         );
+        assertModelKeyFits(probe.provider, parsed.value);
         context.signal.throwIfAborted();
         const key = await loadSecretKey(config);
         const identity = await verifySecretCredential(
@@ -294,6 +295,7 @@ export function createSecretsAuthorityRunner(
       if (probe.replay) return probe.replay;
       const { value, ...safeInput } = parsed;
       rejectCredentialMetadataFields(safeInput, value);
+      assertModelKeyFits(parsed.provider, value);
       context.signal.throwIfAborted();
       const key = await loadSecretKey(config);
       const identity = await verifySecretCredential(
@@ -339,6 +341,29 @@ export function createSecretsAuthorityRunner(
       }
     },
   };
+}
+
+const MODEL_KEY_MAX_BYTES = 4_096;
+
+function assertModelKeyFits(
+  provider: string | null | undefined,
+  value: string,
+) {
+  if (
+    provider !== null && provider !== undefined && provider !== "github" &&
+    new TextEncoder().encode(value).byteLength > MODEL_KEY_MAX_BYTES
+  ) {
+    throw new StandardError({
+      code: "VALIDATION_FAILED",
+      params: {
+        issues: [{
+          path: ["value"],
+          code: "model_key_too_long",
+          message: "A model API key can be at most 4096 bytes.",
+        }],
+      },
+    });
+  }
 }
 
 export async function requireSecretRotationPreparation(
