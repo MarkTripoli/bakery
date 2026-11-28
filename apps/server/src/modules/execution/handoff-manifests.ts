@@ -95,6 +95,7 @@ type ManifestExtras = Readonly<{
       freshReason: string | null;
       byName: string | null;
       at: Date | string;
+      waiting: boolean;
     }>
     | null;
 }>;
@@ -122,6 +123,7 @@ function toRecord(row: ManifestRow, extras: ManifestExtras = {}) {
     continuedFreshReason: continuation?.freshReason ?? null,
     continuedByName: continuation?.byName ?? null,
     continuedAt: continuation ? iso(continuation.at) : null,
+    continuedWaiting: continuation ? continuation.waiting : null,
   };
 }
 
@@ -422,11 +424,16 @@ export async function getHandoffManifest(
         fresh_reason: string | null;
         display_name: string | null;
         created_at: Date | string;
+        waiting: boolean;
       }
     >(
-      `select c.mode, c.fresh_reason, p.display_name, c.created_at
+      `select c.mode, c.fresh_reason, p.display_name, c.created_at,
+              coalesce(j.status = 'awaiting_reconciliation'
+                and j.current_fence = c.new_fence, false) as waiting
          from bakery.handoff_continuations as c
          left join bakery.principals as p on p.id = c.admitted_by_principal_id
+         left join bakery.jobs as j
+           on j.organization_id = c.organization_id and j.id = c.job_id
         where c.organization_id = $1 and c.manifest_id = $2`,
       [organizationId, row.id],
     )).rows[0];
@@ -438,6 +445,7 @@ export async function getHandoffManifest(
           freshReason: continued.fresh_reason,
           byName: continued.display_name,
           at: continued.created_at,
+          waiting: continued.waiting,
         }
         : null,
     });

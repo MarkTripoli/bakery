@@ -131,10 +131,16 @@ export function outcomeKey(
   continuation: {
     readonly mode: string;
     readonly freshReason?: string | null;
+    readonly waiting?: boolean | null;
   },
   unconfirmedEffects: number,
-): "waiting" | "exact" | "fresh" {
+): "waiting" | "exact" | "fresh" | "freshChosen" {
   if (continuation.mode === "exact_harness_resume") return "exact";
+  if (continuation.freshReason === "fresh_requested") {
+    return (continuation.waiting ?? unconfirmedEffects > 0)
+      ? "waiting"
+      : "freshChosen";
+  }
   if (
     continuation.freshReason === "effects_unresolved" ||
     unconfirmedEffects > 0
@@ -205,12 +211,13 @@ export function recordedHandover(
     | "continuedFreshReason"
     | "continuedByName"
     | "continuedAt"
+    | "continuedWaiting"
   >,
 ):
   | Readonly<{
     at: string;
     byName: string | null;
-    outcome: "exact" | "fresh" | "waiting";
+    outcome: "exact" | "fresh" | "freshChosen" | "waiting";
     reason: FreshReason | "unknown";
     unconfirmedEffects: number;
   }>
@@ -225,7 +232,11 @@ export function recordedHandover(
     at: record.continuedAt,
     byName: record.continuedByName ?? null,
     outcome: outcomeKey(
-      { mode: record.continuedMode, freshReason: reason },
+      {
+        mode: record.continuedMode,
+        freshReason: reason,
+        waiting: record.continuedWaiting,
+      },
       unconfirmed,
     ),
     reason: reason !== null && reason !== undefined &&

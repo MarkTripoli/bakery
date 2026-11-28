@@ -710,6 +710,11 @@ Deno.test("an effect in flight parks the continuation, and settling it releases 
     const details = await auditDetails(fixture, String(continuation.id));
     assertEquals(details.jobStatus, "awaiting_reconciliation");
     assertEquals(details.reason, "effects_unresolved");
+    assertEquals(
+      (await body(await readManifest(fixture, String(record.id))))
+        .continuedWaiting,
+      true,
+    );
 
     // While the effect is unsettled a coordinator pass releases nothing.
     assertEquals(await release(fixture), 0);
@@ -729,6 +734,11 @@ Deno.test("an effect in flight parks the continuation, and settling it releases 
     assertEquals(queued.job.status, "queued");
     assertEquals(queued.job.current_fence, parked.job.current_fence);
     assertEquals(queued.job.input, before.job.input);
+    assertEquals(
+      (await body(await readManifest(fixture, String(record.id))))
+        .continuedWaiting,
+      false,
+    );
 
     // The effect was reconciled, never repeated: still the one row.
     const effects = await fixture.pgDatabase.query<{ n: number }>(
@@ -754,4 +764,149 @@ Deno.test("a job parked by another path is not released by the handoff pass", ()
       (await state(fixture, live)).job.status,
       "awaiting_reconciliation",
     );
+  }));
+
+function continueWithMode(
+  fixture: WorkerFixture,
+  manifestId: string,
+  version: number,
+  mode: "exact" | "fresh" | undefined,
+  idempotencyKey: string,
+) {
+  return adminRequest(
+    fixture,
+    "/v1/handoff-manifests/" + manifestId + "/continuations",
+    { runVersion: version, ...(mode === undefined ? {} : { mode }) },
+    { idempotencyKey },
+  );
+}
+
+async function recordedReason(fixture: WorkerFixture, continuationId: string) {
+  const result = await fixture.pgDatabase.query<
+    { mode: string; fresh_reason: string | null }
+  >(
+    "select mode, fresh_reason from bakery.handoff_continuations where id = $1",
+    [continuationId],
+  );
+  return result.rows[0];
+}
+
+Deno.test("asking for a fresh start when an exact resume is possible starts fresh and records why", () =>
+  withWorkerFixture(async (fixture) => {
+    const live = await liveAttempt(fixture, "continue-fresh-asked");
+    const record = await exactCandidate(fixture, live);
+    const response = await continueWithMode(
+      fixture,
+      String(record.id),
+      await runVersion(fixture, live.job.runId),
+      "fresh",
+      crypto.randomUUID(),
+    );
+    assert(response.status === 200 || response.status === 201);
+    const continuation = await body(response);
+    assertEquals(continuation.mode, "fresh_session");
+    assertEquals(continuation.freshReason, "fresh_requested");
+    assertEquals(
+      (await body(await readManifest(fixture, String(record.id))))
+        .continuedWaiting,
+      false,
+    );
+    assertEquals(await checkpoints(fixture, live), []);
+    assertEquals(
+      await recordedReason(fixture, String(continuation.id)),
+      { mode: "fresh_session", fresh_reason: "fresh_requested" },
+    );
+    const details = await auditDetails(fixture, String(continuation.id));
+    assertEquals(details.mode, "fresh_session");
+    assertEquals(details.reason, "fresh_requested");
+  }));
+
+for (const mode of ["exact", undefined] as const) {
+  Deno.test(
+    `${
+      mode === undefined ? "saying nothing about the mode" : "asking for exact"
+    } leaves the server to decide as before`,
+    () =>
+      withWorkerFixture(async (fixture) => {
+        const live = await liveAttempt(fixture, `continue-mode-${mode}`);
+        const record = await exactCandidate(fixture, live);
+        const response = await continueWithMode(
+          fixture,
+          String(record.id),
+          await runVersion(fixture, live.job.runId),
+          mode,
+          crypto.randomUUID(),
+        );
+        assert(response.status === 200 || response.status === 201);
+        const continuation = await body(response);
+        assertEquals(continuation.mode, "exact_harness_resume");
+        assertEquals(continuation.freshReason, null);
+      }),
+  );
+}
+
+Deno.test("a fresh start asked for on a manifest that could not resume still records the asked-for reason", () =>
+  withWorkerFixture(async (fixture) => {
+    const live = await liveAttempt(fixture, "continue-fresh-asked-fallback");
+    const record = await stored(fixture, live);
+    const response = await continueWithMode(
+      fixture,
+      String(record.id),
+      await runVersion(fixture, live.job.runId),
+      "fresh",
+      crypto.randomUUID(),
+    );
+    assert(response.status === 200 || response.status === 201);
+    assertEquals((await body(response)).freshReason, "fresh_requested");
+  }));
+
+Deno.test("a repeat with the same key replays, and the same key with another mode is refused", () =>
+  withWorkerFixture(async (fixture) => {
+    const live = await liveAttempt(fixture, "continue-mode-replay");
+    const record = await exactCandidate(fixture, live);
+    const version = await runVersion(fixture, live.job.runId);
+    const key = crypto.randomUUID();
+    const first = await continueWithMode(
+      fixture,
+      String(record.id),
+      version,
+      "fresh",
+      key,
+    );
+    assert(first.status === 200 || first.status === 201);
+    const original = await body(first);
+    const replay = await continueWithMode(
+      fixture,
+      String(record.id),
+      version,
+      "fresh",
+      key,
+    );
+    assertEquals(await body(replay), original);
+    const changed = await continueWithMode(
+      fixture,
+      String(record.id),
+      version,
+      "exact",
+      key,
+    );
+    assertEquals(changed.status, 422);
+    assertEquals(
+      (await changed.json()).code,
+      "IDEMPOTENCY_PAYLOAD_MISMATCH",
+    );
+    const without = await continueWithMode(
+      fixture,
+      String(record.id),
+      version,
+      undefined,
+      key,
+    );
+    assertEquals(without.status, 422);
+    await without.body?.cancel();
+    const count = await fixture.pgDatabase.query<{ count: number }>(
+      "select count(*)::int as count from bakery.handoff_continuations where manifest_id = $1",
+      [record.id],
+    );
+    assertEquals(count.rows[0].count, 1);
   }));

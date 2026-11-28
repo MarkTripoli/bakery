@@ -146,6 +146,30 @@ Deno.test("the line after a hand-over says exact, fresh, or that the step waits 
     outcomeKey({ mode: "fresh_session", freshReason: "effects_unresolved" }, 1),
     "waiting",
   );
+  assertEquals(
+    outcomeKey({ mode: "fresh_session", freshReason: "fresh_requested" }, 0),
+    "freshChosen",
+  );
+  assertEquals(
+    outcomeKey({ mode: "fresh_session", freshReason: "fresh_requested" }, 2),
+    "waiting",
+  );
+  assertEquals(
+    outcomeKey({
+      mode: "fresh_session",
+      freshReason: "fresh_requested",
+      waiting: true,
+    }, 2),
+    "waiting",
+  );
+  assertEquals(
+    outcomeKey({
+      mode: "fresh_session",
+      freshReason: "fresh_requested",
+      waiting: false,
+    }, 2),
+    "freshChosen",
+  );
 });
 
 Deno.test("each refusal reads as designed: the card stays or closes, and the run is read again when it moved", () => {

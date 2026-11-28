@@ -5395,6 +5395,12 @@ const transportSchemas = {
             "min": 1
           },
           "description": "The run version the person saw when they chose to hand the step off. If the run changed since, the submission is refused as a failed precondition and nothing is committed."
+        },
+        {
+          "name": "mode",
+          "type": "enum(exact|fresh)",
+          "required": false,
+          "description": "How the person asks the new session to start. fresh always starts a new conversation from the summary and records the reason fresh_requested. exact, or leaving it out, lets the server decide as before: it picks up exactly only when it can prove that is safe, otherwise it starts fresh and says why."
         }
       ],
       "rules": [
@@ -26349,7 +26355,8 @@ const transportSchemas = {
         "continuedMode",
         "continuedFreshReason",
         "continuedByName",
-        "continuedAt"
+        "continuedAt",
+        "continuedWaiting"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -26365,12 +26372,13 @@ const transportSchemas = {
         "manifest": "json",
         "createdAt": "timestamp",
         "decisionMode": "enum(fresh_session|exact_harness_resume)|null",
-        "freshReason": "enum(exact_resume_not_requested|boundary_unsafe|effects_unresolved|session_changed|no_native_evidence|native_evidence_mismatch|history_revoked)|null",
+        "freshReason": "enum(exact_resume_not_requested|boundary_unsafe|effects_unresolved|session_changed|no_native_evidence|native_evidence_mismatch|history_revoked|fresh_requested)|null",
         "machineName": "string|null",
         "continuedMode": "enum(fresh_session|exact_harness_resume)|null",
-        "continuedFreshReason": "enum(exact_resume_not_requested|boundary_unsafe|effects_unresolved|session_changed|no_native_evidence|native_evidence_mismatch|history_revoked)|null",
+        "continuedFreshReason": "enum(exact_resume_not_requested|boundary_unsafe|effects_unresolved|session_changed|no_native_evidence|native_evidence_mismatch|history_revoked|fresh_requested)|null",
         "continuedByName": "string|null",
-        "continuedAt": "timestamp|null"
+        "continuedAt": "timestamp|null",
+        "continuedWaiting": "boolean|null"
       },
       "description": "A stored handoff manifest: where one source attempt stopped, with the server's own safe-boundary computation and the digest a continuation pins. It is a record to be re-verified, never the authority for run state.",
       "fieldDescriptions": {
@@ -26392,7 +26400,8 @@ const transportSchemas = {
         "continuedMode": "How the continuation started once the step was handed over; null until then.",
         "continuedFreshReason": "Why the continuation started fresh; null for an exact resume, before a hand-over, and for hand-overs recorded before the reason was kept.",
         "continuedByName": "Current display name of the person who handed the step over, as the server recorded it. The same for every reader; null until a hand-over, or when that person no longer has a name.",
-        "continuedAt": "UTC timestamp when the step was handed over; null until then."
+        "continuedAt": "UTC timestamp when the step was handed over; null until then.",
+        "continuedWaiting": "True while the continuation is parked waiting for an uncertain outside action to settle, so the new session has not started; false once it is queued or running; null before a hand-over."
       },
       "optionalFields": [
         "decisionMode",
@@ -26401,7 +26410,8 @@ const transportSchemas = {
         "continuedMode",
         "continuedFreshReason",
         "continuedByName",
-        "continuedAt"
+        "continuedAt",
+        "continuedWaiting"
       ]
     },
     "HandoffContinuation": {
@@ -26430,7 +26440,7 @@ const transportSchemas = {
         "newFence": "decimalString",
         "mode": "enum(fresh_session|exact_harness_resume)",
         "admittedAt": "timestamp",
-        "freshReason": "enum(exact_resume_not_requested|boundary_unsafe|effects_unresolved|session_changed|no_native_evidence|native_evidence_mismatch|history_revoked)|null"
+        "freshReason": "enum(exact_resume_not_requested|boundary_unsafe|effects_unresolved|session_changed|no_native_evidence|native_evidence_mismatch|history_revoked|fresh_requested)|null"
       },
       "description": "The record that a source attempt was retired and its job admitted again for a continuation. The source is fenced, so it can no longer publish; the job is queued again on the same pin with the same input; the manifest is marked used.",
       "fieldDescriptions": {

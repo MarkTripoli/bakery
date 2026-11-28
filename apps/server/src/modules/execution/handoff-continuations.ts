@@ -9,7 +9,10 @@ import {
 } from "@bakery/persistence";
 import { postgresErrorCode } from "../../platform/postgres-errors.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
-import { decideManifestResume } from "./handoff-eligibility.ts";
+import {
+  decideManifestResume,
+  type ResumeDecision,
+} from "./handoff-eligibility.ts";
 import { HandoffManifestSchema } from "./handoff-manifest.ts";
 
 /**
@@ -217,7 +220,7 @@ export async function admitHandoffContinuation(
   const used = attempts.filter((attempt) => attempt.job_id === job.id).length;
   if (used >= job.max_attempts) throw refuse("attempt_budget_exhausted");
 
-  const { decision, effectsSettled } = await decideManifestResume(transaction, {
+  const resumed = await decideManifestResume(transaction, {
     organizationId,
     runId: named.run_id,
     runStepId: named.run_step_id,
@@ -226,6 +229,10 @@ export async function admitHandoffContinuation(
     manifest: stored.data,
     sourceHostId: source.worker_host_id ?? "",
   });
+  const effectsSettled = resumed.effectsSettled;
+  const decision: ResumeDecision = value.mode === "fresh"
+    ? { mode: "fresh_session", reason: "fresh_requested" }
+    : resumed.decision;
 
   // 4. The writes: fence the source, requeue the job, mark the manifest.
   const lost = await transaction.query(
