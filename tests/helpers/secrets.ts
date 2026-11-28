@@ -18,7 +18,6 @@ import {
   sessionCookie,
 } from "./auth.ts";
 
-/** Creates/drops only this UUID database; no shared/preview fixture data. */
 const FIXED_PROVIDER_URLS = new Set([
   "https://api.github.com/user",
   "https://api.anthropic.com/v1/models",
