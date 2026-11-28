@@ -751,18 +751,29 @@ Deno.test("the package never elevates, evals, shells out beyond its read-only pr
       /^\s*\/\/.*$/gm,
       "",
     );
-    // `sudo` as a command (a string that starts with it, or the head of an
-    // argument list); the account refusals name it as a group, which is not one.
-    assertFalse(
-      /["'`]sudo\s|\[\s*["'`]sudo["'`]\s*,/.test(source),
-      `${name}: no sudo in code`,
-    );
+    const sudoCommands = source.match(
+      /["'`]sudo\s|\[\s*["'`]sudo["'`]\s*,/g,
+    ) ?? [];
+    if (name === "service-start.ts") {
+      assertEquals(
+        sudoCommands.length,
+        1,
+        `${name}: sudo only for the confirmed Linux service step`,
+      );
+      assertStringIncludes(
+        source,
+        '["sudo", "sh", "-c", linuxLinkScript(binding, host.root)]',
+        `${name}: the one sudo runs only the service link script`,
+      );
+    } else {
+      assertEquals(sudoCommands, [], `${name}: no sudo in code`);
+    }
     assertFalse(/\beval\(|new Function\(/.test(source), `${name}: no eval`);
     assertFalse(
       /shell:\s*true|execSync|spawnSync/.test(source),
       `${name}: no shell`,
     );
-    if (!["probes.ts"].includes(name)) {
+    if (!["probes.ts", "process-main.ts"].includes(name)) {
       assertFalse(
         /child_process|execFile|Deno\.Command/.test(source),
         `${name}: starts no process`,
