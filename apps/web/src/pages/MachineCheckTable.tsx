@@ -24,9 +24,15 @@ const RESULT_BADGE = {
   not_applicable: { tone: "neutral", key: "machines.checks.notApplicable" },
 } as const satisfies Record<CheckResult, unknown>;
 
+const OUT_OF_DATE = {
+  tone: "neutral",
+  key: "machines.checks.outOfDate",
+} as const;
+
 export function MachineCheckTable(
-  { rows, formatDate }: {
+  { rows, reachable, formatDate }: {
     readonly rows: readonly CheckRow[];
+    readonly reachable: boolean;
     readonly formatDate: (value: string) => string;
   },
 ) {
@@ -41,16 +47,20 @@ export function MachineCheckTable(
       })
       : message(translate, info.nameKey, { agent: "" });
   };
-  const result = (row: CheckRow) => (
-    <UI.Badge tone={RESULT_BADGE[row.result].tone}>
-      {message(translate, RESULT_BADGE[row.result].key)}
-    </UI.Badge>
-  );
+  const outOfDate = (row: CheckRow) => !reachable && row.result === "unknown";
+  const result = (row: CheckRow) => {
+    const badge = outOfDate(row) ? OUT_OF_DATE : RESULT_BADGE[row.result];
+    return (
+      <UI.Badge tone={badge.tone}>{message(translate, badge.key)}</UI.Badge>
+    );
+  };
   const checked = (row: CheckRow) =>
     row.observedAt === null ? "—" : formatDate(row.observedAt);
   const advice = (row: CheckRow) => {
     if (row.result === "pass" || row.result === "not_applicable") return "—";
-    const fix = row.result === "unknown"
+    const fix = outOfDate(row)
+      ? "machines.checks.outOfDateAdvice"
+      : row.result === "unknown"
       ? "machines.checks.couldNotRun"
       : checkInfo(row.checkId).fixKey;
     const reason = row.reason ??
@@ -76,7 +86,7 @@ export function MachineCheckTable(
   };
   return (
     <UI.Stack gap="standard">
-      {rows.some((row) => row.result === "fail")
+      {rows.some((row) => row.result === "fail" || outOfDate(row))
         ? null
         : <UI.Text>{message(translate, "machines.checks.none")}</UI.Text>}
       {groupCheckRows(rows).map((section) => {

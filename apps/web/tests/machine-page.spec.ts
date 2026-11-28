@@ -443,7 +443,7 @@ test.describe("machine page: the one banner", () => {
     await open(page, fixture());
     const detail = page.getByTestId("machine-detail-page");
     await openChecks(page);
-    await expect(detail.getByText("No failed checks.")).toBeVisible();
+    await expect(detail.getByText("No failed checks reported.")).toBeVisible();
     await expect(banner(page)).toHaveCount(0);
     await page.getByRole("tab", { name: "Overview" }).click();
     // One section about the machine, one line each: no section per fact.
@@ -692,7 +692,7 @@ test.describe("machine page: every check and who retired it", () => {
       ]
     ) await expect(checks).toContainText(word);
     await expect(checks).toContainText("Nov 27, 2026");
-    await expect(checks).not.toContainText("No failed checks.");
+    await expect(checks).not.toContainText("No failed checks reported.");
     await expect(checks).not.toContainText(
       "The worker is not running properly.",
     );
@@ -714,9 +714,63 @@ test.describe("machine page: every check and who retired it", () => {
     );
     await openChecks(page);
     const checks = page.getByTestId("machine-checks");
-    await expect(checks).toContainText("No failed checks.");
+    await expect(checks).toContainText("No failed checks reported.");
     await expect(checks).toContainText("Free disk space");
     await expect(checks).toContainText("Passed");
+  });
+
+  test("an offline machine's old results are out of date, not unrunnable", async ({ page }) => {
+    await open(
+      page,
+      fixture({ connectivity: "offline" }, {
+        checks: [
+          check("disk_threshold", "unknown"),
+          check("capability:git", "unknown"),
+        ],
+      }),
+    );
+    await openChecks(page);
+    const checks = page.getByTestId("machine-checks");
+    await expect(checks.getByText("Out of date", { exact: true }))
+      .toHaveCount(2);
+    await expect(checks).toContainText(
+      "This result is out of date. It is checked again when the machine is back.",
+    );
+    await expect(checks).not.toContainText("Bakery could not run this check");
+    await expect(checks).not.toContainText("No failed checks reported.");
+    await shot(page, "machine-page-checks-out-of-date");
+  });
+
+  test("the banner and the tab count failed checks apart from ones that did not run", async ({ page }) => {
+    await open(
+      page,
+      fixture({
+        readiness: "needs_attention",
+        readinessReason: "check_failed",
+        failedCheckIds: ["disk_threshold", "supervisor_health"],
+      }, {
+        allBlocked: true,
+        failedChecks: [
+          { checkId: "disk_threshold", reason: "2% free" },
+          { checkId: "supervisor_health", reason: null },
+        ],
+        checks: [
+          check("disk_threshold", "fail", "2% free"),
+          check("supervisor_health", "unknown"),
+        ],
+      }),
+    );
+    await expect(banner(page)).toContainText(
+      "1 check failed and 1 could not be run.",
+    );
+    await expect(page.getByRole("tab", { name: /Checks and software/ }))
+      .toContainText("1 failed");
+    await openChecks(page);
+    const checks = page.getByTestId("machine-checks");
+    await expect(checks.getByText("Failed", { exact: true })).toHaveCount(1);
+    await expect(checks.getByText("Could not be checked", { exact: true }))
+      .toHaveCount(1);
+    await shot(page, "machine-page-checks-mixed-count");
   });
 
   for (
@@ -994,7 +1048,7 @@ test.describe("machine page: mode and Retire", () => {
     await expect(page.getByTestId("machine-about")).toBeVisible();
     await expect(page.getByTestId("machine-checks")).toHaveCount(0);
     await expect(page.getByTestId("machine-agents")).toHaveCount(0);
-    await expect(detail.getByText("No failed checks.")).toHaveCount(0);
+    await expect(detail.getByText("No failed checks reported.")).toHaveCount(0);
     await expect(detail.getByText("No software has been reported."))
       .toHaveCount(0);
   });

@@ -62,6 +62,7 @@ import {
   modeStatus,
 } from "./machine-page-state.ts";
 import {
+  checkCounts,
   type CodingAgent,
   codingAgents,
   machineBadge,
@@ -301,11 +302,9 @@ export function MachineDetailPage(
       0;
   const needsLookHasMore = attention.hasNextPage;
   const missing = worker.isError && failureStatus(worker.error) === 404;
-  const failedCheckIds = worker.data?.failedCheckIds;
-  const failedChecks =
-    worker.data?.status !== "revoked" && Array.isArray(failedCheckIds)
-      ? failedCheckIds.length
-      : 0;
+  const blocking = worker.data && worker.data.status !== "revoked"
+    ? checkCounts(worker.data)
+    : { failed: 0, unchecked: 0 };
   const [modeNote, setModeNote] = useState<
     | { kind: "saved"; mode: MachineMode }
     | { kind: "conflict" }
@@ -1200,13 +1199,19 @@ export function MachineDetailPage(
                   {
                     id: "checks",
                     label: message(translate, "machines.tabs.checks"),
-                    badge: failedChecks === 0
+                    badge: blocking.failed + blocking.unchecked === 0
                       ? undefined
                       : (
-                        <UI.Badge tone="danger">
-                          {message(translate, "machines.tabs.checksFailed", {
-                            count: failedChecks,
-                          })}
+                        <UI.Badge
+                          tone={blocking.failed > 0 ? "danger" : "warning"}
+                        >
+                          {message(
+                            translate,
+                            blocking.failed > 0
+                              ? "machines.tabs.checksFailed"
+                              : "machines.tabs.checksUnchecked",
+                            { count: blocking.failed || blocking.unchecked },
+                          )}
                         </UI.Badge>
                       ),
                     content: tab === "checks"
@@ -1214,6 +1219,7 @@ export function MachineDetailPage(
                         <MachineChecks
                           blockers={blockers}
                           reported={workerData.checks ?? []}
+                          reachable={workerData.connectivity === "online"}
                           formatDate={formatDate}
                           components={components}
                           componentItems={componentItems}

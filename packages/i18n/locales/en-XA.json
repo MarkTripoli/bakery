@@ -7927,7 +7927,6 @@
   "machines.checks.showMore": "⟦Šĥôŵ ɱôŕë ŧ⟧",
   "machines.checks.showLess": "⟦Šĥôŵ ļëšš ŧ⟧",
   "machines.offline.now": "⟦Ÿôû àŕë ôƒƒļïñë. ŧëš⟧",
-  "machines.checks.none": "⟦Ñô ƒàïļëð çĥëçķš. ŧëš⟧",
   "machines.checks.passed": "⟦Þàššëð…⟧",
   "machines.checks.unknown": "⟦Çôûļð ñôŧ ƀë çĥëçķëð ŧëšŧ⟧",
   "machines.checks.notApplicable": "⟦Ðôëš ñôŧ àþþļÿ ŧë⟧",
@@ -7938,5 +7937,11 @@
   "machines.checks.checkedAt": "⟦Çĥëçķëð {time} ŧë⟧",
   "machines.checks.couldNotRun": "⟦Ɓàķëŕÿ çôûļð ñôŧ ŕûñ ŧĥïš çĥëçķ. Çĥëçķ àĝàïñ ïñ à ɱôɱëñŧ. ŧëšŧ çôþÿ ŧëšŧ çô⟧",
   "machines.retired.by": "⟦Ŕëŧïŕëð ƀÿ {name} ôñ {date} ŧëšŧ çô⟧",
-  "machines.retired.on": "⟦Ŕëŧïŕëð ôñ {date} ŧëš⟧"
+  "machines.retired.on": "⟦Ŕëŧïŕëð ôñ {date} ŧëš⟧",
+  "machines.checks.none": "⟦Ñô ƒàïļëð çĥëçķš ŕëþôŕŧëð. ŧëšŧ çô⟧",
+  "machines.reason.checkUnchecked": "⟦{count, plural, one {# check could not be run.} other {# checks could not be run.}} ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧",
+  "machines.reason.checkMixed": "⟦{failed, plural, one {# check failed} other {# checks failed}} àñð {unchecked, plural, one {# could not be run.} other {# could not be run.}} ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧",
+  "machines.checks.outOfDate": "⟦Ôûŧ ôƒ ðàŧë ŧ⟧",
+  "machines.checks.outOfDateAdvice": "⟦Ŧĥïš ŕëšûļŧ ïš ôûŧ ôƒ ðàŧë. Ïŧ ïš çĥëçķëð àĝàïñ ŵĥëñ ŧĥë ɱàçĥïñë ïš ƀàçķ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
+  "machines.tabs.checksUnchecked": "⟦{count} ñôŧ çĥëçķëð ŧëšŧ⟧"
 }

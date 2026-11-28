@@ -33,6 +33,7 @@ export type MachineChecksProps = {
   };
   readonly components: Refetchable & { readonly isSuccess: boolean };
   readonly reported: readonly ReportedCheck[];
+  readonly reachable: boolean;
   readonly formatDate: (value: string) => string;
   readonly componentItems: Parameters<typeof softwareRows>[0];
   readonly nextComponentCursor: string | null | undefined;
@@ -48,6 +49,7 @@ export function MachineChecks(
   {
     blockers,
     reported,
+    reachable,
     formatDate,
     components,
     componentItems,
@@ -113,6 +115,7 @@ export function MachineChecks(
               : (
                 <MachineCheckTable
                   rows={checkRows(reported, blockers.data?.failedChecks ?? [])}
+                  reachable={reachable}
                   formatDate={formatDate}
                 />
               )}
