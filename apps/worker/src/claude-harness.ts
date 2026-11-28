@@ -87,6 +87,13 @@ import type {
 } from "./types.ts";
 import { RepositoryExecutionContextSchema } from "../../../packages/contracts/src/repository-inspection.ts";
 import { COORDINATOR_TURN_ACTION } from "../../../packages/contracts/src/coordinator-turn.ts";
+import {
+  type HarnessCredentials,
+  harnessCredentials,
+  meteredModelKey,
+  type ModelKeyVariables,
+  type ReadModelKey,
+} from "./model-key.ts";
 
 const CLAUDE_ACTION = "harness.implement";
 const CLAUDE_MODEL_CHECK_ID = "capability:model";
@@ -173,6 +180,7 @@ export type ClaudeHarnessOptions = {
   readonly toolGateway?: ToolGatewayFactory;
   /** Reads the attempt's pinned inputs; required only when a step declares inputs. */
   readonly readAttemptContext?: ReadAttemptContext;
+  readonly readModelKey?: ReadModelKey;
   /** Configured output redaction secrets; also withheld from published patches. */
   readonly redactionSecrets?: readonly string[];
   /** Test seam: absolute group-kill helper used when Deno.kill is not granted. */
@@ -1477,46 +1485,17 @@ async function executeClaudeHarness(
         context.retryable,
       );
     }
-    try {
-      await prepareClaudeAuth(options.authSourceDir, config.path);
-    } catch (error) {
-      if (
-        error instanceof Error &&
-        error.message === "CLAUDE_HARNESS_AUTH_UNAVAILABLE"
-      ) {
-        return harnessCredentialUnavailable(
-          "CLAUDE",
-          "Claude Code",
-          "The Claude Code harness could not complete the bounded task",
-        );
-      }
-      return claudeHarnessFault(
-        "CLAUDE_HARNESS_INPUT_INVALID",
-        "Claude native authentication preparation was unavailable.",
-        500,
-        false,
-      );
-    }
-    // The child can read its auth copy through the model's file tools, so
-    // every token in it must be redacted from output and withheld from patches.
-    let credentialSecrets: readonly string[];
-    try {
-      credentialSecrets = await harnessCredentialSecrets(
-        join(options.authSourceDir, CLAUDE_AUTH_ALLOWLIST[0]),
-      );
-    } catch {
-      return harnessCredentialUnavailable(
-        "CLAUDE",
-        "Claude Code",
-        "The Claude Code harness could not complete the bounded task",
-      );
-    }
+    const credentials = await claudeCredentials(
+      options,
+      config.path,
+      assignment,
+    );
+    if (!credentials.ok) return credentials.outcome;
+    const credentialSecrets = credentials.secrets;
     const childEnvironment = {
       ...claudeChildEnvironment(config, assignment),
-      // The session's credential is a path and the gateway's address, never
-      // the credential itself: the worker writes the value to an owner-only
-      // file and the `bakery` command inside the session reads that.
       ...sessionEnvironment(options.stateDir, options.gatewayUrl, assignment),
+      ...credentials.environment,
     };
     const claudeExecutable = options.claudeExecutable ?? "claude";
     const versionProbe = await probeHarnessVersion(
@@ -1856,44 +1835,17 @@ async function runClaudeFreeform(
         context.retryable,
       );
     }
-    try {
-      await prepareClaudeAuth(options.authSourceDir, config.path);
-    } catch (error) {
-      if (
-        error instanceof Error &&
-        error.message === "CLAUDE_HARNESS_AUTH_UNAVAILABLE"
-      ) {
-        return harnessCredentialUnavailable(
-          "CLAUDE",
-          "Claude Code",
-          "The Claude Code harness could not complete the bounded task",
-        );
-      }
-      return claudeHarnessFault(
-        "CLAUDE_HARNESS_INPUT_INVALID",
-        "Claude native authentication preparation was unavailable.",
-        500,
-        false,
-      );
-    }
-    let credentialSecrets: readonly string[];
-    try {
-      credentialSecrets = await harnessCredentialSecrets(
-        join(options.authSourceDir, CLAUDE_AUTH_ALLOWLIST[0]),
-      );
-    } catch {
-      return harnessCredentialUnavailable(
-        "CLAUDE",
-        "Claude Code",
-        "The Claude Code harness could not complete the bounded task",
-      );
-    }
+    const credentials = await claudeCredentials(
+      options,
+      config.path,
+      assignment,
+    );
+    if (!credentials.ok) return credentials.outcome;
+    const credentialSecrets = credentials.secrets;
     const childEnvironment = {
       ...claudeChildEnvironment(config, assignment),
-      // The session's credential is a path and the gateway's address, never
-      // the credential itself: the worker writes the value to an owner-only
-      // file and the `bakery` command inside the session reads that.
       ...sessionEnvironment(options.stateDir, options.gatewayUrl, assignment),
+      ...credentials.environment,
     };
     const claudeExecutable = options.claudeExecutable ?? "claude";
     const versionProbe = await probeHarnessVersion(
@@ -2081,6 +2033,41 @@ async function runClaudeFreeform(
   }
 }
 
+const CLAUDE_MODEL_KEY_VARIABLES: ModelKeyVariables = {
+  anthropic: "ANTHROPIC_API_KEY",
+};
+
+function claudeCredentials(
+  options: ClaudeHarnessOptions,
+  configPath: string,
+  assignment: JobAssignment,
+): Promise<HarnessCredentials> {
+  return harnessCredentials({
+    assignment,
+    readModelKey: options.readModelKey,
+    variables: CLAUDE_MODEL_KEY_VARIABLES,
+    prepareNative: () => prepareClaudeAuth(options.authSourceDir, configPath),
+    nativeSecrets: () =>
+      harnessCredentialSecrets(
+        join(options.authSourceDir, CLAUDE_AUTH_ALLOWLIST[0]),
+      ),
+    unavailable: () =>
+      harnessCredentialUnavailable(
+        "CLAUDE",
+        "Claude Code",
+        "The Claude Code harness could not complete the bounded task",
+      ),
+    nativeUnavailableMessage: "CLAUDE_HARNESS_AUTH_UNAVAILABLE",
+    nativeFailed: () =>
+      claudeHarnessFault(
+        "CLAUDE_HARNESS_INPUT_INVALID",
+        "Claude native authentication preparation was unavailable.",
+        500,
+        false,
+      ),
+  });
+}
+
 async function claudeModelCheck(
   authSourceDir: string,
 ): Promise<WorkerInventoryCheck> {
@@ -2147,6 +2134,12 @@ export function createClaudeHarnessExecutor(
       ) {
         return await inner?.credentialRedactionSecrets?.(assignment) ?? [];
       }
+      const metered = await meteredModelKey(
+        assignment,
+        options.readModelKey,
+        CLAUDE_MODEL_KEY_VARIABLES,
+      );
+      if (metered !== null) return metered.secrets;
       return await harnessCredentialSecrets(
         join(options.authSourceDir, CLAUDE_AUTH_ALLOWLIST[0]),
       );

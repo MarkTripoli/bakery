@@ -57,6 +57,13 @@ import {
 import { provenCanceledOutcome, type PublishArtifact } from "./task-brief.ts";
 import type { JobAssignment } from "./types.ts";
 import { RepositoryExecutionContextSchema } from "../../../packages/contracts/src/repository-inspection.ts";
+import {
+  type HarnessCredentials,
+  harnessCredentials,
+  meteredModelKey,
+  type ModelKeyVariables,
+  type ReadModelKey,
+} from "./model-key.ts";
 
 /**
  * The real Codex harness adapter. It runs the pinned,
@@ -120,6 +127,7 @@ export type CodexHarnessOptions = {
   designToolAvailable?: boolean;
   /** Reads the attempt's pinned inputs; required only when a step declares inputs. */
   readonly readAttemptContext?: ReadAttemptContext;
+  readonly readModelKey?: ReadModelKey;
   /** Configured output redaction secrets; also withheld from published patches. */
   readonly redactionSecrets?: readonly string[];
   /** Test seam: absolute group-kill helper used when Deno.kill is not granted. */
@@ -347,46 +355,17 @@ async function executeCodexHarness(
         context.retryable,
       );
     }
-    try {
-      await prepareCodexAuth(options.authSourceDir, dirs.codexHome);
-    } catch (error) {
-      if (
-        error instanceof Error &&
-        error.message === "CODEX_HARNESS_AUTH_UNAVAILABLE"
-      ) {
-        return harnessCredentialUnavailable(
-          "CODEX",
-          "Codex",
-          "The Codex harness could not complete the bounded task",
-        );
-      }
-      return codexHarnessFault(
-        "CODEX_HARNESS_INPUT_INVALID",
-        "Codex native authentication preparation was unavailable.",
-        500,
-        false,
-      );
-    }
-    // The sandbox restricts writes, not reads: the child can read its auth
-    // copy, so redact every token in it from output and patches.
-    let credentialSecrets: readonly string[];
-    try {
-      credentialSecrets = await harnessCredentialSecrets(
-        join(options.authSourceDir, CODEX_AUTH_FILE),
-      );
-    } catch {
-      return harnessCredentialUnavailable(
-        "CODEX",
-        "Codex",
-        "The Codex harness could not complete the bounded task",
-      );
-    }
+    const credentials = await codexCredentials(
+      options,
+      dirs.codexHome,
+      assignment,
+    );
+    if (!credentials.ok) return credentials.outcome;
+    const credentialSecrets = credentials.secrets;
     const childEnvironment = {
       ...codexChildEnvironment(dirs, assignment),
-      // The session's credential is a path and the gateway's address, never
-      // the credential itself: the worker writes the value to an owner-only
-      // file and the `bakery` command inside the session reads that.
       ...sessionEnvironment(options.stateDir, options.gatewayUrl, assignment),
+      ...credentials.environment,
     };
     const versionProbe = await probeHarnessVersion(
       codexExecutable,
@@ -614,44 +593,17 @@ async function executeCodexFreeform(
         context.retryable,
       );
     }
-    try {
-      await prepareCodexAuth(options.authSourceDir, dirs.codexHome);
-    } catch (error) {
-      if (
-        error instanceof Error &&
-        error.message === "CODEX_HARNESS_AUTH_UNAVAILABLE"
-      ) {
-        return harnessCredentialUnavailable(
-          "CODEX",
-          "Codex",
-          "The Codex harness could not complete the bounded task",
-        );
-      }
-      return codexHarnessFault(
-        "CODEX_HARNESS_INPUT_INVALID",
-        "Codex native authentication preparation was unavailable.",
-        500,
-        false,
-      );
-    }
-    let credentialSecrets: readonly string[];
-    try {
-      credentialSecrets = await harnessCredentialSecrets(
-        join(options.authSourceDir, CODEX_AUTH_FILE),
-      );
-    } catch {
-      return harnessCredentialUnavailable(
-        "CODEX",
-        "Codex",
-        "The Codex harness could not complete the bounded task",
-      );
-    }
+    const credentials = await codexCredentials(
+      options,
+      dirs.codexHome,
+      assignment,
+    );
+    if (!credentials.ok) return credentials.outcome;
+    const credentialSecrets = credentials.secrets;
     const childEnvironment = {
       ...codexChildEnvironment(dirs, assignment),
-      // The session's credential is a path and the gateway's address, never
-      // the credential itself: the worker writes the value to an owner-only
-      // file and the `bakery` command inside the session reads that.
       ...sessionEnvironment(options.stateDir, options.gatewayUrl, assignment),
+      ...credentials.environment,
     };
     const codexExecutable = options.codexExecutable ?? "codex";
     const versionProbe = await probeHarnessVersion(
@@ -807,6 +759,39 @@ async function executeCodexFreeform(
  * the deterministic executor; this adapter activates only through explicit
  * configuration.
  */
+const CODEX_MODEL_KEY_VARIABLES: ModelKeyVariables = {
+  openai: "CODEX_API_KEY",
+};
+
+function codexCredentials(
+  options: CodexHarnessOptions,
+  destination: string,
+  assignment: JobAssignment,
+): Promise<HarnessCredentials> {
+  return harnessCredentials({
+    assignment,
+    readModelKey: options.readModelKey,
+    variables: CODEX_MODEL_KEY_VARIABLES,
+    prepareNative: () => prepareCodexAuth(options.authSourceDir, destination),
+    nativeSecrets: () =>
+      harnessCredentialSecrets(join(options.authSourceDir, CODEX_AUTH_FILE)),
+    unavailable: () =>
+      harnessCredentialUnavailable(
+        "CODEX",
+        "Codex",
+        "The Codex harness could not complete the bounded task",
+      ),
+    nativeUnavailableMessage: "CODEX_HARNESS_AUTH_UNAVAILABLE",
+    nativeFailed: () =>
+      codexHarnessFault(
+        "CODEX_HARNESS_INPUT_INVALID",
+        "Codex native authentication preparation was unavailable.",
+        500,
+        false,
+      ),
+  });
+}
+
 export function createCodexHarnessExecutor(
   options: CodexHarnessOptions,
 ): WorkerExecutor {
@@ -841,6 +826,12 @@ export function createCodexHarnessExecutor(
       ) {
         return await inner?.credentialRedactionSecrets?.(assignment) ?? [];
       }
+      const metered = await meteredModelKey(
+        assignment,
+        options.readModelKey,
+        CODEX_MODEL_KEY_VARIABLES,
+      );
+      if (metered !== null) return metered.secrets;
       return await harnessCredentialSecrets(
         join(options.authSourceDir, CODEX_AUTH_FILE),
       );

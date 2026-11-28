@@ -6,6 +6,7 @@ import {
 } from "../../../packages/contracts/src/repository-inspection.ts";
 import { z } from "zod";
 import { GatewayToolSchema } from "./tool-gateway.ts";
+import { type ModelKey, ModelKeySchema } from "./model-key.ts";
 import { McpStdioLaunchSpecSchema } from "@bakery/contracts/mcp-capabilities";
 import {
   WORKER_SKILL_READ_HEADERS,
@@ -1832,6 +1833,28 @@ export class WorkerApiClient {
       "WORKER_RESPONSE_CONTEXT_INVALID",
     );
     return { ...response, value: { inputs: read.inputs, facts: read.facts } };
+  }
+
+  async attemptModelKey(
+    attemptId: string,
+    proof: AttemptProof,
+    signal?: AbortSignal,
+  ): Promise<ModelKey> {
+    const response = await this.request<unknown>(
+      "GET",
+      `/v1/worker/attempts/${encodeURIComponent(attemptId)}/model-key`,
+      {
+        authenticated: true,
+        headers: attemptProofHeaders(proof),
+        signal,
+        successStatuses: [200],
+      },
+    );
+    return parseResponse(
+      ModelKeySchema,
+      response.value,
+      "WORKER_RESPONSE_MODEL_KEY_INVALID",
+    );
   }
 
   async renewLease(

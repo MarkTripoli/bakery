@@ -365,6 +365,8 @@ export async function main(options: WorkerMainOptions = {}): Promise<void> {
       const served = await client.attemptContext(attemptId, proof);
       return served.value;
     };
+    const readModelKey = (attemptId: string, proof: AttemptProof) =>
+      client.attemptModelKey(attemptId, proof);
     const harnessExecutor = codingHarness?.name === "claude"
       ? createClaudeHarnessExecutor({
         publishFor: publishArtifactFor,
@@ -381,6 +383,7 @@ export async function main(options: WorkerMainOptions = {}): Promise<void> {
         redactionSecrets: config.outputRedactionSecrets,
         authSourceDir: config.claudeAuthSourceDir ?? join(home!, ".claude"),
         readAttemptContext,
+        readModelKey,
         // The design tool is a capability binding (#436): a Paper connection
         // bound to the step, its seat or its agent reaches the session through
         // the tool gateway, so the worker's own capability list no longer
@@ -417,6 +420,7 @@ export async function main(options: WorkerMainOptions = {}): Promise<void> {
         redactionSecrets: config.outputRedactionSecrets,
         capabilities: config.adapterCapabilities,
         readAttemptContext,
+        readModelKey,
         designToolAvailable: designToolAvailableFrom(config.capabilities),
         inner: checkedExecutor,
       })
@@ -432,6 +436,7 @@ export async function main(options: WorkerMainOptions = {}): Promise<void> {
         authSourceDir: config.codexAuthSourceDir ?? join(home!, ".codex"),
         redactionSecrets: config.outputRedactionSecrets,
         readAttemptContext,
+        readModelKey,
         designToolAvailable: designToolAvailableFrom(config.capabilities),
         inner: checkedExecutor,
       })
