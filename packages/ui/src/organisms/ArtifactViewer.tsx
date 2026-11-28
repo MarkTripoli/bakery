@@ -7,10 +7,12 @@ import {
 } from "react";
 import "../artifacts.css";
 import {
+  HEADING,
   INLINE_LINK,
   INLINE_TOKEN,
+  MOST_TABLE_CELLS,
+  readTable,
   startsTable,
-  tableCells,
 } from "../markdown-lines.ts";
 
 export type ArtifactViewerContent =
@@ -95,6 +97,7 @@ function markdown(text: string): ReactNode[] {
   const lines = text.replace(/\r\n?/g, "\n").split("\n");
   const blocks: ReactNode[] = [];
   let index = 0;
+  let cellsLeft = MOST_TABLE_CELLS;
   while (index < lines.length) {
     const line = lines[index] ?? "";
     const key = index;
@@ -122,43 +125,53 @@ function markdown(text: string): ReactNode[] {
       continue;
     }
     if (startsTable(lines, index)) {
-      const header = tableCells(line);
-      const rows: string[][] = [];
-      index += 2;
-      while (index < lines.length && lines[index]?.includes("|")) {
-        rows.push(tableCells(lines[index++] ?? ""));
-      }
-      blocks.push(
-        <div
-          className="ui-artifact-viewer__table"
-          key={key}
-          role="group"
-          aria-label={header.join(", ")}
-          tabIndex={0}
-        >
-          <table>
-            <thead>
-              <tr>
-                {header.map((cell, column) => (
-                  <th key={column} scope="col">{inlineMarkdown(cell)}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row, at) => (
-                <tr key={at}>
-                  {header.map((_, column) => (
-                    <td key={column}>{inlineMarkdown(row[column] ?? "")}</td>
+      const { header, rows, overflow, cells, end } = readTable(
+        lines,
+        index,
+        cellsLeft,
+      );
+      cellsLeft -= cells;
+      index = end;
+      if (header.length > 0) {
+        blocks.push(
+          <div
+            className="ui-artifact-viewer__table"
+            key={key}
+            role="group"
+            aria-label={header.join(", ")}
+            tabIndex={0}
+          >
+            <table>
+              <thead>
+                <tr>
+                  {header.map((cell, column) => (
+                    <th key={column} scope="col">{inlineMarkdown(cell)}</th>
                   ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>,
-      );
+              </thead>
+              <tbody>
+                {rows.map((row, at) => (
+                  <tr key={at}>
+                    {header.map((_, column) => (
+                      <td key={column}>{inlineMarkdown(row[column] ?? "")}</td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>,
+        );
+      }
+      if (overflow.length > 0) {
+        blocks.push(
+          <pre dir="ltr" data-ui-overflow="wrap" key={`${key}-rest`}>
+            <code>{overflow.join("\n")}</code>
+          </pre>,
+        );
+      }
       continue;
     }
-    const heading = /^(#{1,6})\s+(.+)$/.exec(line);
+    const heading = HEADING.exec(line);
     if (heading?.[1] && heading[2]) {
       blocks.push(
         createElement(

@@ -329,6 +329,29 @@ for (
       await still(page, "skill-file-cannot-show");
     });
 
+    test("a huge table is cut off and an address with brackets links", async ({ page }) => {
+      const address = "https://api.test/items?page[size]=2";
+      await skillsFixture(page, {
+        extraFiles: [{
+          path: "huge.md",
+          mediaType: "text/markdown",
+          words: `[docs](${address})\n\n${"a|".repeat(40)}\n${
+            "-|".repeat(40)
+          }\n${"|\n".repeat(400)}`,
+        }],
+      });
+      await page.goto(skillPage(IDS.houseStyle));
+      const files = page.getByTestId("skill-files");
+      await files.getByRole("button", { name: "huge.md" }).click();
+      await expect(files.getByRole("link", { name: "docs" })).toHaveAttribute(
+        "href",
+        address,
+      );
+      await expect(files.getByRole("columnheader")).toHaveCount(40);
+      await expect(files.getByRole("cell")).toHaveCount(4_960);
+      await expect(files.locator("pre").last()).toContainText("|");
+    });
+
     test("awkward files stay inside the page and lose nothing", async ({ page }) => {
       const longName =
         "references/a-very-long-reference-file-name-for-the-team.md";
