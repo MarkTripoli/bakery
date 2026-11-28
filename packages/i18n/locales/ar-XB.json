@@ -2528,7 +2528,6 @@
   "machines.about.slots": "⟪Tasks at once⟫",
   "machines.checks.failed": "⟪Failed⟫",
   "machines.repair.title": "⟪Set up {name} again⟫",
-  "machines.repair.leave": "⟪If you leave this page the setup code is lost. Select Set up again to get a new one.⟫",
   "machines.repair.failed": "⟪Bakery could not start the setup. Try again.⟫",
   "machines.retire.dialogAgain": "⟪The machine can be set up again later.⟫",
   "machines.pagination.truncated.machines": "⟪Showing the first {count} machines. More are available.⟫",
