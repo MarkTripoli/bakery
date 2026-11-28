@@ -642,3 +642,73 @@ Deno.test("a Claude machine enrolled before the tool gateway reports and claims 
     ]);
     assertEquals(refused.status, 403);
   }));
+
+Deno.test("a machine read lists every check with its result and when, and who retired it", () =>
+  withWorkerFixture(async (fixture) => {
+    const worker = await registeredWorker(fixture, { name: "issue70-checks" });
+    const hostId = worker.registration.workerHostId;
+    const report = await reportInventory(
+      fixture,
+      worker.credential,
+      worker.registration.registrationGeneration,
+      1,
+      [
+        { checkId: "capability:git", status: "pass" },
+        { checkId: "capability:shell", status: "fail" },
+        { checkId: "protocol_compatible", status: "not_applicable" },
+        { checkId: "spool_access", status: "unknown" },
+      ],
+    );
+    assertEquals(report.status, 200, await report.clone().text());
+    const read = async () => {
+      const response = await adminRequest(
+        fixture,
+        `/v1/workers/${hostId}`,
+        undefined,
+        { method: "GET" },
+      );
+      assertEquals(response.status, 200, await response.clone().text());
+      return contractSchemas.WorkerHost.parse(await response.json());
+    };
+    const before = await read();
+    assertEquals(
+      before.checks?.map((check) => [check.checkId, check.result]),
+      [
+        ["capability:git", "pass"],
+        ["capability:shell", "fail"],
+        ["protocol_compatible", "not_applicable"],
+        ["spool_access", "unknown"],
+      ],
+    );
+    assert(before.checks?.every((check) => check.observedAt === OBSERVED));
+    assertEquals(before.retirement, null);
+
+    await fixture.pgDatabase.query(
+      `update bakery.worker_checks set expires_at = now() - interval '1 second'
+        where worker_host_id = $1 and check_id = 'capability:git'`,
+      [hostId],
+    );
+    const stale = await read();
+    assertEquals(
+      stale.checks?.find((check) => check.checkId === "capability:git")
+        ?.result,
+      "unknown",
+      "a result past its window could not be checked",
+    );
+
+    const revoked = await adminRequest(
+      fixture,
+      `/v1/workers/${hostId}/revocations`,
+      {},
+      { method: "POST", idempotencyKey: crypto.randomUUID() },
+    );
+    assertEquals(revoked.status, 200);
+    const retired = await read();
+    const person = await fixture.pgDatabase.query<{ display_name: string }>(
+      "select display_name from bakery.principals where id = $1",
+      [fixture.principalId],
+    );
+    assertEquals(retired.retirement?.principalId, fixture.principalId);
+    assertEquals(retired.retirement?.name, person.rows[0]!.display_name);
+    assert(retired.retirement?.at);
+  }));

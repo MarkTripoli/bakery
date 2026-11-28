@@ -214,7 +214,7 @@ type CheckFreshnessContext = {
   inventoryRevision: number;
 };
 
-function isFreshCheck(
+export function isFreshCheck(
   check: StoredCheck,
   context: CheckFreshnessContext,
 ): boolean {

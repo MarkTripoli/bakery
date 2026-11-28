@@ -5180,6 +5180,13 @@
       "frames": []
     },
     {
+      "routeId": "machine-link",
+      "path": "/machines/link",
+      "status": "no-mock",
+      "rationale": "The approve-a-machine page the link command prints (#70, UX design revision 2 on comment 7087868212 and the states on 7068595506): an Admin types the code a terminal shows, checks the computer, and approves or declines it. No Paper frame names it, so none is invented. It reads one waiting link request, so it stays real-API only and is not scored against synthetic records.",
+      "frames": []
+    },
+    {
       "routeId": "machine-new-by-hand",
       "path": "/machines/new/by-hand",
       "status": "no-mock",

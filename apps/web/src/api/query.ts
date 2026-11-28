@@ -4921,16 +4921,12 @@ export function fileLibraryEntriesQueryOptions(
   });
 }
 
-/**
- * Who can have made a file: the organization's people, workers and service
- * accounts, every page of them, so the Made by filter can choose anyone.
- */
-export function filePeopleQueryOptions(
+export function organizationPeopleQueryOptions(
   client: Pick<BakeryApiClient, "principals">,
   scope: ApiScope,
 ) {
   return queryOptions<PrincipalPage, ApiFailure>({
-    queryKey: protectedQueryKey(scope, "files.people", {}),
+    queryKey: protectedQueryKey(scope, "principals.all", {}),
     queryFn: ({ signal }) => {
       const organizationId = requireOrganization(scope);
       return readAllPages((cursor) =>

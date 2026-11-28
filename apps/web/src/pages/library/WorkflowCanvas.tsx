@@ -24,6 +24,7 @@ import {
   useViewportStore,
 } from "@xyflow/react";
 import ELK from "elkjs/lib/elk-api.js";
+import { useFocusThroughRedraws } from "./use-focus-through-redraws.ts";
 import * as UI from "@bakery/ui";
 import {
   type CanvasBlock,
@@ -97,6 +98,7 @@ function estimatedHeight(graph: CanvasGraph): number {
 
 function Surface(props: WorkflowCanvasProps) {
   const { graph, labels, mode, renderAdd, renderBlock, selectedId } = props;
+  useFocusThroughRedraws("workflow-canvas");
   const flow = useReactFlow();
   const stores = useReactFlowStoreApi();
   const width = useViewportStore((state) => state.width);
