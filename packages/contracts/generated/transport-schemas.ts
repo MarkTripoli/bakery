@@ -39490,7 +39490,8 @@ const transportSchemas = {
         "capabilities",
         "supported",
         "supportedSystems",
-        "expiresAt"
+        "expiresAt",
+        "repairsWorkerHostId"
       ],
       "fieldTypes": {
         "organizationName": "string",
@@ -39499,8 +39500,15 @@ const transportSchemas = {
         "capabilities": "json",
         "supported": "boolean",
         "supportedSystems": "json",
-        "expiresAt": "timestamp"
+        "expiresAt": "timestamp",
+        "repairsWorkerHostId": "uuid|null"
       },
+      "nullableFields": [
+        "repairsWorkerHostId"
+      ],
+      "optionalFields": [
+        "repairsWorkerHostId"
+      ],
       "description": "What a link code would do, shown in the terminal before its one question: the organization, machine name, slots and capabilities it binds, and whether this machine's system is supported. Never contains the code, its hash or any credential.",
       "fieldDescriptions": {
         "organizationName": "Display name of the organization the machine would join.",
@@ -39509,7 +39517,8 @@ const transportSchemas = {
         "capabilities": "Capabilities the machine may run.",
         "supported": "Whether the reported system and processor are supported (and match any system the Admin set); false means nothing should be installed and the code stays unused.",
         "supportedSystems": "The supported systems as a list of {os, architecture} pairs, such as linux arm64.",
-        "expiresAt": "UTC timestamp after which the code no longer works."
+        "expiresAt": "UTC timestamp after which the code no longer works.",
+        "repairsWorkerHostId": "The machine this code repairs (Set up again), or null for a code that adds a new machine. The terminal on a linked computer re-links only when this is the machine it is registered as."
       }
     },
     "WorkerLinkRequestCreated": {
