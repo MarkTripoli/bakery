@@ -402,7 +402,7 @@ test.describe("machine page: the one banner", () => {
     await open(page, fixture());
     const detail = page.getByTestId("machine-detail-page");
     await openChecks(page);
-    await expect(detail.getByText("No failed checks reported.")).toBeVisible();
+    await expect(detail.getByText("No failed checks.")).toBeVisible();
     await expect(banner(page)).toHaveCount(0);
     await page.getByRole("tab", { name: "Overview" }).click();
     // One section about the machine, one line each: no section per fact.
@@ -625,6 +625,7 @@ test.describe("machine page: every check and who retired it", () => {
         readinessReason: "check_failed",
         failedCheckIds: ["disk_threshold"],
       }, {
+        allBlocked: true,
         failedChecks: [{ checkId: "disk_threshold", reason: "2% free" }],
         checks: [
           check("disk_threshold", "fail", "2% free"),

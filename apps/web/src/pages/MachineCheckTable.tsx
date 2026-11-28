@@ -117,21 +117,25 @@ export function MachineCheckTable(
                   columns={[
                     {
                       id: "check",
+                      width: "22%",
                       header: message(translate, "machines.checks.col.check"),
                       cell: name,
                     },
                     {
                       id: "result",
+                      width: "18%",
                       header: message(translate, "machines.checks.col.result"),
                       cell: result,
                     },
                     {
                       id: "checked",
+                      width: "22%",
                       header: message(translate, "machines.checks.col.checked"),
                       cell: checked,
                     },
                     {
                       id: "fix",
+                      width: "38%",
                       header: message(translate, "machines.checks.col.fix"),
                       cell: advice,
                     },
