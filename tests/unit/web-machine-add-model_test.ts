@@ -31,6 +31,10 @@ Deno.test("a coding agent is the only thing the person must choose", () => {
     ["slotsInvalid"],
   );
   assertEquals(commandInput(initialAddAnswers), null);
+  assertEquals(
+    commandInput({ name: "", slots: "1", agent: "claude" })?.capabilities,
+    ["git", "shell", "web", "model", "claude", "tool-gateway"],
+  );
 });
 
 Deno.test("an empty name is left out, so the machine names itself", () => {
