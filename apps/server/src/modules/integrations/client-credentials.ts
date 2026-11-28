@@ -104,7 +104,6 @@ const CLIENT_ID_MAX = 200;
 const CLIENT_SECRET_MAX = 4096;
 const POSTGRES_UNIQUE_VIOLATION = "23505";
 
-/** Printable characters only: a control character in a pasted credential is a paste error. */
 /**
  * The provider this installation can hold credentials for, or an absent resource.
  *

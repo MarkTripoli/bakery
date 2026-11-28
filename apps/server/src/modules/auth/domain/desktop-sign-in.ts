@@ -62,7 +62,6 @@ const CREDENTIAL = new RegExp(
 const LOOKS_LIKE_DESKTOP = new RegExp(
   `^Bearer[ \\t]+${DESKTOP_CREDENTIAL_PREFIX}`,
 );
-/** C0 and C1 controls plus the two Unicode line separators. */
 export function base64Url(bytes: Uint8Array): string {
   let binary = "";
   for (const byte of bytes) binary += String.fromCharCode(byte);

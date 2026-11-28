@@ -30,7 +30,6 @@ export const DesktopHandoffRefusal = Object.freeze(
 export type DesktopHandoffRefusal =
   typeof DesktopHandoffRefusal[keyof typeof DesktopHandoffRefusal];
 
-/** C0 and C1 controls, DEL and the two Unicode line separators. */
 /**
  * The return path when it is a same-origin path the browser may be sent to,
  * else null: it starts with one "/", is not protocol-relative ("//" or
