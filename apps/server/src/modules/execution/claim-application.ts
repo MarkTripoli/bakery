@@ -347,24 +347,26 @@ export async function executeClaim(
       // checks all come from dispatchGate. Old or expired check generations
       // are ignored by the shared freshness rule.
       const gate = await persistence.readinessGate();
-      const meteredModelOnly = gate.blockedCapabilities.includes("model") &&
+      const keyCoversModel = gate.blockedCapabilities.includes("model") &&
         meteredModelWorkOnly(gate, await persistence.holdsModelKey());
       if (
         gate.allBlocked ||
-        (!meteredModelOnly &&
-          requestedCapabilities.some((capability) =>
-            gate.blockedCapabilities.includes(capability)
-          ))
+        requestedCapabilities.some((capability) =>
+          gate.blockedCapabilities.includes(capability) &&
+          !(capability === "model" && keyCoversModel)
+        )
       ) {
         return await saveNoAssignmentReplay();
       }
       const job = await persistence.findClaimableJob({
         organizationId: identity.host.organizationId,
-        requestedCapabilities,
+        requestedCapabilities: keyCoversModel
+          ? [...new Set([...requestedCapabilities, "model"])]
+          : requestedCapabilities,
         supportedActions,
         metadata,
         principalId: identity.host.principalId,
-        meteredModelOnly,
+        meteredModelOnly: keyCoversModel,
       });
       if (!job) {
         return await saveNoAssignmentReplay();

@@ -263,6 +263,15 @@ function claimHostFromRow(host: WorkerIdentity["host"]): ClaimHost {
   };
 }
 
+function requiresModel(requirements: unknown): boolean {
+  const capabilities = Array.isArray(requirements)
+    ? requirements
+    : requirements !== null && typeof requirements === "object"
+    ? (requirements as { capabilities?: unknown }).capabilities
+    : [];
+  return Array.isArray(capabilities) && capabilities.includes("model");
+}
+
 export function createClaimsRepository(
   transaction: PgTransactionClient,
   identity: WorkerIdentity,
@@ -570,7 +579,7 @@ export function createClaimsRepository(
           break;
         }
         if (
-          meteredModelOnly &&
+          meteredModelOnly && requiresModel(row.requirements) &&
           !(await coveringModelKey(
             transaction,
             organizationId,

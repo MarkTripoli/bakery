@@ -249,6 +249,7 @@ async function open(
         failedChecks: [],
         credentialGeneration: 1,
         inventoryRevision: 1,
+        meteredModelReady: false,
       }));
     }
     if (url.pathname.endsWith("/components")) {

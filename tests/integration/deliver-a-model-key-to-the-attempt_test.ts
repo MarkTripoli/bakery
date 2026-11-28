@@ -583,6 +583,10 @@ async function keyOnlyMachine(
   return { worker, jobId: job.jobId };
 }
 
+const CAPABILITIES_WITHOUT_MODEL = workerFixtureCapabilities.filter((
+  capability,
+) => capability !== "model");
+
 async function claimStatus(fixture: WorkerFixture, worker: Worker) {
   const claimKey = crypto.randomUUID();
   const response = await workerRequest(
@@ -592,7 +596,7 @@ async function claimStatus(fixture: WorkerFixture, worker: Worker) {
     {
       claimKey,
       workerHostId: worker.registration.workerHostId,
-      capabilities: workerFixtureCapabilities,
+      capabilities: CAPABILITIES_WITHOUT_MODEL,
     },
     { idempotencyKey: claimKey },
   );
@@ -652,6 +656,33 @@ Deno.test("a machine with no model login gets nothing without a usable key", asy
     });
     assertEquals(await meteredModelReady(fixture, disallowed.worker), true);
     assertEquals((await claimStatus(fixture, disallowed.worker)).status, 204);
+  } finally {
+    await f.cleanup();
+  }
+});
+
+Deno.test("a bound key never holds back work that needs no model", async () => {
+  const f = await openSecretsFixture();
+  try {
+    const fixture = asWorkerFixture(f);
+    const { worker, jobId } = await keyOnlyMachine(
+      f,
+      fixture,
+      "issue70-nonmodel",
+    );
+    await fixture.pgDatabase.query(
+      `update bakery.jobs set status = 'canceled' where id = $1`,
+      [jobId],
+    );
+    const check = await seedEligibleNonmodelJob(
+      fixture.pgDatabase,
+      fixture.organizationId,
+      fixture.principalId,
+    );
+    assertEquals(await claimStatus(fixture, worker), {
+      status: 200,
+      jobId: check.jobId,
+    });
   } finally {
     await f.cleanup();
   }

@@ -120,6 +120,7 @@ async function open(
         failedChecks: f.failedChecks,
         credentialGeneration: 1,
         inventoryRevision: 1,
+        meteredModelReady: false,
       }));
     }
     if (path.endsWith("/components")) {

@@ -216,6 +216,7 @@ async function fixture(page: Page, options: Options = {}) {
         failedChecks: [],
         credentialGeneration: 1,
         inventoryRevision: 1,
+        meteredModelReady: false,
       }));
     }
     return route.fulfill(json({ items: [], nextCursor: null }));
