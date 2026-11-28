@@ -1,3 +1,4 @@
+import { bindingSettings } from "./service-link.ts";
 import { lstat } from "node:fs/promises";
 import { join } from "node:path";
 import { BootstrapError } from "./errors.ts";
@@ -574,14 +575,7 @@ async function planText(
   const account = operation.account ??
     (system === "linux" ? DEFAULT_LINUX_ACCOUNT : undefined);
   if (account === undefined) throw new BootstrapError("COMMAND_UNKNOWN");
-  const fixed = {
-    BAKERY_SERVER_URL: binding.serverOrigin,
-    BAKERY_WORKER_STATE_DIR: join(operation.root, "state"),
-    BAKERY_WORKER_ENROLLMENT_TOKEN_FILE: join(operation.root, TOKEN_FILE),
-    BAKERY_WORKER_NAME: binding.name,
-    BAKERY_WORKER_SLOTS: String(binding.slots),
-    BAKERY_WORKER_CAPABILITIES: binding.capabilities.join(","),
-  };
+  const fixed = bindingSettings(binding, operation.root);
   // What pairing fixed is what the settings come from: an extra setting adds
   // (a coding agent's), it never replaces.
   for (const name of Object.keys(operation.settings ?? {})) {

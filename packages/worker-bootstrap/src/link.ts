@@ -104,7 +104,7 @@ export type LinkIo = Readonly<{
   /** Installs the verified worker into the root; throws LinkStepFailed. */
   install: (root: string) => Promise<void>;
   /** Writes the settings, adds the service and starts it; throws LinkStepFailed. */
-  startService: (binding: PairingBinding) => Promise<void>;
+  startService: (binding: PairingBinding, root: string) => Promise<void>;
 }>;
 
 const AGENT_NAMES: Readonly<Record<string, string>> = {
@@ -368,7 +368,7 @@ async function linkWithCode(
       capabilities: inspection.capabilities,
       boundAt: io.now().toISOString(),
     }, code);
-    await io.startService(binding);
+    await io.startService(binding, command.root);
     io.write("✓ Service started\n");
   } catch (error) {
     if (error instanceof LinkStepFailed) {
