@@ -1,0 +1,21 @@
+$ link --server http://127.0.0.1:40047 --code V6HX…
+
+Bakery worker · link this machine
+
+  Organization   Personal
+  Machine        build-box-01
+  Tasks at once  2
+  Coding agent   Claude Code
+  This computer  Linux x86_64
+
+This installs the worker, adds the service bakery-worker
+(asks for your password once) and starts it.
+
+Link this machine? [y/N] y
+
+✓ Installed
+✓ Service started
+✓ Connected to Bakery
+
+build-box-01 is linked. One thing left, in Bakery: sign in to Claude Code.
+[exit 0]
