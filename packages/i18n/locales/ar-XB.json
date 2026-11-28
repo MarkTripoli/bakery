@@ -7873,5 +7873,7 @@
   "tasks.run.revision.changeSummary": "⟪{files, plural, one {# file} other {# files}}, +{added} −{removed}⟫",
   "tasks.run.revision.patchSummary": "⟪Patch: {files, plural, one {# file} other {# files}} · +{added} −{removed}⟫",
   "machines.models.adminChangeOnly": "⟪Only administrators can change models.⟫",
-  "machines.models.note.revokedMember": "⟪It cannot be turned on again. An administrator can add it as a new model.⟫"
+  "machines.models.note.revokedMember": "⟪It cannot be turned on again. An administrator can add it as a new model.⟫",
+  "machines.agents.paidPerUse": "⟪{agent} is paid per use by its model provider.⟫",
+  "machines.agents.banner.notSignedIn.bodyPerUse": "⟪Sign in so this machine can take {agent} work.⟫"
 }

@@ -204,6 +204,7 @@ async function open(page: Page, w: World, path = `/machines/${MACHINE_ID}`) {
       const made = binding({
         componentKey: body.componentKey,
         provider: body.provider,
+        billingRoute: body.billingRoute as "subscription" | "api_metered",
       });
       w.bindings.push(made);
       return route.fulfill(json(wire(made), 201));
@@ -1098,11 +1099,29 @@ test.describe("how a new sign-in is paid for", () => {
       bindings: [],
     });
     await open(page, w);
+    const sentence = "Pi is paid per use by its model provider.";
+    await expect(row(page, "pi")).toContainText(sentence);
+    await expect(banner(page)).toContainText(
+      "Sign in so this machine can take Pi work.",
+    );
+    await expect(banner(page)).not.toContainText("subscription");
+    expect(w.createdBindings).toHaveLength(0);
+    await shot(page, "machine-agents-pi-per-use");
     await banner(page).getByRole("button", { name: "Sign in", exact: true })
       .click();
+    await expect(dialog(page)).toContainText(sentence);
+    await shot(page, "machine-agents-pi-per-use-dialog", [], {
+      windowOnly: true,
+    });
     await expect.poll(() => w.createdBindings).toMatchObject([
       { componentKey: "harness.pi", billingRoute: "api_metered" },
     ]);
+  });
+
+  test("Claude Code says nothing about paying per use", async ({ page }) => {
+    await open(page, world());
+    await expect(row(page, "claude")).toBeVisible();
+    await expect(page.getByText("paid per use")).toHaveCount(0);
   });
 });
 

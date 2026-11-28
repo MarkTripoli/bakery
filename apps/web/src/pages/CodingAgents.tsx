@@ -180,7 +180,9 @@ export function useAgentSignIn(options: {
       };
       let bindingId = knownBindingId ?? row.binding?.id ?? null;
       if (bindingId === null) {
-        if (row.componentKey === null) return failed();
+        if (row.componentKey === null || row.billingRoute === undefined) {
+          return failed();
+        }
         const made = await api.workerProviderBindings.create({
           organizationId,
           workerId: machineId,
@@ -350,6 +352,15 @@ export function useAgentSignIn(options: {
         data-testid="agent-sign-in"
       >
         <UI.Stack gap="standard">
+          {paidPerUse(session.row)
+            ? (
+              <UI.Text>
+                {message(translate, "machines.agents.paidPerUse", {
+                  agent: name,
+                })}
+              </UI.Text>
+            )
+            : null}
           <div role="status" aria-live="polite">
             <UI.Stack gap="compact">
               {view.kind === "starting"
@@ -584,12 +595,20 @@ export type AgentAccess = "full" | "readOnly" | "adminOnly";
  * never restates the state badge beside it: it says what the agent uses, or why
  * it cannot be signed in yet (Bakery has not heard from it).
  */
+function paidPerUse(row: AgentRow): boolean {
+  return row.agent === "pi" &&
+    (row.binding?.billingRoute ?? row.billingRoute) === "api_metered";
+}
+
 function agentLineKey(
   row: AgentRow,
   access: AgentAccess,
   inBanner: boolean,
 ): string | null {
   if (access === "adminOnly") return "machines.agents.adminOnly";
+  if (paidPerUse(row) && row.componentKey !== null) {
+    return "machines.agents.paidPerUse";
+  }
   if (row.binding === null || row.state === "notSignedIn") {
     // The banner says it for the agent it names; the row says it for the others.
     return row.componentKey === null && access === "full" && !inBanner
@@ -739,9 +758,11 @@ export function CodingAgentBanner(
           {message(
             translate,
             // An agent Bakery has not heard from cannot be signed in yet: the banner says when it can.
-            canSignIn
-              ? `machines.agents.banner.${kind}.body`
-              : "machines.agents.banner.notHeard.body",
+            !canSignIn
+              ? "machines.agents.banner.notHeard.body"
+              : kind === "notSignedIn" && paidPerUse(row)
+              ? "machines.agents.banner.notSignedIn.bodyPerUse"
+              : `machines.agents.banner.${kind}.body`,
             { agent: name },
           )}
           {kind === "signedOut" && otherAgentReady
