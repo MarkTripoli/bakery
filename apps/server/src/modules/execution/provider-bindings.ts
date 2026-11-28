@@ -70,7 +70,7 @@ export async function listModelProviderAccounts(
         ],
       );
       const visible = rows.rows.slice(0, limit);
-      const items = visible.map((row) =>
+      const items = visible.map(({ created_at: _, ...row }) =>
         contractSchemas.ModelProviderAccount.parse({
           ...row,
           verifiedAt: row.verifiedAt ? iso(row.verifiedAt as Date) : null,
@@ -80,8 +80,6 @@ export async function listModelProviderAccounts(
           quotaObservedAt: row.quotaObservedAt
             ? iso(row.quotaObservedAt as Date)
             : null,
-          createdAt: undefined,
-          id: row.id,
         })
       );
       const last = visible.at(-1);

@@ -360,6 +360,7 @@ export function MachineDetailPage(
     api,
     organizationId: organizationId ?? "",
     machineId,
+    offline,
     machineName: machineTitle,
     translate,
     onChanged: refreshMachine,
@@ -619,7 +620,7 @@ export function MachineDetailPage(
                         <UI.Button
                           variant="secondary"
                           loading={modeBusy}
-                          disabled={offline}
+                          disabled={offline && fix !== "seeChecks"}
                           onClick={() => runFix(fix)}
                         >
                           {message(translate, `machines.banner.fix.${fix}`)}
@@ -727,6 +728,7 @@ export function MachineDetailPage(
                           <UI.Inline gap="compact">
                             <UI.Button
                               variant="primary"
+                              disabled={offline}
                               onClick={() => void repair()}
                             >
                               {message(
@@ -1042,6 +1044,7 @@ export function MachineDetailPage(
                                           <UI.Button
                                             variant="secondary"
                                             loading={modeBusy}
+                                            disabled={offline}
                                             onClick={() => void finishInstead()}
                                           >
                                             {message(
@@ -1055,6 +1058,7 @@ export function MachineDetailPage(
                                   confirmAction={
                                     <UI.Button
                                       variant="destructive"
+                                      disabled={offline}
                                       onClick={() => void retire()}
                                     >
                                       {message(
@@ -1113,6 +1117,7 @@ export function MachineDetailPage(
                         <MachineModels
                           machineId={machineId}
                           isAdmin={isAdmin}
+                          offline={offline}
                           agents={agents}
                           bindings={providers.data
                             ? {

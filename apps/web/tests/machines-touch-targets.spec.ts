@@ -88,7 +88,7 @@ test.describe("machines touch targets on a coarse phone", () => {
     await expect(page.getByTestId("machines-finishing-setup")).toBeVisible();
     await expect(
       page.getByRole("button", {
-        name: "Get new settings for touch-target-pending",
+        name: "Continue setup of touch-target-pending",
       }),
     ).toBeVisible();
     const toggle = page.getByRole("button", { name: "Open navigation" });

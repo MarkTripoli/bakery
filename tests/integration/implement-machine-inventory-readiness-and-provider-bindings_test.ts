@@ -712,3 +712,31 @@ Deno.test("a machine read lists every check with its result and when, and who re
     assertEquals(retired.retirement?.name, person.rows[0]!.display_name);
     assert(retired.retirement?.at);
   }));
+
+Deno.test("an administrator reads a signed-in account through the real route", () =>
+  withWorkerFixture(async (fixture) => {
+    const id = crypto.randomUUID();
+    await fixture.pgDatabase.query(
+      `insert into bakery.model_provider_accounts (
+         id, organization_id, provider, billing_identity, identity_hash,
+         billing_route, display_identity, verified_at, auth_state
+       ) values ($1, $2, 'anthropic', 'account-70', $3, 'subscription',
+         'a***@example.com', now(), 'signed_in')`,
+      [id, fixture.organizationId, `h-${id}`],
+    );
+    const response = await adminRequest(
+      fixture,
+      "/v1/model-provider-accounts",
+      undefined,
+      { method: "GET" },
+    );
+    assertEquals(response.status, 200, await response.clone().text());
+    const page = await response.json() as {
+      items: { id: string; displayIdentity: string }[];
+    };
+    contractSchemas["Page<ModelProviderAccount>"].parse(page);
+    assertEquals(
+      page.items.map((account) => [account.id, account.displayIdentity]),
+      [[id, "a***@example.com"]],
+    );
+  }));

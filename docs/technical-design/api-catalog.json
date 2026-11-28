@@ -6195,7 +6195,8 @@
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN"
-      ]
+      ],
+      "organizationContext": "required_authenticated_context"
     },
     {
       "group": "Providers",

@@ -49,6 +49,7 @@ export function MachineModels(
   {
     machineId,
     isAdmin,
+    offline,
     agents,
     bindings,
     retryBindings,
@@ -57,6 +58,7 @@ export function MachineModels(
   }: {
     readonly machineId: string;
     readonly isAdmin: boolean;
+    readonly offline: boolean;
     readonly agents: readonly AgentRow[];
     /**
      * This machine's own coding-agent sign-ins, which are what tie a model to it. Only an
@@ -198,7 +200,7 @@ export function MachineModels(
     row.status === "revoked" ? null : (
       <UI.Switch
         checked={row.status === "active"}
-        disabled={busyId !== null}
+        disabled={offline || busyId !== null}
         pending={busyId === row.id}
         onChange={() => void toggle(row)}
       >
@@ -231,7 +233,7 @@ export function MachineModels(
         <UI.Text>{say("machines.models.intro")}</UI.Text>
         {isAdmin && empty === null
           ? (
-            <UI.Button variant="primary" onClick={add}>
+            <UI.Button variant="primary" disabled={offline} onClick={add}>
               {say("machines.models.add")}
             </UI.Button>
           )
@@ -257,7 +259,7 @@ export function MachineModels(
             title={say("machines.models.empty.title")}
             description={say("machines.models.empty.body")}
             action={
-              <UI.Button variant="primary" onClick={add}>
+              <UI.Button variant="primary" disabled={offline} onClick={add}>
                 {say("machines.models.add")}
               </UI.Button>
             }

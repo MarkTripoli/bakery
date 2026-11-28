@@ -1088,8 +1088,10 @@ test.describe("the sign-in dialog", () => {
 
 test("a signed-in agent names the account it is signed in as", async ({ page }) => {
   const accountId = "00000000-0000-4000-8000-0000000000d1";
-  await page.route("**/v1/model-provider-accounts**", (route) =>
-    route.fulfill({
+  const organizations: (string | undefined)[] = [];
+  await page.route("**/v1/model-provider-accounts**", (route) => {
+    organizations.push(route.request().headers()["bakery-organization-id"]);
+    return route.fulfill({
       contentType: "application/json",
       body: JSON.stringify({
         items: [{
@@ -1106,7 +1108,8 @@ test("a signed-in agent names the account it is signed in as", async ({ page }) 
         }],
         nextCursor: null,
       }),
-    }));
+    });
+  });
   await open(
     page,
     world({
@@ -1121,6 +1124,7 @@ test("a signed-in agent names the account it is signed in as", async ({ page }) 
   await expect(row(page, "claude")).toContainText(
     "Uses the subscription signed in on this machine. Signed in as a***@example.com.",
   );
+  expect(organizations).toContain(MOCK_ORGANIZATION_ID);
   await shot(page, "machine-agents-signed-in-as");
 });
 

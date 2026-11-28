@@ -87,12 +87,14 @@ export function useAgentSignIn(options: {
   organizationId: string;
   machineId: string;
   machineName: string;
+  offline: boolean;
   translate: Translator;
   /** Called when a binding or a sign-in changed what the rows show. */
   onChanged: () => Promise<void> | void;
 }): AgentSignIn {
   const { api, organizationId, machineId, machineName, translate, onChanged } =
     options;
+  const { offline } = options;
   const scope = useProtectedScope();
   const [session, setSession] = useState<Session | null>(null);
   const [checkFailed, setCheckFailed] = useState<ReadonlySet<CodingAgent>>(
@@ -482,6 +484,7 @@ export function useAgentSignIn(options: {
               ? (
                 <UI.Button
                   variant="primary"
+                  disabled={offline}
                   onClick={() =>
                     void start(session.row, "signIn", session.bindingId)}
                 >
