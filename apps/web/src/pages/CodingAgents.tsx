@@ -16,6 +16,7 @@ import {
   attemptEnded,
   type AttemptFacts,
   dialogView,
+  paidPerUse,
   paymentKind,
   PROVIDER_OF_AGENT,
 } from "./machine-agents.ts";
@@ -595,11 +596,6 @@ export type AgentAccess = "full" | "readOnly" | "adminOnly";
  * never restates the state badge beside it: it says what the agent uses, or why
  * it cannot be signed in yet (Bakery has not heard from it).
  */
-function paidPerUse(row: AgentRow): boolean {
-  return row.agent === "pi" &&
-    (row.binding?.billingRoute ?? row.billingRoute) === "api_metered";
-}
-
 function agentLineKey(
   row: AgentRow,
   access: AgentAccess,

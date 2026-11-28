@@ -1105,6 +1105,8 @@ test.describe("how a new sign-in is paid for", () => {
       "Sign in so this machine can take Pi work.",
     );
     await expect(banner(page)).not.toContainText("subscription");
+    await expect(page.getByText("Paying with an API key is not available yet."))
+      .toHaveCount(0);
     expect(w.createdBindings).toHaveLength(0);
     await shot(page, "machine-agents-pi-per-use");
     await banner(page).getByRole("button", { name: "Sign in", exact: true })
@@ -1122,6 +1124,8 @@ test.describe("how a new sign-in is paid for", () => {
     await open(page, world());
     await expect(row(page, "claude")).toBeVisible();
     await expect(page.getByText("paid per use")).toHaveCount(0);
+    await expect(page.getByText("Paying with an API key is not available yet."))
+      .toBeVisible();
   });
 });
 

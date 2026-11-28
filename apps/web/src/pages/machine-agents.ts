@@ -122,6 +122,11 @@ export function agentRows(
   });
 }
 
+export function paidPerUse(row: AgentRow): boolean {
+  return row.agent === "pi" &&
+    (row.binding?.billingRoute ?? row.billingRoute) === "api_metered";
+}
+
 /** The name a provider binding is made under for an agent the person signs in. */
 export const PROVIDER_OF_AGENT: Readonly<Record<CodingAgent, string>> = {
   claude: "anthropic",
