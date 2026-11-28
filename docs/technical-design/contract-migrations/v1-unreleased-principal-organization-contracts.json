@@ -1,13 +1,23 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "d3d57917f149ed2db7dae80fd30bc48f25e61eb0"
+    "69a3c28b4b297005ee5d6aa9425e4e1b5e05b3d8"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:494e60e9587aa9c34654b1934db426431ce76def297af370a4ab564ff3fcb56c",
-  "reason": "Rebound onto main d3d57917: a secret may allow model.inference, the action a coding agent's model API key is released under (#70), and the worker reads its key from GET /v1/worker/attempts/{id}/model-key.",
+  "targetCompatibilityDigest": "sha256:4f68ecf91b8b89950636437ce16000b33214b2331811e4c64122e551119c3390",
+  "reason": "Rebound onto main 69a3c28b: DispatchBlockers gains meteredModelReady, whether a machine with no model login still takes model work paid by an API key (#70 B3).",
   "priorApprovals": [
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "d3d57917f149ed2db7dae80fd30bc48f25e61eb0"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:494e60e9587aa9c34654b1934db426431ce76def297af370a4ab564ff3fcb56c",
+      "reason": "Rebound onto main d3d57917: a secret may allow model.inference, the action a coding agent's model API key is released under (#70), and the worker reads its key from GET /v1/worker/attempts/{id}/model-key."
+    },
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [

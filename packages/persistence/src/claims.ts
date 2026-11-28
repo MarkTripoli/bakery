@@ -42,6 +42,11 @@ import {
   rebindPreparedIdentityOperation as rebindPreparedIdentityOperationInternal,
 } from "./secret-identity.ts";
 import type { SealedCredentialOperation } from "@bakery/contracts/secret-identity";
+import {
+  coveringModelKey,
+  hostHoldsModelKey,
+  readJobKeyScope,
+} from "./model-key-coverage.ts";
 
 /**
  * The agent session a claim hands an attempt of a job (the `agentSessionId`
@@ -168,6 +173,7 @@ export type ClaimLease =
 export type ClaimsRepository = {
   acquireClaimLock(workerHostId: string, claimKey: string): Promise<void>;
   readinessGate(): Promise<DispatchGate>;
+  holdsModelKey(): Promise<boolean>;
   loadReplay(
     workerHostId: string,
     claimKey: string,
@@ -189,6 +195,7 @@ export type ClaimsRepository = {
     supportedActions: readonly string[] | undefined;
     metadata: RequestMetadata;
     principalId: string | null;
+    meteredModelOnly?: boolean;
   }): Promise<ClaimableJob | null>;
   nextAttemptNumber(jobId: string): Promise<number | undefined>;
   createLeasedAttempt(options: {
@@ -314,6 +321,13 @@ export function createClaimsRepository(
       }
       return gate;
     },
+    async holdsModelKey() {
+      return await hostHoldsModelKey(
+        transaction,
+        identity.host.organizationId,
+        identity.host.id,
+      );
+    },
     async acquireClaimLock(workerHostId, claimKey) {
       await transaction.query(
         `select pg_advisory_xact_lock(hashtextextended($1::text, 0))`,
@@ -388,6 +402,7 @@ export function createClaimsRepository(
       supportedActions,
       metadata,
       principalId,
+      meteredModelOnly,
     }) {
       const enrolled = hostAllowedCapabilities(
         Array.isArray(identity.host.capabilities)
@@ -553,6 +568,19 @@ export function createClaimsRepository(
           await transaction.query("rollback to savepoint claim_candidate");
           await transaction.query("release savepoint claim_candidate");
           break;
+        }
+        if (
+          meteredModelOnly &&
+          !(await coveringModelKey(
+            transaction,
+            organizationId,
+            identity.host.id,
+            await readJobKeyScope(transaction, organizationId, row.id),
+          )).ok
+        ) {
+          await transaction.query("rollback to savepoint claim_candidate");
+          await transaction.query("release savepoint claim_candidate");
+          continue;
         }
         if (row.action !== "repository.inspect") {
           try {
