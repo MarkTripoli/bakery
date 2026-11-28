@@ -151,6 +151,28 @@ for (
       expectReadsOnly(seen);
     });
 
+    test("an empty filter offers New skill to someone who may add one", async ({ page }) => {
+      await skillsFixture(page, {
+        emptyScopes: ["organization", "personal"],
+        role: "admin",
+      });
+      await page.goto(`${LIST}&scope=organization`);
+      const list = page.getByTestId("library-skills");
+      await expect(list).toContainText(
+        "Make a copy of a skill for the organization, or write one.",
+      );
+      await list.getByRole("button", { name: "New skill" }).click();
+      await expect(page.getByRole("dialog")).toBeVisible();
+      await page.keyboard.press("Escape");
+      await page.goto(`${LIST}&scope=personal`);
+      await expect(list).toContainText(
+        "Make a copy of a skill for yourself, or write one.",
+      );
+      await expect(list.getByRole("button", { name: "New skill" }))
+        .toBeVisible();
+      await still(page, "library-skills-empty-private");
+    });
+
     test("a search that finds nothing offers Clear search", async ({ page }) => {
       const { seen } = await skillsFixture(page);
       await page.goto(LIST);
@@ -273,7 +295,9 @@ for (
           "href",
           /\/library\/workflows\/00000000-0000-4000-8000-000000000702$/,
         );
-      await expect(access.getByRole("button")).toHaveText(["Stop allowing"]);
+      await expect(access.getByRole("list").getByRole("button")).toHaveText([
+        "Stop allowing",
+      ]);
       await expect(access.getByText(/\/steps\//)).toHaveCount(0);
       // The original's name is a link to its page, in the same sentence.
       const origin = page.getByTestId("skill-origin");
@@ -342,6 +366,34 @@ for (
       fail = false;
       await files.getByRole("button", { name: "Try again" }).click();
       await expect(files.getByText("Write plainly.")).toBeVisible();
+    });
+
+    test("a skill page explains its scope, versions and who may change it", async ({ page }) => {
+      await skillsFixture(page);
+      await page.goto(skillPage(IDS.releaseNotes));
+      await expect(
+        page.getByText(
+          "Only organization administrators can change organization skills.",
+        ),
+      ).toBeVisible();
+      await expect(page.getByTestId("skill-files")).toContainText(
+        "A version never changes after it is published.",
+      );
+      await page.getByRole("button", { name: "What Organization means" })
+        .click();
+      await expect(
+        page.getByText("Everyone in Fixture Org can see and use it."),
+      )
+        .toBeVisible();
+      await page.keyboard.press("Escape");
+      await page.getByRole("button", { name: "What a fingerprint is" })
+        .click();
+      await expect(
+        page.getByText("A fingerprint identifies the exact files", {
+          exact: false,
+        }),
+      ).toBeVisible();
+      await still(page, "skill-guidance");
     });
 
     test("an organization skill: its description, what uses it in two groups, written here", async ({ page }) => {
@@ -682,7 +734,7 @@ for (
         /\/library\/skills\/00000000-0000-4000-8000-000000000\d+$/,
       );
       await expect(page.getByTestId("skill-toast")).toContainText(
-        "Copied as Writing guide for me.",
+        "Copied. Writing guide for me starts at version 1.",
       );
       await expect(
         page.getByRole("heading", { name: "Writing guide for me" }),
@@ -731,7 +783,7 @@ for (
       await dialog.getByRole("button", { name: "Make a copy" }).click();
       await expect(
         dialog.getByText(
-          "A skill with this name already exists. Choose another name.",
+          "You already have a skill with this name here. Choose another.",
         ),
       ).toBeVisible();
       await expect(page).toHaveURL(new RegExp(`${IDS.writingGuide}$`));
@@ -777,7 +829,7 @@ for (
       await dialog.getByRole("button", { name: "Rename" }).click();
       await expect(
         dialog.getByText(
-          "A skill with this name already exists. Choose another name.",
+          "You already have a skill with this name here. Choose another.",
         ),
       ).toBeVisible();
       await dialog.getByLabel("Name").fill("Company style");
@@ -812,7 +864,7 @@ for (
         .toHaveCount(0);
       await menuItem(page, "Turn on").click();
       await expect(page.getByTestId("skill-toast")).toContainText(
-        "House style is turned on.",
+        "House style is on again.",
       );
       await expect(page.getByText("Turned off", { exact: true })).toHaveCount(
         0,

@@ -252,7 +252,8 @@ const take = (page: Page) =>
 
 test("an older version is put in use after asking", async ({ page }) => {
   const { sent } = await open(page);
-  await expect(versions(page).getByRole("button")).toHaveCount(1);
+  await expect(versions(page).getByRole("list").getByRole("button"))
+    .toHaveCount(1);
   await versions(page).getByRole("button", { name: "Use version 1" }).click();
   const dialog = page.getByRole("alertdialog", { name: "Use version 1" });
   await expect(dialog).toContainText(
@@ -302,7 +303,8 @@ test("a take that changes nothing never says it updated", async ({ page }) => {
 test("someone who cannot change the skill is offered neither", async ({ page }) => {
   await open(page, { role: "developer" });
   await expect(origin(page)).toContainText("Last checked");
-  await expect(versions(page).getByRole("button")).toHaveCount(0);
+  await expect(versions(page).getByRole("list").getByRole("button"))
+    .toHaveCount(0);
   await expect(origin(page).getByRole("button")).toHaveCount(0);
 });
 

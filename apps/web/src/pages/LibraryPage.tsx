@@ -115,6 +115,12 @@ export function LibraryPage() {
   const [importing, setImporting] = useState(false);
   const [newSkill, setNewSkill] = useState(false);
   const importOpener = useRef<HTMLElement | null>(null);
+  const openNewSkill = () => {
+    importOpener.current = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    setNewSkill(true);
+  };
   const active = tab === "workflows"
     ? [workflows, presets]
     : tab === "memory"
@@ -312,7 +318,7 @@ export function LibraryPage() {
   const content = tab === "evaluations"
     ? <EvaluationsTab />
     : tab === "skills"
-    ? <SkillsTab />
+    ? <SkillsTab onNewSkill={openNewSkill} offline={offlineNow} />
     : forbidden
     ? (
       <UI.EmptyState
@@ -476,12 +482,7 @@ export function LibraryPage() {
         <UI.Button
           variant="primary"
           disabled={offlineNow}
-          onClick={() => {
-            importOpener.current = document.activeElement instanceof HTMLElement
-              ? document.activeElement
-              : null;
-            setNewSkill(true);
-          }}
+          onClick={openNewSkill}
         >
           {translate("library.skills.new")}
         </UI.Button>

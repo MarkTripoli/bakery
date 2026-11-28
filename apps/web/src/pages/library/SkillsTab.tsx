@@ -1,10 +1,13 @@
 import { useEffect, useState } from "react";
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import * as UI from "@bakery/ui";
 import type { SkillResponse } from "../../api/client.ts";
 import { useBakeryApi } from "../../api/context.tsx";
-import { skillsQueryOptions } from "../../api/query.ts";
+import {
+  effectiveAccessQueryOptions,
+  skillsQueryOptions,
+} from "../../api/query.ts";
 import {
   asyncKindForError,
   isForbiddenFailure,
@@ -37,7 +40,12 @@ const SEARCH_REST_MS = 300;
  * as a table whose row opens the skill's page. Read only: making, copying and
  * changing skills are later slices, so the tab has no button for them.
  */
-export function SkillsTab() {
+export function SkillsTab(
+  { onNewSkill, offline }: {
+    readonly onNewSkill: () => void;
+    readonly offline: boolean;
+  },
+) {
   const api = useBakeryApi();
   const scope = useProtectedScope();
   const navigate = useNavigate();
@@ -53,6 +61,9 @@ export function SkillsTab() {
   const skills = useInfiniteQuery(
     skillsQueryOptions(api, scope, { scope: serverScope(filter), q }),
   );
+  const access = useQuery(effectiveAccessQueryOptions(api, scope));
+  const mayStart = filter === "personal" ||
+    filter === "organization" && access.data?.role === "admin";
 
   const go = (next: { filter?: SkillFilter; q?: string | undefined }) => {
     const nextFilter = next.filter ?? filter;
@@ -204,23 +215,39 @@ export function SkillsTab() {
     );
   } else if (rows.length === 0) {
     const empty = emptyWords(filter, q);
+    const readOnly = q === undefined && filter === "organization" &&
+      access.data !== undefined && !mayStart;
     body = (
       <UI.EmptyState
         title={words(empty.title)}
-        description={empty.description === null
+        description={readOnly
+          ? translate("library.skills.empty.organization.readOnly")
+          : empty.description === null
           ? undefined
           : words(empty.description)}
-        action={q === undefined ? undefined : (
-          <UI.Button
-            variant="secondary"
-            onClick={() => {
-              setText("");
-              go({ q: undefined });
-            }}
-          >
-            {translate("library.skills.clearSearch")}
-          </UI.Button>
-        )}
+        action={q !== undefined
+          ? (
+            <UI.Button
+              variant="secondary"
+              onClick={() => {
+                setText("");
+                go({ q: undefined });
+              }}
+            >
+              {translate("library.skills.clearSearch")}
+            </UI.Button>
+          )
+          : mayStart
+          ? (
+            <UI.Button
+              variant="primary"
+              disabled={offline}
+              onClick={onNewSkill}
+            >
+              {translate("library.skills.new")}
+            </UI.Button>
+          )
+          : undefined}
         variant={q === undefined ? "firstUse" : "filtered"}
       />
     );

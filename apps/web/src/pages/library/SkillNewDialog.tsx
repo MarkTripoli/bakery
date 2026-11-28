@@ -5,7 +5,6 @@ import * as UI from "@bakery/ui";
 import { useBakeryApi } from "../../api/context.tsx";
 import {
   effectiveAccessQueryOptions,
-  organizationsListQueryOptions,
   skillDraftQueryOptions,
 } from "../../api/query.ts";
 import { failureStatus } from "../../app/async-state.ts";
@@ -13,6 +12,7 @@ import { useProtectedScope } from "../../app/query-scope-context.tsx";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
 import { clip } from "./copy-workflow.ts";
 import { draftFailure, SKILL_NAME_LIMIT, slugOf } from "./skill-draft-state.ts";
+import { useOrganizationName } from "./useOrganizationName.ts";
 
 type Choice = "organization" | "personal";
 export function SkillNewDialog({ onClose }: { readonly onClose: () => void }) {
@@ -23,11 +23,8 @@ export function SkillNewDialog({ onClose }: { readonly onClose: () => void }) {
   const { translate } = useI18n();
   const organizationId = scope.organizationId as string;
   const access = useQuery(effectiveAccessQueryOptions(api, scope));
-  const organizations = useQuery(organizationsListQueryOptions(api, scope));
   const admin = access.data?.role === "admin";
-  const organizationName =
-    organizations.data?.items.find((item) => item.id === organizationId)
-      ?.name ?? "";
+  const organizationName = useOrganizationName() ?? "";
   const [who, setWho] = useState<Choice | null>(null);
   const chosen: Choice = who ?? (admin ? "organization" : "personal");
   const [name, setName] = useState("");

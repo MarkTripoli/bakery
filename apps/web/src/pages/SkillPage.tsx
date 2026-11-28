@@ -32,6 +32,7 @@ import { SkillGrantRow } from "./library/SkillGrantRow.tsx";
 import { SkillSourceCheckControl } from "./library/SkillSourceCheckControl.tsx";
 import { SkillUseVersion } from "./library/SkillUseVersion.tsx";
 import { useCanChangeSkill } from "./library/useCanChangeSkill.ts";
+import { useOrganizationName } from "./library/useOrganizationName.ts";
 import {
   copiedWords,
   fileSize,
@@ -66,6 +67,21 @@ function CardError(
     >
       {message}
     </UI.InlineNotice>
+  );
+}
+
+function Explained(
+  { text, label, help }: {
+    readonly text: string;
+    readonly label: string;
+    readonly help: string;
+  },
+) {
+  return (
+    <UI.Inline gap="compact">
+      <UI.Text variant="muted">{text}</UI.Text>
+      <UI.HelpTip label={label}>{help}</UI.HelpTip>
+    </UI.Inline>
   );
 }
 
@@ -177,6 +193,9 @@ function FilesCard(
           number: active.revision,
         })}
       </UI.Text>
+      <UI.Text variant="muted">
+        {translate("library.skill.files.versionsKept")}
+      </UI.Text>
       <UI.DescriptionList>
         <UI.DescriptionItem
           title={translate("library.skill.files.instructions")}
@@ -267,7 +286,15 @@ function VersionsCard(
   const words = (entry: Words) => translate(entry.key, entry.values);
   const ordered = [...items].sort((a, b) => b.revision - a.revision);
   return (
-    <Card id="skill-versions" title={translate("library.skill.versions.title")}>
+    <Card
+      id="skill-versions"
+      title={translate("library.skill.versions.title")}
+    >
+      <Explained
+        text={translate("library.skill.versions.fingerprintLine")}
+        label={translate("library.skill.versions.fingerprintHelpLabel")}
+        help={translate("library.skill.versions.fingerprintHelp")}
+      />
       {versions.isError
         ? (
           <CardError
@@ -474,15 +501,19 @@ function AccessCard(
         ? <UI.Skeleton shape="row" />
         : items.length === 0
         ? (
-          <UI.Text variant="muted">
-            {translate("library.skill.access.empty")}
-          </UI.Text>
+          <Explained
+            text={translate("library.skill.access.empty")}
+            label={translate("library.skill.access.helpLabel")}
+            help={translate("library.skill.access.help")}
+          />
         )
         : (
           <UI.Stack gap="compact">
-            <UI.Text variant="muted">
-              {translate("library.skill.access.shared")}
-            </UI.Text>
+            <Explained
+              text={translate("library.skill.access.shared")}
+              label={translate("library.skill.access.helpLabel")}
+              help={translate("library.skill.access.help")}
+            />
             <UI.Stack
               aria-label={translate("library.skill.access.title")}
               gap="compact"
@@ -695,6 +726,8 @@ function SkillBody({ skill }: { readonly skill: SkillResponse }) {
 
 function SkillHeader({ skill }: { readonly skill: SkillResponse }) {
   const { translate } = useI18n();
+  const organizationName = useOrganizationName();
+  const canChange = useCanChangeSkill(skill);
   const words = (entry: Words) => translate(entry.key, entry.values);
   const { actions, below } = useSkillActions(skill);
   const phone = useShellViewport() === "phone";
@@ -713,12 +746,28 @@ function SkillHeader({ skill }: { readonly skill: SkillResponse }) {
               : <UI.Text variant="muted">{skill.description}</UI.Text>}
             <UI.Inline gap="compact">
               <UI.Badge>{words(scopeWords(skill.scope))}</UI.Badge>
+              <UI.HelpTip
+                label={translate("library.skill.scope.helpLabel", {
+                  scope: words(scopeWords(skill.scope)),
+                })}
+              >
+                {translate(`library.skill.scope.help.${skill.scope}`, {
+                  organization: organizationName ?? "",
+                })}
+              </UI.HelpTip>
               {skill.enabled ? null : (
                 <UI.Badge tone="warning">
                   {translate("library.skills.badge.turnedOff")}
                 </UI.Badge>
               )}
             </UI.Inline>
+            {skill.scope === "organization" && canChange === false
+              ? (
+                <UI.Text variant="muted">
+                  {translate("library.skill.organizationReadOnly")}
+                </UI.Text>
+              )
+              : null}
           </UI.Stack>
         }
       />
