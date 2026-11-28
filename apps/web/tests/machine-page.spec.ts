@@ -48,6 +48,8 @@ type Fixture = {
   /** The machine's system and processor. */
   system: { os: string; architecture: string };
   components?: Record<string, unknown>[];
+  checks?: Record<string, unknown>[];
+  retirement?: Record<string, unknown> | null;
 };
 
 function fixture(
@@ -269,6 +271,8 @@ async function open(
 
 function worker(f: Fixture) {
   return {
+    ...(f.checks ? { checks: f.checks } : {}),
+    ...(f.retirement === undefined ? {} : { retirement: f.retirement }),
     id: MACHINE_ID,
     principalId: "00000000-0000-4000-8000-0000000000a2",
     name: "fixture-host",
@@ -703,6 +707,149 @@ test.describe("machine page: the one banner", () => {
       "The coding agent cannot make a working copy of a repository.",
     );
   });
+});
+
+test.describe("machine page: every check and who retired it", () => {
+  const observed = "2026-11-27T15:30:00.000Z";
+  const check = (
+    checkId: string,
+    result: "pass" | "fail" | "unknown" | "not_applicable",
+    reason: string | null = null,
+    componentKey: string | null = null,
+  ) => ({ checkId, componentKey, result, reason, observedAt: observed });
+
+  test("each check has its result, when it ran and what to do", async ({ page }) => {
+    await open(
+      page,
+      fixture({
+        readiness: "needs_attention",
+        readinessReason: "check_failed",
+        failedCheckIds: ["disk_threshold"],
+      }, {
+        allBlocked: true,
+        failedChecks: [{ checkId: "disk_threshold", reason: "2% free" }],
+        checks: [
+          check("disk_threshold", "fail", "2% free"),
+          check("supervisor_health", "pass"),
+          check("capability:git", "unknown"),
+          check("capability:model", "pass", null, "harness.claude"),
+          check("capability:reviewer", "not_applicable"),
+        ],
+      }),
+    );
+    await openChecks(page);
+    const checks = page.getByTestId("machine-checks");
+    for (
+      const word of [
+        "Passed",
+        "Failed",
+        "Could not be checked",
+        "Does not apply",
+        "Model access (Claude Code)",
+        "Bakery could not run this check. Check again in a moment.",
+        "The machine is low on disk space.",
+        "2% free",
+      ]
+    ) await expect(checks).toContainText(word);
+    await expect(checks).toContainText("Nov 27, 2026");
+    await expect(checks).not.toContainText("No failed checks reported.");
+    await expect(checks).not.toContainText(
+      "The worker is not running properly.",
+    );
+    if (test.info().project.name === "desktop") {
+      for (const column of ["Check", "Result", "Checked", "What to do"]) {
+        await expect(
+          checks.getByRole("columnheader", { name: column, exact: true })
+            .first(),
+        ).toBeVisible();
+      }
+    }
+    await shot(page, "machine-page-checks-table");
+  });
+
+  test("checks that all pass say there are no failures", async ({ page }) => {
+    await open(
+      page,
+      fixture({}, { checks: [check("disk_threshold", "pass")] }),
+    );
+    await openChecks(page);
+    const checks = page.getByTestId("machine-checks");
+    await expect(checks).toContainText("No failed checks reported.");
+    await expect(checks).toContainText("Free disk space");
+    await expect(checks).toContainText("Passed");
+  });
+
+  test("an offline machine's old results are out of date, not unrunnable", async ({ page }) => {
+    await open(
+      page,
+      fixture({ connectivity: "offline" }, {
+        checks: [
+          check("disk_threshold", "unknown"),
+          check("capability:git", "unknown"),
+        ],
+      }),
+    );
+    await openChecks(page);
+    const checks = page.getByTestId("machine-checks");
+    await expect(checks.getByText("Out of date", { exact: true }))
+      .toHaveCount(2);
+    await expect(checks).toContainText(
+      "This result is out of date. It is checked again when the machine is back.",
+    );
+    await expect(checks).not.toContainText("Bakery could not run this check");
+    await expect(checks).not.toContainText("No failed checks reported.");
+    await shot(page, "machine-page-checks-out-of-date");
+  });
+
+  test("the banner and the tab count failed checks apart from ones that did not run", async ({ page }) => {
+    await open(
+      page,
+      fixture({
+        readiness: "needs_attention",
+        readinessReason: "check_failed",
+        failedCheckIds: ["disk_threshold", "supervisor_health"],
+      }, {
+        allBlocked: true,
+        failedChecks: [
+          { checkId: "disk_threshold", reason: "2% free" },
+          { checkId: "supervisor_health", reason: null },
+        ],
+        checks: [
+          check("disk_threshold", "fail", "2% free"),
+          check("supervisor_health", "unknown"),
+        ],
+      }),
+    );
+    await expect(banner(page)).toContainText(
+      "1 check failed and 1 could not be run.",
+    );
+    await expect(page.getByRole("tab", { name: /Checks and software/ }))
+      .toContainText("1 failed");
+    await openChecks(page);
+    const checks = page.getByTestId("machine-checks");
+    await expect(checks.getByText("Failed", { exact: true })).toHaveCount(1);
+    await expect(checks.getByText("Could not be checked", { exact: true }))
+      .toHaveCount(1);
+    await shot(page, "machine-page-checks-mixed-count");
+  });
+
+  for (
+    const [name, line] of [
+      ["Riley Chen", "Retired by Riley Chen on Nov 27, 2026"],
+      [null, "Retired on Nov 27, 2026"],
+    ] as const
+  ) {
+    test(`a retired machine says ${line.slice(0, 10)}${name ? " who" : " when only"}`, async ({ page }) => {
+      await open(
+        page,
+        fixture({ status: "revoked", desiredMode: "revoked" }, {
+          retirement: { principalId: null, name, at: observed },
+        }),
+      );
+      await expect(page.getByTestId("machine-detail-page")).toContainText(line);
+      if (name) await shot(page, "machine-page-retired-by");
+    });
+  }
 });
 
 test.describe("machine page: mode and Retire", () => {

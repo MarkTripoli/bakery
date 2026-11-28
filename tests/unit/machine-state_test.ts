@@ -1,5 +1,6 @@
 import { assertEquals } from "@std/assert";
 import {
+  checkCounts,
   codingAgents,
   machineBadge,
   machineBadgeTone,
@@ -223,4 +224,28 @@ Deno.test("the filter keeps what it names, and Needs attention also keeps a mach
   ]);
   assertEquals(names("needsAttention"), ["attention", "stale"]);
   assertEquals(names("offline"), ["offline"]);
+});
+
+Deno.test("a check that could not be run is counted apart from a failed one", () => {
+  const check = (checkId: string, result: "pass" | "fail" | "unknown") => ({
+    checkId,
+    componentKey: null,
+    result,
+    reason: null,
+    observedAt: "2026-11-27T00:00:00.000Z",
+  });
+  const facts = machine({
+    readiness: "needs_attention",
+    failedCheckIds: ["disk_threshold", "supervisor_health", "spool_access"],
+    checks: [
+      check("disk_threshold", "fail"),
+      check("supervisor_health", "unknown"),
+    ],
+  });
+  assertEquals(checkCounts(facts), { failed: 2, unchecked: 1 });
+  assertEquals(machineReason(facts), {
+    kind: "checkFailed",
+    count: 2,
+    unchecked: 1,
+  });
 });
