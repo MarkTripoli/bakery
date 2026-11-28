@@ -353,6 +353,54 @@ for (
       await still(page, "skill-file-cannot-show");
     });
 
+    test("awkward files stay inside the page and lose nothing", async ({ page }) => {
+      const longName =
+        "references/a-very-long-reference-file-name-for-the-team.md";
+      await skillsFixture(page, {
+        extraFiles: [
+          {
+            path: "long.sh",
+            mediaType: "text/x-shellscript",
+            words: `#!/bin/sh\necho ${"x".repeat(600)}\n`,
+          },
+          {
+            path: "rules.md",
+            mediaType: "text/markdown",
+            words:
+              "---\n\nNever publish without approval.\n\n---\n\n| Rule | Why |\n| --- | --- |\n| Ask first | Mistakes |\n",
+          },
+          { path: "empty.txt", mediaType: "text/plain", words: "" },
+          { path: longName, mediaType: "text/markdown", words: "Short." },
+        ],
+      });
+      await page.goto(skillPage(IDS.houseStyle));
+      const files = page.getByTestId("skill-files");
+      await files.getByRole("button", { name: "long.sh" }).click();
+      await expect(files).toContainText("xxxxxxxxxx");
+      expect(
+        await page.evaluate(() =>
+          document.documentElement.scrollWidth - globalThis.innerWidth
+        ),
+      ).toBeLessThanOrEqual(0);
+      await files.scrollIntoViewIfNeeded();
+      await still(page, "skill-files-long-line");
+      await files.getByRole("button", { name: "rules.md" }).click();
+      await expect(files).toContainText("Never publish without approval.");
+      await expect(files.getByRole("separator")).toHaveCount(2);
+      await expect(files.getByRole("columnheader", { name: "Rule" }))
+        .toBeVisible();
+      await expect(files.getByRole("cell", { name: "Ask first" }))
+        .toBeVisible();
+      await still(page, "skill-files-table");
+      await files.getByRole("button", { name: "empty.txt" }).click();
+      await expect(files).toContainText("This file is empty.");
+      const long = files.getByRole("button", { name: longName });
+      await expect(long).toContainText("…");
+      await expect(long).toHaveAttribute("title", longName);
+      await files.scrollIntoViewIfNeeded();
+      await still(page, "skill-files-awkward");
+    });
+
     test("a file that does not load says so and can be tried again", async ({ page }) => {
       await skillsFixture(page);
       let fail = true;

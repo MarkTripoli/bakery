@@ -5457,6 +5457,7 @@
   "library.skill.files.cannotShow": "This file cannot be shown here.",
   "library.skill.files.fileError": "This file did not load.",
   "library.skill.files.contents": "File contents",
+  "library.skill.files.empty": "This file is empty.",
   "library.skill.files.license": "Licence",
   "library.skill.use.action": "Use this version",
   "library.skill.use.actionNamed": "Use version {number}",

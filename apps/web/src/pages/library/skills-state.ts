@@ -343,6 +343,13 @@ export function skillFileWords(bytes: Uint8Array): string | null {
   }
 }
 
+export function middleTruncated(path: string, longest = 34): string {
+  if (path.length <= longest) return path;
+  const keep = longest - 1;
+  const head = Math.ceil(keep / 2);
+  return `${path.slice(0, head)}…${path.slice(path.length - (keep - head))}`;
+}
+
 export function withoutFrontMatter(words: string): string {
   return words.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n(?:\r?\n)?/, "");
 }

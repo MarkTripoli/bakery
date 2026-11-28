@@ -81,6 +81,22 @@ function inlineMarkdown(text: string): ReactNode[] {
     });
 }
 
+const RULE_LINE = /^(-{3,}|\*{3,}|_{3,})\s*$/;
+
+const TABLE_RULE = /^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/;
+
+function startsTable(lines: readonly string[], index: number): boolean {
+  const rule = lines[index + 1] ?? "";
+  return (lines[index] ?? "").includes("|") && rule.includes("|") &&
+    TABLE_RULE.test(rule);
+}
+
+function tableCells(line: string): string[] {
+  return line.trim().replace(/^\|/, "").replace(/(?<!\\)\|$/, "")
+    .split(/(?<!\\)\|/)
+    .map((cell) => cell.trim().replaceAll("\\|", "|"));
+}
+
 // Markdown is constructed exclusively from React text nodes and an allowlist of elements.
 // Raw HTML, embedded media, and non-web link schemes never become executable markup.
 function markdown(text: string): ReactNode[] {
@@ -105,6 +121,40 @@ function markdown(text: string): ReactNode[] {
         <pre dir="ltr" key={key}>
           <code>{code.join("\n")}</code>
         </pre>,
+      );
+      continue;
+    }
+    if (RULE_LINE.test(line)) {
+      blocks.push(<hr key={key} />);
+      index++;
+      continue;
+    }
+    if (startsTable(lines, index)) {
+      const header = tableCells(line);
+      const rows: string[][] = [];
+      index += 2;
+      while (index < lines.length && lines[index]?.includes("|")) {
+        rows.push(tableCells(lines[index++] ?? ""));
+      }
+      blocks.push(
+        <table key={key}>
+          <thead>
+            <tr>
+              {header.map((cell, column) => (
+                <th key={column} scope="col">{inlineMarkdown(cell)}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, at) => (
+              <tr key={at}>
+                {header.map((_, column) => (
+                  <td key={column}>{inlineMarkdown(row[column] ?? "")}</td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>,
       );
       continue;
     }
@@ -136,7 +186,8 @@ function markdown(text: string): ReactNode[] {
     index++;
     while (
       index < lines.length && lines[index]?.trim() &&
-      !/^(#{1,6}\s|[-*+]\s|```)/.test(lines[index] ?? "")
+      !/^(#{1,6}\s|[-*+]\s|```)/.test(lines[index] ?? "") &&
+      !startsTable(lines, index) && !RULE_LINE.test(lines[index] ?? "")
     ) paragraph.push(lines[index++] ?? "");
     blocks.push(<p key={key}>{inlineMarkdown(paragraph.join("\n"))}</p>);
   }
