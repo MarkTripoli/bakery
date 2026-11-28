@@ -1,12 +1,35 @@
 import process from "node:process";
 import { isAbsolute, join } from "node:path";
 import { createInterface } from "node:readline/promises";
-import { lstat } from "node:fs/promises";
-import { hostname } from "node:os";
+import { appendFile, lstat, mkdir, writeFile } from "node:fs/promises";
+import { spawn } from "node:child_process";
+import { hostname, userInfo } from "node:os";
 import { LinkStepFailed } from "./link.ts";
 import type { ReleaseConfig } from "./bootstrap.ts";
 import { runBootstrap } from "./main.ts";
 import { systemProbes } from "./probes.ts";
+import { type ServiceRunner, startLinkedService } from "./service-start.ts";
+
+const systemServiceRunner: ServiceRunner = {
+  run: (argv, log) =>
+    new Promise((resolve) => {
+      const [program, ...args] = argv;
+      if (program === undefined) return resolve(127);
+      const child = spawn(program, args, {
+        stdio: ["inherit", "pipe", "pipe"],
+      });
+      const record = (chunk: Uint8Array) =>
+        void appendFile(log, chunk, { mode: 0o600 }).catch(() => undefined);
+      child.stdout.on("data", record);
+      child.stderr.on("data", record);
+      child.on("error", () => resolve(127));
+      child.on("close", (code) => resolve(code ?? 1));
+    }),
+  writeFile: (path, text, mode) => writeFile(path, text, { mode }),
+  makeDirectory: async (path) => {
+    await mkdir(path, { recursive: true });
+  },
+};
 
 /**
  * The command line around `runBootstrap`: the real terminal, the real clock and
@@ -94,14 +117,14 @@ export async function main(
           );
         }
       },
-      // Adding the service needs the administrator steps `bakery-worker plan`
-      // lists; this build prints them rather than running them.
-      startService: () => {
-        throw new LinkStepFailed(
-          "The service was not added: this build cannot add it yet. Run bakery-worker plan to see the steps.",
-          join(home, ".local", "share", "bakery-worker", "service.log"),
-        );
-      },
+      startService: (binding, root) =>
+        startLinkedService(binding, {
+          target,
+          root,
+          home,
+          uid: typeof process.getuid === "function" ? process.getuid() : null,
+          username: userInfo().username,
+        }, systemServiceRunner),
     },
   });
 }
