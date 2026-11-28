@@ -94,6 +94,10 @@ Deno.test("the enrollment is made only from complete answers, with the capabilit
     capabilities: ["git", "shell", "web", "model", "codex"],
     slots: 2,
   });
+  assertEquals(
+    enrollmentInput({ ...complete, agent: "claude" })?.capabilities,
+    ["git", "shell", "web", "model", "claude", "tool-gateway"],
+  );
   assertEquals(enrollmentInput({ ...complete, agent: null }), null);
   assertEquals(enrollmentInput({ ...complete, name: "" }), null);
   assertEquals(enrollmentInput({ ...complete, slots: "0" }), null);
@@ -144,7 +148,7 @@ Deno.test("the worker settings name the machine, its slots and capabilities and 
     "BAKERY_WORKER_ENROLLMENT_TOKEN_FILE=/var/lib/bakery/worker/enrollment-token",
     "BAKERY_WORKER_NAME=ci-linux-02",
     "BAKERY_WORKER_SLOTS=3",
-    "BAKERY_WORKER_CAPABILITIES=git,shell,web,model,claude",
+    "BAKERY_WORKER_CAPABILITIES=git,shell,web,model,claude,tool-gateway",
     "BAKERY_CLAUDE_HARNESS=1",
     "BAKERY_CLAUDE_HARNESS_REPOSITORY=/workspace/repository",
     "BAKERY_CLAUDE_HARNESS_TIME_LIMIT_MS=120000",

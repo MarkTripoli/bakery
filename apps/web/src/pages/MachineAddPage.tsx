@@ -7,9 +7,7 @@ import type { WorkerEnrollmentListResponse } from "../api/client.ts";
 import { useBakeryApi } from "../api/context.tsx";
 import {
   effectiveAccessQueryOptions,
-  workerEnrollmentQueryOptions,
   workerEnrollmentsListQueryOptions,
-  workerQueryOptions,
 } from "../api/query.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useRestoreOrganizationScope } from "../app/restore-organization.ts";
@@ -17,21 +15,19 @@ import { useI18n } from "../i18n/I18nProvider.tsx";
 import { MACHINES_HOME, WORK_HOME } from "../shell/breadcrumb-paths.ts";
 import { ShellActiveNavigation, ShellSlot } from "../shell/shell-slots.tsx";
 import {
-  ADD_NAME_MAX,
   type AddAnswers,
-  addProblems,
-  addProgress,
   clockText,
   commandInput,
   initialAddAnswers,
 } from "./machine-add.ts";
-import { machineLine } from "./MachineList.tsx";
 import {
-  type CodingAgent,
-  codingAgents,
-  machineReason,
-} from "./machine-state.ts";
-import { CODING_AGENTS, supportedRows } from "./machine-systems.ts";
+  MachineArrived,
+  MachineStatusLine,
+  useMachineArrival,
+} from "./machine-arrival.tsx";
+import { MachineSettingsFields } from "./MachineSettingsFields.tsx";
+import { type CodingAgent, codingAgents } from "./machine-state.ts";
+import { supportedRows } from "./machine-systems.ts";
 
 type EnrollmentRow = WorkerEnrollmentListResponse["items"][number];
 
@@ -45,91 +41,6 @@ function systemsText(translate: Translator): string {
   return supportedRows().map((row) =>
     `${translate(`machines.os.${row.os}` as never)} ${row.processor}`
   ).join(` ${translate("machines.add.or" as never)} `);
-}
-
-function Fields(
-  { answers, onChange, showProblems, translate }: {
-    answers: AddAnswers;
-    onChange: (next: AddAnswers) => void;
-    showProblems: boolean;
-    translate: Translator;
-  },
-) {
-  const problems = showProblems ? addProblems(answers) : [];
-  return (
-    <UI.Stack gap="standard">
-      <UI.Field
-        label={translate("machines.wizard.name" as never)}
-        htmlFor="machine-add-name"
-        hint={translate("machines.add.nameHint" as never)}
-        error={problems.includes("nameTooLong")
-          ? translate("machines.wizard.nameTooLong" as never, {
-            max: ADD_NAME_MAX,
-          })
-          : undefined}
-      >
-        <UI.TextInput
-          id="machine-add-name"
-          name="name"
-          type="text"
-          autoComplete="off"
-          invalid={problems.includes("nameTooLong")}
-          value={answers.name}
-          onChange={(name) => onChange({ ...answers, name })}
-        />
-      </UI.Field>
-      <UI.Field
-        label={translate("machines.wizard.slots" as never)}
-        htmlFor="machine-add-slots"
-        hint={translate("machines.wizard.slotsHint" as never)}
-        error={problems.includes("slotsInvalid")
-          ? translate("machines.wizard.slotsInvalid" as never)
-          : undefined}
-        required
-      >
-        <UI.TextInput
-          id="machine-add-slots"
-          name="slots"
-          type="number"
-          autoComplete="off"
-          inputMode="numeric"
-          min={1}
-          max={100}
-          invalid={problems.includes("slotsInvalid")}
-          value={answers.slots}
-          onChange={(slots) => onChange({ ...answers, slots })}
-        />
-      </UI.Field>
-      <UI.Stack gap="compact">
-        <UI.Text variant="strong">
-          {translate("machines.wizard.agent.question" as never)}
-        </UI.Text>
-        <UI.Stack
-          gap="compact"
-          role="radiogroup"
-          aria-label={translate("machines.wizard.agent.question" as never)}
-        >
-          {CODING_AGENTS.map((agent) => (
-            <UI.PresetOption
-              key={agent}
-              name="machine-add-agent"
-              value={agent}
-              checked={answers.agent === agent}
-              onChange={() => onChange({ ...answers, agent })}
-              title={translate(`machines.agent.${agent}` as never)}
-            />
-          ))}
-        </UI.Stack>
-        {problems.includes("agentRequired")
-          ? (
-            <UI.Text variant="error" role="alert">
-              {translate("machines.wizard.agent.required" as never)}
-            </UI.Text>
-          )
-          : null}
-      </UI.Stack>
-    </UI.Stack>
-  );
 }
 
 function settingsLine(
@@ -224,43 +135,8 @@ export function MachineAddPage({ finishId }: { finishId?: string }) {
     ? finishing.data?.items.find((row) => row.enrollmentId === finishId)
     : undefined;
 
-  const status = useQuery({
-    ...workerEnrollmentQueryOptions(api, scope, enrollmentId ?? ""),
-    enabled: enrollmentId !== null && Boolean(organizationId),
-  });
-  const hostId = status.data?.workerHostId ?? null;
-  const worker = useQuery({
-    ...workerQueryOptions(api, scope, hostId ?? ""),
-    enabled: hostId !== null && Boolean(organizationId),
-    refetchInterval: 3_000,
-  });
-  const progress = status.data
-    ? addProgress({
-      enrollment: status.data,
-      worker: worker.data ?? null,
-      now,
-      waitingSince: waitingSince.current,
-    })
-    : null;
-
-  useEffect(() => {
-    if (progress?.kind !== "checking" && progress?.kind !== "ready") return;
-    for (const family of ["workers.list", "workerEnrollments.list"]) {
-      void queryClient.invalidateQueries({
-        queryKey: [
-          "protected",
-          scope.sessionGeneration,
-          scope.organizationId ?? "none",
-          family,
-        ],
-      });
-    }
-  }, [
-    progress?.kind,
-    queryClient,
-    scope.organizationId,
-    scope.sessionGeneration,
-  ]);
+  const arrival = useMachineArrival(enrollmentId, now, waitingSince.current);
+  const { status, worker, progress } = arrival;
 
   const input = commandInput(answers);
   const issue = (next: Issued) => {
@@ -430,9 +306,6 @@ export function MachineAddPage({ finishId }: { finishId?: string }) {
     }
     : null;
   const machineName = worker.data?.name ?? settingsFacts?.name ?? "";
-  const agentName = settingsFacts?.agent
-    ? translate(`machines.agent.${settingsFacts.agent}` as never)
-    : "";
   const hasCommand = issued !== null && progress !== null &&
     (progress.kind === "waiting");
   const showForm = enrollmentId === null && !finishId;
@@ -440,78 +313,24 @@ export function MachineAddPage({ finishId }: { finishId?: string }) {
   const connected = progress?.kind === "checking" ||
     progress?.kind === "ready" || progress?.kind === "attention";
 
-  if (progress?.kind === "ready") {
+  if (progress?.kind === "ready" || progress?.kind === "attention") {
     return frame(
-      <UI.Stack gap="standard">
-        <UI.AlertBanner tone="success" role="status">
-          {translate("machines.add.ready" as never, {
-            name: machineName,
-            agent: agentName,
-          })}
-        </UI.AlertBanner>
-        <UI.Inline gap="compact">
-          <UI.Button
-            variant="primary"
-            onClick={() => {
-              if (hostId === null) return;
-              void navigate({
-                to: "/machines/$machineId",
-                params: { machineId: hostId },
-                search: settingsFacts?.agent
-                  ? { signIn: settingsFacts.agent }
-                  : {},
-              });
-            }}
-          >
-            {translate("machines.wizard.install.signInButton" as never, {
-              agent: agentName,
-            })}
-          </UI.Button>
-          <UI.Button
-            variant="secondary"
-            onClick={() => {
-              setAnswers(initialAddAnswers);
-              setIssued(null);
-              setEnrollmentId(null);
-              setShowProblems(false);
-              void navigate({
-                to: "/machines/new",
-                search: { finish: undefined },
-              });
-            }}
-          >
-            {translate("machines.add.another" as never)}
-          </UI.Button>
-        </UI.Inline>
-      </UI.Stack>,
-    );
-  }
-  if (progress?.kind === "attention") {
-    return frame(
-      <UI.Stack gap="standard">
-        <UI.AlertBanner tone="warning" role="status">
-          {worker.data && machineReason(worker.data) !== null
-            ? machineLine(worker.data, translate)
-            : translate("machines.add.attention" as never, {
-              name: machineName,
-            })}
-        </UI.AlertBanner>
-        <UI.Inline gap="compact">
-          <UI.Button
-            variant="primary"
-            onClick={() => {
-              if (hostId === null) return;
-              void navigate({
-                to: "/machines/$machineId",
-                params: { machineId: hostId },
-                search: {},
-              });
-            }}
-          >
-            {translate("machines.add.open" as never, { name: machineName })}
-          </UI.Button>
-        </UI.Inline>
-      </UI.Stack>,
+      <MachineArrived
+        arrival={arrival}
+        name={machineName}
+        agent={settingsFacts?.agent ?? null}
+        translate={translate}
+        onAnother={() => {
+          setAnswers(initialAddAnswers);
+          setIssued(null);
+          setEnrollmentId(null);
+          setShowProblems(false);
+          void navigate({
+            to: "/machines/new",
+            search: { finish: undefined },
+          });
+        }}
+      />,
     );
   }
 
@@ -607,27 +426,7 @@ export function MachineAddPage({ finishId }: { finishId?: string }) {
         )
         : null}
       {progress !== null && progress.kind !== "expired"
-        ? (
-          <UI.Inline gap="compact" data-line="status">
-            {progress.kind === "waiting" || progress.kind === "checking"
-              ? <UI.Spinner />
-              : null}
-            <UI.Text
-              variant="muted"
-              role="status"
-              aria-live="polite"
-              data-testid="machine-add-status"
-            >
-              {translate(
-                `machines.add.line.${
-                  progress.kind === "waiting" && progress.stillWaiting
-                    ? "stillWaiting"
-                    : progress.kind
-                }` as never,
-              )}
-            </UI.Text>
-          </UI.Inline>
-        )
+        ? <MachineStatusLine progress={progress} translate={translate} />
         : null}
     </UI.Stack>
   );
@@ -661,7 +460,7 @@ export function MachineAddPage({ finishId }: { finishId?: string }) {
           {showForm && !makeFailed
             ? (
               <UI.Stack gap="standard">
-                <Fields
+                <MachineSettingsFields
                   answers={answers}
                   onChange={setAnswers}
                   showProblems={showProblems}
@@ -733,7 +532,10 @@ export function MachineAddPage({ finishId }: { finishId?: string }) {
         ? null
         : (
           <UI.Text variant="muted" data-testid="machine-add-other">
-            {translate("machines.add.byHandPrefix" as never)}{" "}
+            {translate("machines.add.enterCodePrefix" as never)}{" "}
+            <UI.Link variant="sentence" href="/machines/link">
+              {translate("machines.add.enterCode" as never)}
+            </UI.Link>. {translate("machines.add.byHandPrefix" as never)}{" "}
             <UI.Link
               variant="sentence"
               href="/machines/new/by-hand"
