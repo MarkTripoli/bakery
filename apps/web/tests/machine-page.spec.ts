@@ -308,6 +308,14 @@ const openChecks = async (page: Page) => {
 };
 
 test.describe("machine page: states", () => {
+  test("an address that cannot name a machine shows not found, not a connection problem", async ({ page }) => {
+    await open(page, fixture());
+    await page.goto("/machines/not-a-uuid");
+    await expect(
+      page.getByRole("heading", { name: "This machine was not found" }),
+    ).toBeVisible();
+    await expect(page.getByText(/check your connection/i)).toHaveCount(0);
+  });
   test("offline keeps the last data, says when it was read and disables changes", async ({ page, context }) => {
     await open(page, fixture());
     await expect(page.getByTestId("machine-about")).toBeVisible();
