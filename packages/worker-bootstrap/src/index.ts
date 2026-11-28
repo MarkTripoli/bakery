@@ -102,6 +102,7 @@ export {
   type LinkIo,
   LinkStepFailed,
   parseLinkCommand,
+  type RegisteredHost,
   runLink,
   type ThisMachine,
 } from "./link.ts";

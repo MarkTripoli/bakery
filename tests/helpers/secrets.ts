@@ -18,7 +18,13 @@ import {
   sessionCookie,
 } from "./auth.ts";
 
-/** Creates/drops only this UUID database; no shared/preview fixture data. */
+const FIXED_PROVIDER_URLS = new Set([
+  "https://api.github.com/user",
+  "https://api.anthropic.com/v1/models",
+  "https://api.openai.com/v1/models",
+  "https://openrouter.ai/api/v1/key",
+]);
+
 export async function openSecretsFixture() {
   const config = readTestDatabaseConfig(Deno.env.toObject(), {
     requireAdmin: true,
@@ -53,6 +59,7 @@ export async function openSecretsFixture() {
   let fixture: Awaited<ReturnType<typeof openAuthFixture>> | undefined;
   let calls = 0;
   const providerAuthorizations: string[] = [];
+  const providerUrls: string[] = [];
   let provider: (authorization: string) => Promise<Response> = () =>
     Promise.resolve(Response.json({ id: 12345, login: "fixture-user" }));
   const cleanup = async () => {
@@ -78,15 +85,16 @@ export async function openSecretsFixture() {
       },
       secretsKey: key,
       secretsFetch: async (url, options) => {
-        const authorization = new Headers(options?.headers).get(
-          "authorization",
-        );
+        const headers = new Headers(options?.headers);
+        const authorization = headers.get("authorization") ??
+          headers.get("x-api-key");
         if (
-          String(url) !== "https://api.github.com/user" ||
+          !FIXED_PROVIDER_URLS.has(String(url)) ||
           options?.method !== "GET" || options.redirect !== "error" ||
           authorization === null
         ) throw new Error("FIXED_PROVIDER_REQUIRED");
         calls++;
+        providerUrls.push(String(url));
         providerAuthorizations.push(authorization);
         return await provider(authorization);
       },
@@ -217,6 +225,7 @@ export async function openSecretsFixture() {
       cleanup,
       calls: () => calls,
       providerAuthorizations: () => [...providerAuthorizations],
+      providerUrls: () => [...providerUrls],
       setProvider: (next: typeof provider) => {
         provider = next;
       },
