@@ -189,6 +189,8 @@ type World = {
   reply?: (route: Route) => Promise<void>;
   reads: number;
   secondStep?: boolean;
+  given?: Record<string, unknown>;
+  givenFailures?: number;
 };
 
 function world(over: Partial<World> = {}): World {
@@ -258,6 +260,32 @@ async function open(page: Page, w: World) {
           : null,
       }]),
     }));
+  await page.route("**/v1/runs?*", (r) => r.fulfill({ json: page_([run]) }));
+  await page.route(
+    `**/v1/runs/${runId}/requests/mine*`,
+    (r) => r.fulfill({ json: page_([]) }),
+  );
+  await page.route(`**/v1/runs/${runId}/steps/*/given`, (r) => {
+    if ((w.givenFailures ?? 0) > 0) {
+      w.givenFailures! -= 1;
+      return problemReply(r, 500, "INTERNAL_ERROR");
+    }
+    const stepKey = new URL(r.request().url()).pathname.split("/").at(-2)!;
+    return r.fulfill({
+      json: {
+        stepKey,
+        startedAt: "2026-01-01T00:00:02.000Z",
+        ranAnAgent: false,
+        facts: [],
+        factsOmitted: 0,
+        documents: [],
+        documentsHidden: 0,
+        documentsGone: 0,
+        documentsUnchecked: 0,
+        ...(stepKey === "implement" ? w.given : {}),
+      },
+    });
+  });
   await page.route(`**/v1/runs/${runId}/controls`, (r) =>
     r.fulfill({
       json: {
@@ -535,13 +563,13 @@ test.describe("hand over a running step to a new session", () => {
     await expect(
       given.getByRole("link", { name: "refund-plan.pdf, version 2" }),
     ).toHaveAttribute("href", `/files/versions/${DOC_PLAIN}`);
-    await expect(page.getByTestId("handover-documents-unchecked")).toHaveText(
+    await expect(page.getByTestId("documents-unchecked")).toHaveText(
       "2 could not be checked right now.",
     );
-    await expect(page.getByTestId("handover-documents-gone")).toHaveText(
+    await expect(page.getByTestId("documents-gone")).toHaveText(
       "1 is no longer available.",
     );
-    await expect(page.getByTestId("handover-documents-hidden")).toHaveText(
+    await expect(page.getByTestId("documents-hidden")).toHaveText(
       "1 more that you do not have access to.",
     );
     expect(w.continues).toHaveLength(0);
@@ -984,5 +1012,114 @@ test.describe("hand over a running step to a new session", () => {
       await expect.poll(() => w.continues.length).toBe(2);
       expect(w.continues[1]!.key).toBe(w.continues[0]!.key);
     });
+  });
+});
+
+const fact = (n: number, state = "given") => ({
+  memoryId: uuid(300 + n),
+  wording: `Refunds over ${n}00 euros need a second approval.`,
+  recordedAt: "2025-12-01T10:00:00.000Z",
+  state,
+});
+
+const givenAll = {
+  ranAnAgent: true,
+  documents: [{
+    artifactVersionId: DOC_OPEN,
+    state: "available",
+    name: "refund-rules.md",
+    kind: "plan",
+    version: 3,
+    sizeBytes: 2048,
+  }],
+  documentsHidden: 1,
+  facts: [
+    fact(1, "corrected_since"),
+    fact(2, "stopped_since"),
+    fact(3),
+    fact(4),
+    fact(5),
+    fact(6),
+  ],
+  factsOmitted: 2,
+};
+
+const givenButton = (page: Page) =>
+  page.getByRole("button", { name: "What it was given: Implement" });
+const givenPanel = (page: Page) =>
+  page.getByRole("dialog", { name: "Given to the agent · Implement" });
+
+test.describe("what a step was given", () => {
+  test("lists the documents and facts the step started with, and Escape returns to the row", async ({ page }) => {
+    await open(page, world({ stepHasManifest: false, given: givenAll }));
+    await givenButton(page).click();
+    const panel = givenPanel(page);
+    await expect(panel).toContainText("As given when this step started,");
+    await expect(panel).toContainText("Documents · 2");
+    await expect(
+      panel.getByRole("link", { name: "refund-rules.md, version 3" }),
+    ).toHaveAttribute("href", `/files/versions/${DOC_OPEN}`);
+    await expect(panel).toContainText("Plan · 2 kB");
+    await expect(panel.getByTestId("documents-hidden")).toHaveText(
+      "1 more that you do not have access to.",
+    );
+    await expect(panel).toContainText("Remembered facts · 6");
+    await expect(panel).toContainText("corrected since");
+    await expect(panel).toContainText("no longer used");
+    await expect(panel.getByRole("link", { name: "See the fact" }))
+      .toHaveAttribute("href", new RegExp(`fact=${uuid(301)}`));
+    await expect(panel).not.toContainText("Refunds over 600 euros");
+    await expect(panel.getByTestId("given-omitted")).toHaveText(
+      "2 more facts were left out to fit the agent's limit. The agent did not see them.",
+    );
+    await still(page, "step-given", false);
+    expect(
+      (await new AxeBuilder({ page }).include('[data-testid="step-given"]')
+        .analyze()).violations,
+    ).toEqual([]);
+    await panel.getByRole("button", { name: "Show all 6" }).click();
+    await expect(panel).toContainText("Refunds over 600 euros");
+    await page.keyboard.press("Escape");
+    await expect(panel).toBeHidden();
+    await expect(givenButton(page)).toBeFocused();
+  });
+
+  test("a step that ran no agent, or an earlier pass, offers nothing", async ({ page }) => {
+    await open(
+      page,
+      world({
+        stepHasManifest: false,
+        given: { ranAnAgent: true, startedAt: "2026-01-01T00:09:00.000Z" },
+      }),
+    );
+    await expect(page.getByText("Running").first()).toBeVisible();
+    await page.waitForLoadState("networkidle");
+    await expect(givenButton(page)).toHaveCount(0);
+  });
+
+  test("a step given nothing more says so", async ({ page }) => {
+    await open(
+      page,
+      world({ stepHasManifest: false, given: { ranAnAgent: true } }),
+    );
+    await givenButton(page).click();
+    await expect(givenPanel(page)).toContainText(
+      "Nothing besides the step's own instructions.",
+    );
+  });
+
+  test("a failed read says so and Try again reads it again", async ({ page }) => {
+    await open(
+      page,
+      world({ stepHasManifest: false, given: givenAll, givenFailures: 2 }),
+    );
+    await givenButton(page).click();
+    const panel = givenPanel(page);
+    await expect(panel).toContainText(
+      "Bakery could not read what this step was given.",
+    );
+    await still(page, "step-given-failed", false);
+    await panel.getByRole("button", { name: "Try again" }).click();
+    await expect(panel).toContainText("Documents · 2");
   });
 });

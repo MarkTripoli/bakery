@@ -1049,6 +1049,24 @@ for (
     }
 
     if (viewport.name === "desktop") {
+      test("arrow keys move between facts and Enter opens the one in focus", async ({ page }) => {
+        await memoryFixture(page);
+        await page.goto("/library?tab=memory");
+        const buttons = page.locator("[data-arrow-row] button");
+        await expect(buttons.nth(1)).toBeVisible();
+        await buttons.nth(0).focus();
+        await page.keyboard.press("ArrowUp");
+        await expect(buttons.nth(0)).toBeFocused();
+        await page.keyboard.press("ArrowDown");
+        await expect(buttons.nth(1)).toBeFocused();
+        await page.keyboard.press("ArrowDown");
+        await expect(buttons.nth(2)).toBeFocused();
+        await page.keyboard.press("ArrowUp");
+        await expect(buttons.nth(1)).toBeFocused();
+        await page.keyboard.press("Enter");
+        await expect(page).toHaveURL(/fact=/);
+      });
+
       test("on a wide screen the list stays beside the fact; Escape closes it and returns to the row", async ({ page }) => {
         await memoryFixture(page);
         const sheet = await open(page, 1);

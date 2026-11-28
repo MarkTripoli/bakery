@@ -14,6 +14,7 @@ import { failureStatus } from "../../app/async-state.ts";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
 import { useShellViewport } from "../../app/responsive.ts";
 import { stepTitle } from "../task-timeline.ts";
+import { DocumentList } from "../task-given/DocumentList.tsx";
 import {
   type CarryOn,
   carryOn,
@@ -38,7 +39,6 @@ type Notice = Readonly<{
 }>;
 
 const DECISIONS_SHOWN = 5;
-const DOCUMENTS_SHOWN = 5;
 
 export function HandOver(
   { taskId, runId, runVersion, steps, canControl, online }: {
@@ -645,7 +645,6 @@ function Documents(
   const api = useBakeryApi();
   const scope = useProtectedScope();
   const { translate: t } = useI18n();
-  const [all, setAll] = useState(false);
   const files = useQueries({
     queries: refs.map((ref) =>
       storageFileAtVersionQueryOptions(api, scope, ref.versionId)
@@ -708,59 +707,18 @@ function Documents(
     return (artifactError && !noAccess(artifactError)) ||
       (versionError && !noAccess(versionError));
   }).length;
-  const shown = all ? known : known.slice(0, DOCUMENTS_SHOWN);
   return (
     <UI.DescriptionItem
       title={t("tasks.run.handover.documents", { count: refs.length })}
       description={refs.length === 0
         ? t("tasks.run.handover.documentsNone")
         : (
-          <UI.Stack gap="tight">
-            {shown.map((document) => (
-              <UI.Link
-                key={document.versionId}
-                variant="sentence"
-                href={`/files/versions/${document.versionId}`}
-              >
-                {t("tasks.run.handover.documentVersion", {
-                  name: document.name,
-                  version: document.revision,
-                })}
-              </UI.Link>
-            ))}
-            {known.length > DOCUMENTS_SHOWN && !all
-              ? (
-                <UI.Button variant="quiet" onClick={() => setAll(true)}>
-                  {t("tasks.run.handover.showAll", { count: known.length })}
-                </UI.Button>
-              )
-              : null}
-            {unchecked === 0 ? null : (
-              <UI.Text
-                variant="muted"
-                data-testid="handover-documents-unchecked"
-              >
-                {t("tasks.run.handover.documentsUnchecked", {
-                  count: unchecked,
-                })}
-              </UI.Text>
-            )}
-            {gone === 0
-              ? null
-              : (
-                <UI.Text variant="muted" data-testid="handover-documents-gone">
-                  {t("tasks.run.handover.documentsGone", { count: gone })}
-                </UI.Text>
-              )}
-            {hidden === 0 ? null : (
-              <UI.Text
-                variant="muted"
-                data-testid="handover-documents-hidden"
-              >
-                {t("tasks.run.handover.documentsHidden", { count: hidden })}
-              </UI.Text>
-            )}
-          </UI.Stack>
+          <DocumentList
+            documents={known}
+            gone={gone}
+            hidden={hidden}
+            unchecked={unchecked}
+          />
         )}
     />
   );

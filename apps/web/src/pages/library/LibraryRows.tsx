@@ -1,3 +1,4 @@
+import type { KeyboardEvent } from "react";
 import type { Translator } from "@bakery/i18n";
 import * as UI from "@bakery/ui";
 import { useShellViewport } from "../../app/responsive.ts";
@@ -29,12 +30,24 @@ export type LibraryRow = {
   readonly selected?: boolean;
 };
 
+function moveBetweenRows(event: KeyboardEvent<HTMLElement>) {
+  if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+  const buttons = [
+    ...document.querySelectorAll<HTMLElement>("[data-arrow-row] button"),
+  ];
+  const at = buttons.indexOf(event.target as HTMLElement);
+  if (at < 0) return;
+  event.preventDefault();
+  buttons[at + (event.key === "ArrowDown" ? 1 : -1)]?.focus();
+}
+
 /**
  * The rows of one Library section. A row that has a page to open carries an
  * Open button.
  */
 export function LibraryRows(
-  { label, onCopy, onNavigate, onOpen, rows, translate }: {
+  { arrowKeys, label, onCopy, onNavigate, onOpen, rows, translate }: {
+    readonly arrowKeys?: boolean;
     readonly label: string;
     readonly onCopy?: (row: LibraryRow) => void;
     readonly onNavigate?: (href: string) => void;
@@ -86,7 +99,12 @@ export function LibraryRows(
   // note and the button. (A table with its headings repeats them under each
   // section.)
   return (
-    <UI.Stack gap="none" role="list" aria-label={label}>
+    <UI.Stack
+      gap="none"
+      role="list"
+      aria-label={label}
+      onKeyDown={arrowKeys === true ? moveBetweenRows : undefined}
+    >
       {rows.map((row) => {
         const badge = row.badge === null
           ? null
@@ -103,6 +121,7 @@ export function LibraryRows(
           <div
             key={row.id}
             role="listitem"
+            data-arrow-row={arrowKeys === true ? "" : undefined}
             data-library-id={row.id}
             aria-current={row.selected === true ? "true" : undefined}
           >

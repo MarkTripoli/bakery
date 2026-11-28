@@ -362,6 +362,7 @@ function fakeApi(
     getRunControlCapabilities: rejecting,
     listRouteContinuations: rejecting,
     admitRouteContinuation: rejecting,
+    readStepGiven: rejecting,
     getHandoffManifest: rejecting,
     continueHandoff: rejecting,
     listRunSteps: rejecting,

@@ -35,7 +35,14 @@ import {
   RunRulesDetails,
   useRunRules,
 } from "./RunRules.tsx";
-import { stepTimelineEvents, stepTitle } from "./task-timeline.ts";
+import {
+  stepTimelineEvents,
+  stepTitle,
+  type TimelineRow,
+} from "./task-timeline.ts";
+import { focusAfterPaint } from "../app/focus.ts";
+import { GivenPanel } from "./task-given/GivenPanel.tsx";
+import { useStepGiven } from "./task-given/use-step-given.ts";
 import { TaskRunSectionView } from "./task-run-section-view.tsx";
 import { runOutcome, stepName } from "./task-step-approval/model.ts";
 import { useStepApproval } from "./task-step-approval/use-step-approval.ts";
@@ -529,6 +536,45 @@ export function TaskRunSection(
     steps.data?.items ?? [],
     activeRun && !invalidSteps,
   );
+  const given = useStepGiven(
+    runId,
+    activeRun && !invalidSteps ? steps.data?.items ?? [] : [],
+  );
+  const [givenStepId, setGivenStepId] = useState<string | null>(null);
+  const givenOffer = givenStepId === null ? undefined : given.get(givenStepId);
+  const closeGiven = () => {
+    const id = givenStepId;
+    setGivenStepId(null);
+    focusAfterPaint(() =>
+      document.querySelector<HTMLElement>(`[data-given-step="${id}"]`)
+    );
+  };
+  const withGiven = (row: TimelineRow): UI.RunTimelineEvent => {
+    const offer = given.get(row.id);
+    if (offer === undefined) return row;
+    return {
+      ...row,
+      description: (
+        <UI.Stack gap="tight">
+          <span>{row.description}</span>
+          <UI.Inline>
+            <UI.Button
+              aria-haspopup="dialog"
+              aria-label={t("tasks.run.given.openNamed", { step: row.title })}
+              data-given-step={row.id}
+              onClick={() => {
+                setGivenStepId(row.id);
+                void offer.read.refetch();
+              }}
+              variant="quiet"
+            >
+              {t("tasks.run.given.open")}
+            </UI.Button>
+          </UI.Inline>
+        </UI.Stack>
+      ),
+    };
+  };
   const stepEvents =
     validRun && run.data && !steps.isPending && !steps.isError &&
       !invalidSteps && steps.data && steps.data.items.length > 0
@@ -547,7 +593,7 @@ export function TaskRunSection(
               dateStyle: "medium",
               timeStyle: "short",
             }),
-        ),
+        ).map(withGiven),
         ...handoverEvents,
         ...(receipts.authority === authority ? receipts.events : []),
       ].reverse()
@@ -807,7 +853,19 @@ export function TaskRunSection(
           />
         )
         : null}
-      artifacts={artifacts}
+      artifacts={
+        <>
+          {artifacts}
+          {givenOffer === undefined ? null : (
+            <GivenPanel
+              key={givenOffer.step.id}
+              offer={givenOffer}
+              onClose={closeGiven}
+              stepName={stepTitle(t, givenOffer.step.stepKey)}
+            />
+          )}
+        </>
+      }
       delivery={activeRun && run.data
         ? (
           <DeliverySection
