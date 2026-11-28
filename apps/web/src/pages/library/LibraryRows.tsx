@@ -32,13 +32,17 @@ export type LibraryRow = {
 
 function moveBetweenRows(event: KeyboardEvent<HTMLElement>) {
   if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+  if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
   const buttons = [
     ...document.querySelectorAll<HTMLElement>("[data-arrow-row] button"),
   ];
   const at = buttons.indexOf(event.target as HTMLElement);
-  if (at < 0) return;
+  const next = at < 0
+    ? undefined
+    : buttons[at + (event.key === "ArrowDown" ? 1 : -1)];
+  if (next === undefined) return;
   event.preventDefault();
-  buttons[at + (event.key === "ArrowDown" ? 1 : -1)]?.focus();
+  next.focus();
 }
 
 /**

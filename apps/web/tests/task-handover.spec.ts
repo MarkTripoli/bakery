@@ -191,6 +191,8 @@ type World = {
   secondStep?: boolean;
   given?: Record<string, unknown>;
   givenFailures?: number;
+  givenMovesOn?: boolean;
+  givenReads?: number;
 };
 
 function world(over: Partial<World> = {}): World {
@@ -271,6 +273,22 @@ async function open(page: Page, w: World) {
       return problemReply(r, 500, "INTERNAL_ERROR");
     }
     const stepKey = new URL(r.request().url()).pathname.split("/").at(-2)!;
+    w.givenReads = (w.givenReads ?? 0) + 1;
+    if (w.givenMovesOn && w.givenReads > 1) {
+      return r.fulfill({
+        json: {
+          stepKey,
+          startedAt: "2026-01-01T00:09:00.000Z",
+          ranAnAgent: true,
+          facts: [],
+          factsOmitted: 0,
+          documents: [],
+          documentsHidden: 0,
+          documentsGone: 0,
+          documentsUnchecked: 0,
+        },
+      });
+    }
     return r.fulfill({
       json: {
         stepKey,
@@ -1081,6 +1099,20 @@ test.describe("what a step was given", () => {
     await expect(panel).toContainText("Refunds over 600 euros");
     await page.keyboard.press("Escape");
     await expect(panel).toBeHidden();
+    await expect(givenButton(page)).toBeFocused();
+  });
+
+  test("a newer pass arriving does not take away what this pass was given", async ({ page }) => {
+    const w = world({
+      stepHasManifest: false,
+      given: givenAll,
+      givenMovesOn: true,
+    });
+    await open(page, w);
+    await givenButton(page).click();
+    await expect.poll(() => w.givenReads).toBeGreaterThan(1);
+    await expect(givenPanel(page)).toContainText("Documents · 2");
+    await page.keyboard.press("Escape");
     await expect(givenButton(page)).toBeFocused();
   });
 

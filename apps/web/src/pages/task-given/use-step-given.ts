@@ -13,6 +13,11 @@ export type GivenStep = Readonly<{
 
 const AGENT_SESSION_POLL_MS = 5_000;
 
+function startedWith(read: unknown, step: GivenStep): boolean {
+  return (read as { startedAt?: string | null } | undefined)?.startedAt ===
+    step.startedAt;
+}
+
 export function useStepGiven(runId: string, steps: readonly GivenStep[]) {
   const api = useBakeryApi();
   const scope = useProtectedScope();
@@ -24,6 +29,8 @@ export function useStepGiven(runId: string, steps: readonly GivenStep[]) {
         stepId: step.id,
         stepKey: step.stepKey,
       }),
+      structuralSharing: (held: unknown, fresh: unknown) =>
+        startedWith(held, step) && !startedWith(fresh, step) ? held : fresh,
       refetchInterval: (query: { state: { data?: { ranAnAgent: boolean } } }) =>
         step.status === "running" && query.state.data?.ranAnAgent === false
           ? AGENT_SESSION_POLL_MS
@@ -34,7 +41,7 @@ export function useStepGiven(runId: string, steps: readonly GivenStep[]) {
     started.flatMap((step, index) => {
       const read = reads[index]!;
       const thisPass = read.data?.ranAnAgent === true &&
-        read.data.startedAt === step.startedAt;
+        startedWith(read.data, step);
       const unread = read.isError && read.data === undefined &&
         ![403, 404].includes(failureStatus(read.error) ?? 0);
       return thisPass || unread ? [[step.id, { step, read }] as const] : [];
