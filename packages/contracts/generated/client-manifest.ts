@@ -126689,6 +126689,10 @@ export const clientManifest = {
           "format": "date-time",
           "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
           "description": "UTC timestamp after which the code no longer works."
+        },
+        "repair": {
+          "type": "boolean",
+          "description": "True when the code repairs a machine Bakery already knows (Set up again), so the terminal on that machine replaces its own link instead of refusing."
         }
       },
       "required": [
@@ -126698,7 +126702,8 @@ export const clientManifest = {
         "capabilities",
         "supported",
         "supportedSystems",
-        "expiresAt"
+        "expiresAt",
+        "repair"
       ],
       "additionalProperties": false,
       "description": "What a link code would do, shown in the terminal before its one question: the organization, machine name, slots and capabilities it binds, and whether this machine's system is supported. Never contains the code, its hash or any credential.",

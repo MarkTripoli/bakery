@@ -172,6 +172,7 @@ Deno.test("a link code in the command adds one machine and mints its own credent
         { os: "linux", architecture: "x64" },
       ],
       expiresAt: preview.expiresAt,
+      repair: false,
     });
 
     const credential = workerCredential();
@@ -411,6 +412,11 @@ Deno.test("set up again returns the same one command for the machine", () =>
     const body = await repair.json();
     assertMatch(body.linkCode, CODE);
     assert(body.command.endsWith(`--code ${body.linkCode}`));
+    const repairInspection = await inspect(fixture, body.linkCode, {
+      architecture: "arm64",
+    });
+    assertEquals(repairInspection.status, 200);
+    assertEquals((await repairInspection.json()).repair, true);
     const again = await registerWithLinkCode(
       fixture,
       body.linkCode,

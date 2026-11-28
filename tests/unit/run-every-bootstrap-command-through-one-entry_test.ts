@@ -209,6 +209,7 @@ function harness(
       machine: { platform: "linux", arch: "arm64", hostname: "test-host" },
       install: () => Promise.resolve(),
       startService: () => Promise.resolve(),
+      forgetRegistration: () => Promise.resolve(),
     },
     operation: {
       write: (text) => void out.push(text),

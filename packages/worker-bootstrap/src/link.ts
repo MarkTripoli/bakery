@@ -105,6 +105,8 @@ export type LinkIo = Readonly<{
   install: (root: string) => Promise<void>;
   /** Writes the settings, adds the service and starts it; throws LinkStepFailed. */
   startService: (binding: PairingBinding) => Promise<void>;
+  /** Drops the worker's own registration, so it registers again with the new code. */
+  forgetRegistration: (root: string) => Promise<void>;
 }>;
 
 const AGENT_NAMES: Readonly<Record<string, string>> = {
@@ -138,6 +140,7 @@ type Inspection = Readonly<{
   supported: boolean;
   supportedSystems: readonly { os: string; architecture: string }[];
   expiresAt: string;
+  repair: boolean;
 }>;
 
 /** A line Bakery supplied, refused if it could forge or erase what is shown. */
@@ -174,6 +177,7 @@ function parseInspection(value: unknown): Inspection {
       };
     }),
     expiresAt: shownText(body.expiresAt, 40),
+    repair: body.repair === true,
   };
 }
 
@@ -306,11 +310,26 @@ const CONNECTION_CHECKS = 8;
 const CONNECTION_CHECK_MS = 5_000;
 
 /** Links with a code: inspect, show, ask once, install, record, start, wait. */
+function alreadyLinked(existing: PairingBinding): string {
+  return `This computer is already linked to ${existing.organizationName} as ${existing.name}. Nothing was changed.\n`;
+}
+
+function repairsThisLink(
+  existing: PairingBinding,
+  inspection: Inspection,
+  origin: string,
+): boolean {
+  return inspection.repair && existing.serverOrigin === origin &&
+    existing.organizationName === inspection.organizationName &&
+    existing.name === inspection.name;
+}
+
 async function linkWithCode(
   command: LinkCommand,
   origin: string,
   code: string,
   io: LinkIo,
+  existing: PairingBinding | null = null,
 ): Promise<number> {
   const report = {
     linkCode: code,
@@ -340,6 +359,10 @@ async function linkWithCode(
     );
     return 2;
   }
+  if (existing !== null && !repairsThisLink(existing, inspection, origin)) {
+    io.write(alreadyLinked(existing));
+    return 0;
+  }
   io.write(`Bakery worker · link this machine\n\n`);
   io.write(`${describeLink(inspection, io.machine)}\n\n`);
   io.write(SERVICE_NOTICE);
@@ -358,6 +381,7 @@ async function linkWithCode(
   try {
     await io.install(command.root);
     io.write("✓ Installed\n");
+    if (existing !== null) await io.forgetRegistration(command.root);
     const binding = await recordLink(command.root, {
       serverOrigin: origin,
       organizationName: inspection.organizationName,
@@ -508,15 +532,13 @@ export async function runLink(
       return 2;
     }
     const existing = await readPairingBinding(command.root);
-    if (existing !== null) {
-      io.write(
-        `This computer is already linked to ${existing.organizationName} as ${existing.name}. Nothing was changed.\n`,
-      );
+    if (existing !== null && command.code === null) {
+      io.write(alreadyLinked(existing));
       return 0;
     }
     return command.code === null
       ? await linkByApproval(command, origin, io)
-      : await linkWithCode(command, origin, command.code, io);
+      : await linkWithCode(command, origin, command.code, io, existing);
   } catch (error) {
     io.write(
       `${

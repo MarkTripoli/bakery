@@ -1,7 +1,7 @@
 import process from "node:process";
 import { isAbsolute, join } from "node:path";
 import { createInterface } from "node:readline/promises";
-import { lstat } from "node:fs/promises";
+import { lstat, rm } from "node:fs/promises";
 import { hostname } from "node:os";
 import { LinkStepFailed } from "./link.ts";
 import type { ReleaseConfig } from "./bootstrap.ts";
@@ -62,6 +62,9 @@ export async function main(
     operation: { write, probes: systemProbes(target), target, home },
     link: {
       isTerminal: process.stdin.isTTY === true,
+      forgetRegistration: async (root) => {
+        await rm(join(root, "state", "registration.json"), { force: true });
+      },
       ask,
       waitForEnter: async () => {
         await ask("");

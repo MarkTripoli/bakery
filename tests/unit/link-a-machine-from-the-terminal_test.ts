@@ -94,6 +94,10 @@ async function harness(options: {
       events.push("service");
       return Promise.resolve();
     }),
+    forgetRegistration: () => {
+      events.push("forget");
+      return Promise.resolve();
+    },
   };
   return {
     root,
@@ -261,7 +265,9 @@ Deno.test("a computer already linked is not changed", async () => {
   });
   try {
     assertEquals(await h.run(), 0);
-    const second = await harness({ routes: {} });
+    const second = await harness({
+      routes: { [INSPECT]: [{ status: 200, body: preview() }] },
+    });
     try {
       const again = await runLink(
         { server: SERVER, code: "AAAA-BBBB", root: h.root },
@@ -272,9 +278,80 @@ Deno.test("a computer already linked is not changed", async () => {
         second.text(),
         "This computer is already linked to Fixture Org as build-box-01. Nothing was changed.\n",
       );
-      assertEquals(second.calls, []);
+      assertEquals(second.calls.map((call) => call.path), [INSPECT]);
+      assertEquals(second.events, []);
+      const withoutCode = await runLink(
+        { server: SERVER, code: null, root: h.root },
+        second.io,
+      );
+      assertEquals(withoutCode, 0);
+      assertEquals(
+        second.calls.length,
+        1,
+        "no code: nothing is asked of Bakery",
+      );
     } finally {
       await second.close();
+    }
+  } finally {
+    await h.close();
+  }
+});
+
+Deno.test("a repair code for this machine re-links it: new pairing and code, the old registration dropped", async () => {
+  const h = await harness({
+    routes: {
+      [INSPECT]: [
+        { status: 200, body: preview() },
+        { status: 409, body: { reason: "used" } },
+      ],
+    },
+  });
+  try {
+    assertEquals(await h.run(), 0);
+    const repair = await harness({
+      routes: {
+        [INSPECT]: [
+          { status: 200, body: preview({ repair: true }) },
+          { status: 409, body: { reason: "used" } },
+        ],
+      },
+    });
+    try {
+      const again = await runLink(
+        { server: SERVER, code: "AAAA-BBBB", root: h.root },
+        repair.io,
+      );
+      assertEquals(again, 0, repair.text());
+      assertEquals(repair.events, ["install", "forget", "service"]);
+      assertEquals(
+        (await readFile(join(h.root, "enrollment-token"), "utf8")).trim(),
+        "AAAA-BBBB",
+      );
+      assert(repair.text().includes("Link this machine? [y/N] "));
+    } finally {
+      await repair.close();
+    }
+    const elsewhere = await harness({
+      routes: {
+        [INSPECT]: [{
+          status: 200,
+          body: preview({ repair: true, organizationName: "Other Org" }),
+        }],
+      },
+    });
+    try {
+      assertEquals(
+        await runLink(
+          { server: SERVER, code: "CCCC-DDDD", root: h.root },
+          elsewhere.io,
+        ),
+        0,
+      );
+      assertEquals(elsewhere.events, []);
+      assert(elsewhere.text().startsWith("This computer is already linked"));
+    } finally {
+      await elsewhere.close();
     }
   } finally {
     await h.close();
