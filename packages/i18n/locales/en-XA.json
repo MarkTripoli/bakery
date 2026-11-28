@@ -1802,7 +1802,6 @@
   "machines.detail.checks": "⟦Ŕëàðïñëšš çĥëçķš ŧëš⟧",
   "machines.detail.components": "⟦Ïñšŧàļļëð çôɱþôñëñŧš ŧëšŧ⟧",
   "machines.detail.providers": "⟦Çôðïñĝ àĝëñŧš ŧë⟧",
-  "machines.checks.none": "⟦Ñô ƒàïļëð çĥëçķš ŕëþôŕŧëð. ŧëšŧ çô⟧",
   "machines.checks.noReason": "⟦Ñô ŕëàšôñ šûþþļïëð. ŧëšŧ⟧",
   "machines.checks.more": "⟦{count} ɱôŕë ƒàïļëð çĥëçķš àŕë ĥïððëñ. ŧëšŧ çôþÿ ŧ⟧",
   "machines.components.empty": "⟦Ñô çôɱþôñëñŧ ïñṽëñŧôŕÿ ĥàš ƀëëñ ŕëþôŕŧëð. ŧëšŧ çôþÿ ŧë⟧",
@@ -7938,5 +7937,6 @@
   "machines.checks.checkedAt": "⟦Çĥëçķëð {time} ŧë⟧",
   "machines.checks.couldNotRun": "⟦Ɓàķëŕÿ çôûļð ñôŧ ŕûñ ŧĥïš çĥëçķ. Çĥëçķ àĝàïñ ïñ à ɱôɱëñŧ. ŧëšŧ çôþÿ ŧëšŧ çô⟧",
   "machines.retired.by": "⟦Ŕëŧïŕëð ƀÿ {name} ôñ {date} ŧëšŧ çô⟧",
-  "machines.retired.on": "⟦Ŕëŧïŕëð ôñ {date} ŧëš⟧"
+  "machines.retired.on": "⟦Ŕëŧïŕëð ôñ {date} ŧëš⟧",
+  "machines.checks.none": "⟦Ñô ƒàïļëð çĥëçķš. ŧëš⟧"
 }
