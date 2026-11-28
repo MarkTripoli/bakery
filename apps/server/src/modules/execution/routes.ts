@@ -104,6 +104,7 @@ import { createSessionRoutes } from "./session-routes.ts";
 import { createOutputReadApp } from "./output-read.ts";
 import { secretIdentityToolRoute } from "./secret-identity.ts";
 import { workerModelKeyRoute } from "./model-key.ts";
+import { rejectMalformedWorkerIds } from "./worker-route-ids.ts";
 import type { ExecutionRouteOptions } from "./shared.ts";
 import type { SkillSourceAdapter } from "../catalog/source-adapters.ts";
 import type { SkillImportProcessHooks } from "../catalog/import-workflow.ts";
@@ -272,9 +273,14 @@ export function createExecutionRoutes(
 
   app.use("/v1/worker-enrollments", options.browserSession);
   app.use("/v1/worker-enrollments/*", options.browserSession);
+  app.use(
+    "/v1/worker-enrollments/*",
+    rejectMalformedWorkerIds(options.publicBaseUrl),
+  );
   app.use("/v1/workers", options.browserSession);
   app.use("/v1/worker-link-requests/*", options.browserSession);
   app.use("/v1/workers/*", options.browserSession);
+  app.use("/v1/workers/*", rejectMalformedWorkerIds(options.publicBaseUrl));
   app.use("/v1/model-provider-accounts", options.browserSession);
   app.post(
     "/v1/worker-enrollments",
