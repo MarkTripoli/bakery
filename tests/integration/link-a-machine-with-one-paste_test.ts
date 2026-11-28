@@ -513,6 +513,81 @@ Deno.test("set up again returns the same one command for the machine", () =>
     assertEquals((await again.json()).status, "updated");
   }));
 
+Deno.test("a Claude machine enrolled before the tool gateway still registers and repairs with it", () =>
+  withWorkerFixture(async (fixture) => {
+    await clearLinkRateLimits(fixture);
+    const enrollment = await enrollForLink(fixture, {
+      name: "claude-box",
+      os: "linux",
+      architecture: "arm64",
+      capabilities: ["git", "claude"],
+    });
+    const before = await registerWithLinkCode(
+      fixture,
+      enrollment.linkCode,
+      workerCredential(),
+      { name: "claude-box", capabilities: ["git", "claude"] },
+    );
+    assertEquals(before.status, 200, await before.clone().text());
+    const { workerHostId } = await before.json();
+    fixture.workerHostIds.push(workerHostId);
+    const revoked = await adminRequest(
+      fixture,
+      `/v1/workers/${workerHostId}/revocations`,
+      {},
+      { idempotencyKey: crypto.randomUUID() },
+    );
+    assertEquals(revoked.status, 200, await revoked.clone().text());
+    const repair = await adminRequest(
+      fixture,
+      `/v1/workers/${workerHostId}/enrollments`,
+      {},
+      { idempotencyKey: crypto.randomUUID() },
+    );
+    assertEquals(repair.status, 201, await repair.clone().text());
+    const repaired = await registerWithLinkCode(
+      fixture,
+      (await repair.json()).linkCode,
+      workerCredential(),
+      { name: "claude-box", capabilities: ["git", "claude", "tool-gateway"] },
+    );
+    assertEquals(repaired.status, 200, await repaired.clone().text());
+    assertEquals((await repaired.json()).status, "updated");
+
+    const fresh = await enrollForLink(fixture, {
+      name: "claude-box-2",
+      capabilities: ["git", "claude"],
+    });
+    const registered = await registerWithLinkCode(
+      fixture,
+      fresh.linkCode,
+      workerCredential(),
+      {
+        name: "claude-box-2",
+        capabilities: ["git", "claude", "tool-gateway"],
+      },
+    );
+    assertEquals(registered.status, 200, await registered.clone().text());
+    fixture.workerHostIds.push((await registered.json()).workerHostId);
+  }));
+
+Deno.test("a machine enrolled without Claude cannot claim the tool gateway", () =>
+  withWorkerFixture(async (fixture) => {
+    await clearLinkRateLimits(fixture);
+    const enrollment = await enrollForLink(fixture, {
+      name: "codex-box",
+      capabilities: ["git", "codex"],
+    });
+    const refused = await registerWithLinkCode(
+      fixture,
+      enrollment.linkCode,
+      workerCredential(),
+      { name: "codex-box", capabilities: ["git", "codex", "tool-gateway"] },
+    );
+    assertEquals(refused.status, 422, await refused.clone().text());
+    assertEquals((await problem(refused)).code, "UNPROCESSABLE");
+  }));
+
 Deno.test("the Bakery origin serves the link command as an npm tarball", () =>
   withWorkerFixture(async (fixture) => {
     const response = await fixture.app.fetch(
