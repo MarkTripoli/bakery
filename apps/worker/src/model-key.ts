@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { type AttemptProof, attemptProofOf } from "./client.ts";
-import type { ExecutionOutcome } from "./executor.ts";
+import type { ExecutionOutcome, WorkerExecutor } from "./executor.ts";
 import type { JobAssignment } from "./types.ts";
 
 export const ModelKeySchema = z.object({
@@ -20,21 +20,49 @@ export type ReadModelKey = (
   proof: AttemptProof,
 ) => Promise<ModelKey>;
 
-const REMEMBERED_ATTEMPTS = 8;
+export type AttemptModelKeys = Readonly<{
+  read: ReadModelKey;
+  forget: (attemptId: string) => void;
+}>;
 
-export function readOncePerAttempt(read: ReadModelKey): ReadModelKey {
+export function readOncePerAttempt(read: ReadModelKey): AttemptModelKeys {
   const remembered = new Map<string, Promise<ModelKey>>();
-  return (attemptId, proof) => {
-    const key = `${attemptId}:${proof.fence}`;
-    const known = remembered.get(key);
-    if (known !== undefined) return known;
-    const pending = read(attemptId, proof);
-    remembered.set(key, pending);
-    pending.catch(() => remembered.delete(key));
-    while (remembered.size > REMEMBERED_ATTEMPTS) {
-      remembered.delete(remembered.keys().next().value!);
-    }
-    return pending;
+  return {
+    read: (attemptId, proof) => {
+      const key = `${attemptId}:${proof.fence}`;
+      const known = remembered.get(key);
+      if (known !== undefined) return known;
+      const pending = read(attemptId, proof);
+      remembered.set(key, pending);
+      pending.catch(() => remembered.delete(key));
+      return pending;
+    },
+    forget: (attemptId) => {
+      for (const key of [...remembered.keys()]) {
+        if (key.startsWith(`${attemptId}:`)) remembered.delete(key);
+      }
+    },
+  };
+}
+
+export function forgetModelKeyAfterAttempt(
+  executor: WorkerExecutor,
+  keys: AttemptModelKeys,
+): WorkerExecutor {
+  return {
+    ...executor,
+    async execute(assignment, signal, output, preparedSkills) {
+      try {
+        return await executor.execute(
+          assignment,
+          signal,
+          output,
+          preparedSkills,
+        );
+      } finally {
+        keys.forget(assignment.attemptId);
+      }
+    },
   };
 }
 

@@ -2024,7 +2024,7 @@ printf '%s\\n' '{"type":"result","subtype":"success","is_error":false,"session_i
           provider: "anthropic",
           apiKey: reads.length === 1 ? key : "rotated-after-the-first-read",
         });
-      }),
+      }).read,
     });
     assertEquals(await executor.credentialRedactionSecrets?.(value), [key]);
     const outcome = await executor.execute(value, new AbortController().signal);
@@ -2126,5 +2126,28 @@ printf '%s\\n' '{"type":"system","subtype":"init","session_id":"${SESSION_ID}","
       readEnvDump(await Deno.readTextFile(envDump)).ANTHROPIC_API_KEY,
       key,
     );
+  },
+});
+
+Deno.test({
+  name:
+    "a step that calls no model never asks for a key, even on an api-billed agent",
+  ...RUN_PERMISSIONS,
+  fn: async () => {
+    const scratch = await prepareScratchRepository("bakery-claude-nonmodel-");
+    const fake = await fakeClaude(scratch.dir, "exit 0");
+    let asked = 0;
+    const executor = executorFor(scratch.dir, fake, 5_000, {
+      readModelKey: () => {
+        asked++;
+        return Promise.reject(new Error("model_key_unbound"));
+      },
+    });
+    const check = { ...await meteredAssignment(), action: "quality.check" };
+    assertEquals(
+      await executor.credentialRedactionSecrets?.(check as JobAssignment),
+      [],
+    );
+    assertEquals(asked, 0);
   },
 });

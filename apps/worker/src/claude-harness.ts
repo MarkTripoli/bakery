@@ -94,6 +94,7 @@ import {
   type ModelKeyVariables,
   type ReadModelKey,
 } from "./model-key.ts";
+import { workerActionCapabilities } from "../../../packages/contracts/src/contracts.ts";
 
 const CLAUDE_ACTION = "harness.implement";
 const CLAUDE_MODEL_CHECK_ID = "capability:model";
@@ -2085,6 +2086,11 @@ async function claudeModelCheck(
  * Opt-in real Claude Code executor. Unsupported actions remain delegated to
  * the wrapped deterministic/native executor.
  */
+function callsModel(action: string): boolean {
+  return action === COORDINATOR_TURN_ACTION ||
+    workerActionCapabilities(action).includes("model");
+}
+
 export function createClaudeHarnessExecutor(
   options: ClaudeHarnessOptions,
 ): WorkerExecutor {
@@ -2126,12 +2132,14 @@ export function createClaudeHarnessExecutor(
       await initializeHarnessWorktree(guard, harnessBusy);
     },
     async credentialRedactionSecrets(assignment) {
-      const metered = await meteredModelKey(
-        assignment,
-        options.readModelKey,
-        CLAUDE_MODEL_KEY_VARIABLES,
-      );
-      if (metered !== null) return metered.secrets;
+      if (callsModel(assignment.action)) {
+        const metered = await meteredModelKey(
+          assignment,
+          options.readModelKey,
+          CLAUDE_MODEL_KEY_VARIABLES,
+        );
+        if (metered !== null) return metered.secrets;
+      }
       if (
         !isHarnessEditAction(assignment.action) &&
         assignment.action !== FREEFORM_ACTION &&

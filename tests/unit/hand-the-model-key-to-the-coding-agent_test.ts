@@ -1,5 +1,6 @@
 import { assertEquals, assertRejects } from "@std/assert";
 import {
+  forgetModelKeyAfterAttempt,
   meteredModelKey,
   ModelKeyUnavailable,
   type ModelKeyVariables,
@@ -86,10 +87,11 @@ Deno.test("a key the harness cannot use, a failed read or no reader fails closed
 
 Deno.test("one attempt reads its key once, so a rotation cannot split the child from its redaction", async () => {
   let served = 0;
-  const read = readOncePerAttempt(() => {
+  const keys = readOncePerAttempt(() => {
     served++;
     return Promise.resolve({ provider: "openai", apiKey: `key-${served}` });
   });
+  const read = keys.read;
   const assignment = paidBy("api");
   const first = await meteredModelKey(assignment, read, CODEX);
   const second = await meteredModelKey(assignment, read, CODEX);
@@ -104,7 +106,7 @@ Deno.test("one attempt reads its key once, so a rotation cannot split the child 
 
 Deno.test("a failed read is not remembered, so the next try asks again", async () => {
   let calls = 0;
-  const read = readOncePerAttempt(() => {
+  const { read } = readOncePerAttempt(() => {
     calls++;
     return calls === 1
       ? Promise.reject(new Error("model_key_unbound"))
@@ -140,5 +142,25 @@ Deno.test("an independent review paid by API key redacts that key, not the host 
   assertEquals(
     await reviewer.credentialRedactionSecrets?.(review as JobAssignment),
     ["anthropic-fixture-key"],
+  );
+});
+
+Deno.test("the remembered key is dropped when the attempt ends, however it ends", async () => {
+  let served = 0;
+  const keys = readOncePerAttempt(() => {
+    served++;
+    return Promise.resolve({ provider: "openai", apiKey: `key-${served}` });
+  });
+  const assignment = paidBy("api");
+  await meteredModelKey(assignment, keys.read, CODEX);
+  const failing = forgetModelKeyAfterAttempt({
+    execute: () => Promise.reject(new Error("harness crashed")),
+  } as unknown as WorkerExecutor, keys);
+  await assertRejects(() =>
+    failing.execute(assignment, new AbortController().signal)
+  );
+  assertEquals(
+    (await meteredModelKey(assignment, keys.read, CODEX))?.secrets,
+    ["key-2"],
   );
 });

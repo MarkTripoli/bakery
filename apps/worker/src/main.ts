@@ -58,7 +58,7 @@ import {
   WorkerShutdownQuiescenceError,
   WorkerSupervisor,
 } from "./supervisor.ts";
-import { readOncePerAttempt } from "./model-key.ts";
+import { forgetModelKeyAfterAttempt, readOncePerAttempt } from "./model-key.ts";
 
 export type WorkerMainOptions = {
   monitoring?: RuntimeMonitoring;
@@ -310,9 +310,10 @@ export async function main(options: WorkerMainOptions = {}): Promise<void> {
     // test executor keeps exactly the actions it declares. The score judge
     // makes its one model call through the configured Claude Code CLI; any
     // other harness leaves it without a transport, so scores are unscored.
-    const readModelKey = readOncePerAttempt((attemptId, proof) =>
+    const modelKeys = readOncePerAttempt((attemptId, proof) =>
       client.attemptModelKey(attemptId, proof)
     );
+    const readModelKey = modelKeys.read;
     const executor = options.executor === undefined
       ? createEvaluationExecutor(baseExecutor, {
         readAttemptContext: async (attemptId, proof) => {
@@ -470,9 +471,12 @@ export async function main(options: WorkerMainOptions = {}): Promise<void> {
     // attempt runs, and the child environment is given its path, never the
     // value. Doing it here rather than per adapter is what keeps "does this
     // harness clean up" from being a per-harness question.
-    const sessionAwareExecutor = withSessionCredentialFile(workerExecutor, {
-      stateDir: config.stateDir,
-    });
+    const sessionAwareExecutor = withSessionCredentialFile(
+      forgetModelKeyAfterAttempt(workerExecutor, modelKeys),
+      {
+        stateDir: config.stateDir,
+      },
+    );
     await sessionAwareExecutor.initialize?.();
     const skillMaterializer = new SkillMaterializer(
       new SkillCache(config.stateDir),
