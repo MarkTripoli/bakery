@@ -1194,9 +1194,6 @@ export function createMachineReadinessWorkflows(
       if (host.status !== "revoked") {
         throw new StandardError({ code: "STATE_CONFLICT" });
       }
-      // A still-unconsumed repair enrollment for this host under a different
-      // idempotency key owns the host's single pending-repair slot (partial
-      // unique index); conflict instead of a raw unique violation.
       const expired = await transaction.query<{ id: string }>(
         `update bakery.worker_enrollments
             set canceled_at = clock_timestamp(),
