@@ -28,19 +28,34 @@ export async function issueRepair(
   return await issue();
 }
 
+async function pendingRepair(
+  api: RepairApi,
+  organizationId: string,
+  machineId: string,
+) {
+  let cursor: string | undefined;
+  do {
+    const listed = await api.workerEnrollments.list({
+      organizationId,
+      cursor,
+      limit: 100,
+    });
+    if (!listed.ok) return undefined;
+    const match = listed.data.items.find((item) =>
+      item.targetWorkerHostId === machineId && item.state === "pending"
+    );
+    if (match) return match;
+    cursor = listed.data.nextCursor ?? undefined;
+  } while (cursor !== undefined);
+  return undefined;
+}
+
 async function cancelPendingRepair(
   api: RepairApi,
   organizationId: string,
   machineId: string,
 ): Promise<boolean> {
-  const listed = await api.workerEnrollments.list({
-    organizationId,
-    limit: 100,
-  });
-  if (!listed.ok) return false;
-  const pending = listed.data.items.find((item) =>
-    item.targetWorkerHostId === machineId && item.state === "pending"
-  );
+  const pending = await pendingRepair(api, organizationId, machineId);
   if (!pending) return false;
   const canceled = await api.workerEnrollments.cancel({
     organizationId,

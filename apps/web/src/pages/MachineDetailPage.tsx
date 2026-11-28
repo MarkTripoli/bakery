@@ -91,7 +91,6 @@ const BANNER_BODY: ReadonlySet<string> = new Set([
   "needsAttention",
 ]);
 
-/** What a machine's own record says it is, for the settings a re-pair needs. */
 function dateLabel(
   value: string | null | undefined,
   locale: string,

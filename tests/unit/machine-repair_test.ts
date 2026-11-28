@@ -10,6 +10,7 @@ const issued = { ok: true, data: { enrollmentId: "second" } };
 function world(
   pending: { targetWorkerHostId: string; state: string }[],
   first: unknown = conflict,
+  pageSize = 100,
 ) {
   const calls: string[] = [];
   let issues = 0;
@@ -22,8 +23,10 @@ function world(
       },
     },
     workerEnrollments: {
-      list: () => {
-        calls.push("list");
+      list: (options: { cursor?: string }) => {
+        calls.push(options.cursor ? `list ${options.cursor}` : "list");
+        const start = Number(options.cursor ?? 0);
+        const next = start + pageSize;
         return Promise.resolve({
           ok: true,
           data: {
@@ -31,7 +34,8 @@ function world(
               ...item,
               enrollmentId: `e${index}`,
               version: 3,
-            })),
+            })).slice(start, next),
+            nextCursor: next < pending.length ? String(next) : null,
           },
         });
       },
@@ -66,4 +70,17 @@ Deno.test("a first code that works reads and cancels nothing", async () => {
   const { api, calls } = world([], issued);
   assertEquals(await issueRepair(api, "org", "m1"), issued as never);
   assertEquals(calls, ["issue"]);
+});
+
+Deno.test("a pending code on a later page is found and canceled", async () => {
+  const { api, calls } = world(
+    [
+      { targetWorkerHostId: "other", state: "pending" },
+      { targetWorkerHostId: "m1", state: "pending" },
+    ],
+    conflict,
+    1,
+  );
+  assertEquals(await issueRepair(api, "org", "m1"), issued as never);
+  assertEquals(calls, ["issue", "list", "list 1", "cancel e1 3", "issue"]);
 });

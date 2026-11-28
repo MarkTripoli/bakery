@@ -55,6 +55,7 @@ export function MachineRepair(
   },
 ) {
   const [byHand, setByHand] = useState(false);
+  const input = repairInput(machine);
   const unproven = isUnprovenWithSteps(machine.os, machine.architecture);
   const steps = byHand || unproven;
   const newButton = (label: string) => (
@@ -103,10 +104,8 @@ export function MachineRepair(
             {steps
               ? (
                 <SetupInstructions
-                  input={repairInput(machine)}
-                  agent={codingAgents(
-                    repairInput(machine).capabilities,
-                  )[0] ?? null}
+                  input={input}
+                  agent={codingAgents(input.capabilities)[0] ?? null}
                   code={issued.enrollmentToken}
                   expiresAt={issued.expiresAt}
                   now={now}
