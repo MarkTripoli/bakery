@@ -13,6 +13,7 @@ import { commitArtifactVersion } from "./persistence.ts";
 import { authorize } from "../auth/application/authorize.ts";
 import { requireOrganizationRole } from "../auth/application/authority.ts";
 import { assertNotQuiesced } from "../../platform/maintenance.ts";
+import { hasAsciiControlCharacter } from "../../platform/control-characters.ts";
 
 const TRUSTED_REPOSITORIES_ENV = "BAKERY_TRUSTED_REPOSITORIES_JSON";
 const MAX_CONFIG_BYTES = 64 * 1024;
@@ -48,21 +49,10 @@ const SOURCE_FIELDS: Readonly<Record<string, true>> = {
   snapshotSha: true,
 };
 const MAPPING_REVISION_MAX_BYTES = 128;
-const CONTROL_CHARACTER_MAX = 0x1f;
-const DELETE_CHARACTER = 0x7f;
-
-function hasControlCharacter(value: string): boolean {
-  for (let index = 0; index < value.length; index += 1) {
-    const code = value.charCodeAt(index);
-    if (code <= CONTROL_CHARACTER_MAX || code === DELETE_CHARACTER) return true;
-  }
-  return false;
-}
-
 function isValidMappingRevision(value: string): boolean {
   return value.length > 0 &&
     new TextEncoder().encode(value).byteLength <= MAPPING_REVISION_MAX_BYTES &&
-    !hasControlCharacter(value);
+    !hasAsciiControlCharacter(value);
 }
 
 type JsonRecord = Record<string, unknown>;
@@ -203,7 +193,7 @@ function canonicalBareRepositoryPath(value: unknown): string {
   }
   if (
     new TextEncoder().encode(value).byteLength > MAX_PATH_BYTES ||
-    hasControlCharacter(value) || value.includes("\\") ||
+    hasAsciiControlCharacter(value) || value.includes("\\") ||
     !value.startsWith("/") || value === "/" || value.endsWith("/") ||
     value.includes("//")
   ) fail("DEPENDENCY_UNAVAILABLE");
@@ -415,7 +405,7 @@ function canonicalRelativePath(value: unknown): string {
   if (typeof value !== "string" || value.length === 0) fail("UNPROCESSABLE");
   if (
     new TextEncoder().encode(value).byteLength > MAX_PATH_BYTES ||
-    hasControlCharacter(value) || value.includes("\\") ||
+    hasAsciiControlCharacter(value) || value.includes("\\") ||
     value.startsWith("/") || value.endsWith("/") || value.includes("//")
   ) fail("UNPROCESSABLE");
   const parts = value.split("/");

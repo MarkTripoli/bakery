@@ -34,6 +34,7 @@ import { encryptInstallationSecret, loadSecretKey } from "../secrets/crypto.ts";
 import { installationActor } from "./postgres.ts";
 import { PROVIDERS } from "./registry.ts";
 import { adoptRegistrationSigningSecret } from "./slack-receipts.ts";
+import { hasAsciiControlCharacter } from "../../platform/control-characters.ts";
 
 /**
  * Installation-level OAuth client credentials for any integration provider whose
@@ -104,14 +105,6 @@ const CLIENT_SECRET_MAX = 4096;
 const POSTGRES_UNIQUE_VIOLATION = "23505";
 
 /** Printable characters only: a control character in a pasted credential is a paste error. */
-function hasControlCharacter(value: string): boolean {
-  for (const character of value) {
-    const code = character.codePointAt(0)!;
-    if (code < 0x20 || code === 0x7f) return true;
-  }
-  return false;
-}
-
 /**
  * The provider this installation can hold credentials for, or an absent resource.
  *
@@ -263,7 +256,7 @@ export async function putClientCredentials(
   const clientId = input.clientId;
   if (
     clientId.length === 0 || clientId.length > CLIENT_ID_MAX ||
-    clientId !== clientId.trim() || hasControlCharacter(clientId)
+    clientId !== clientId.trim() || hasAsciiControlCharacter(clientId)
   ) throw unprocessable(["clientId"], "invalid_client_id");
   const clientSecret = input.clientSecret;
   if (!isAcceptableSecret(clientSecret)) {
@@ -387,7 +380,7 @@ export async function putClientCredentials(
 
 function isAcceptableSecret(value: string): boolean {
   return value.length > 0 && value.length <= CLIENT_SECRET_MAX &&
-    value === value.trim() && !hasControlCharacter(value);
+    value === value.trim() && !hasAsciiControlCharacter(value);
 }
 
 type Sealer = {

@@ -42,6 +42,7 @@ import {
   workerTransaction,
 } from "./shared.ts";
 import { linkCodeHash, mintShortCode, withLinkCommand } from "./link-codes.ts";
+import { hasAsciiControlCharacter } from "../../platform/control-characters.ts";
 
 const WORKER_UPDATE_STATUS_DESIRED_MODE: Record<string, string> = {
   online: "accepting",
@@ -748,14 +749,6 @@ export async function archiveWorker(
 
 const WORKER_NAME_QUERY_MAX_BYTES = 200;
 
-function hasControlCharacter(value: string): boolean {
-  for (const character of value) {
-    const code = character.codePointAt(0)!;
-    if (code < 0x20 || code === 0x7f) return true;
-  }
-  return false;
-}
-
 function parseWorkerListQuery(
   context: Context<{ Variables: AuthVariables }>,
 ): {
@@ -778,7 +771,7 @@ function parseWorkerListQuery(
   if (
     queries.length > 1 ||
     new TextEncoder().encode(query).byteLength > WORKER_NAME_QUERY_MAX_BYTES ||
-    hasControlCharacter(query)
+    hasAsciiControlCharacter(query)
   ) {
     throw new StandardError({ code: "MALFORMED_REQUEST" });
   }

@@ -1,3 +1,5 @@
+import { hasControlOrLineSeparator } from "../../../platform/control-characters.ts";
+
 /**
  * Pure rules of the desktop handoff (issue #77, FS25 slice 5).
  *
@@ -29,17 +31,6 @@ export type DesktopHandoffRefusal =
   typeof DesktopHandoffRefusal[keyof typeof DesktopHandoffRefusal];
 
 /** C0 and C1 controls, DEL and the two Unicode line separators. */
-function hasControlCharacter(value: string): boolean {
-  for (const character of value) {
-    const code = character.codePointAt(0)!;
-    if (
-      code <= 0x1f || (code >= 0x7f && code <= 0x9f) || code === 0x2028 ||
-      code === 0x2029
-    ) return true;
-  }
-  return false;
-}
-
 /**
  * The return path when it is a same-origin path the browser may be sent to,
  * else null: it starts with one "/", is not protocol-relative ("//" or
@@ -50,7 +41,7 @@ function hasControlCharacter(value: string): boolean {
 export function safeReturnPath(value: string): string | null {
   if (value.length === 0 || value.length > RETURN_TO_MAX_LENGTH) return null;
   if (!value.startsWith("/") || value.startsWith("//")) return null;
-  if (value.includes("\\") || hasControlCharacter(value)) return null;
+  if (value.includes("\\") || hasControlOrLineSeparator(value)) return null;
   const base = "https://bakery.invalid";
   let url: URL;
   try {

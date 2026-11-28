@@ -1,3 +1,5 @@
+import { hasControlOrLineSeparator } from "../../../platform/control-characters.ts";
+
 /**
  * Pure rules of the desktop app's browser sign-in (issue #77, FS25).
  *
@@ -61,17 +63,6 @@ const LOOKS_LIKE_DESKTOP = new RegExp(
   `^Bearer[ \\t]+${DESKTOP_CREDENTIAL_PREFIX}`,
 );
 /** C0 and C1 controls plus the two Unicode line separators. */
-function hasControlCharacter(value: string): boolean {
-  for (const character of value) {
-    const code = character.codePointAt(0)!;
-    if (
-      code <= 0x1f || (code >= 0x7f && code <= 0x9f) || code === 0x2028 ||
-      code === 0x2029
-    ) return true;
-  }
-  return false;
-}
-
 export function base64Url(bytes: Uint8Array): string {
   let binary = "";
   for (const byte of bytes) binary += String.fromCharCode(byte);
@@ -237,7 +228,7 @@ export function canonicalDesktopRedirect(value: string): string | null {
 export function normalizeComputerName(value: string): string | null {
   const name = value.trim();
   if (name.length === 0 || name.length > COMPUTER_NAME_MAX_LENGTH) return null;
-  return hasControlCharacter(name) ? null : name;
+  return hasControlOrLineSeparator(name) ? null : name;
 }
 
 /** The Active sessions label of a desktop sign-in. */
