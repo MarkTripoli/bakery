@@ -81,6 +81,8 @@ function inlineMarkdown(text: string): ReactNode[] {
     });
 }
 
+const RULE_LINE = /^(-{3,}|\*{3,}|_{3,})\s*$/;
+
 const TABLE_RULE = /^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/;
 
 function startsTable(lines: readonly string[], index: number): boolean {
@@ -120,6 +122,11 @@ function markdown(text: string): ReactNode[] {
           <code>{code.join("\n")}</code>
         </pre>,
       );
+      continue;
+    }
+    if (RULE_LINE.test(line)) {
+      blocks.push(<hr key={key} />);
+      index++;
       continue;
     }
     if (startsTable(lines, index)) {
@@ -180,7 +187,7 @@ function markdown(text: string): ReactNode[] {
     while (
       index < lines.length && lines[index]?.trim() &&
       !/^(#{1,6}\s|[-*+]\s|```)/.test(lines[index] ?? "") &&
-      !startsTable(lines, index)
+      !startsTable(lines, index) && !RULE_LINE.test(lines[index] ?? "")
     ) paragraph.push(lines[index++] ?? "");
     blocks.push(<p key={key}>{inlineMarkdown(paragraph.join("\n"))}</p>);
   }

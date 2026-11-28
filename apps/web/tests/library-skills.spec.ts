@@ -362,6 +362,7 @@ for (
       await still(page, "skill-files-long-line");
       await files.getByRole("button", { name: "rules.md" }).click();
       await expect(files).toContainText("Never publish without approval.");
+      await expect(files.getByRole("separator")).toHaveCount(2);
       await expect(files.getByRole("columnheader", { name: "Rule" }))
         .toBeVisible();
       await expect(files.getByRole("cell", { name: "Ask first" }))

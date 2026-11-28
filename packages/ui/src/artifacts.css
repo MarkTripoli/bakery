@@ -192,6 +192,12 @@
 .ui-artifact-viewer__markdown a {
   color: var(--color-selection);
 }
+.ui-artifact-viewer__markdown hr {
+  inline-size: 100%;
+  margin: 0;
+  border: 0;
+  border-block-start: var(--border-default) solid var(--color-border);
+}
 .ui-artifact-viewer__markdown table {
   border-collapse: collapse;
   max-inline-size: 100%;
