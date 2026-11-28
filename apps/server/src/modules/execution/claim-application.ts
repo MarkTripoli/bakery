@@ -1,3 +1,4 @@
+import { hostAllowedCapabilities } from "@bakery/contracts/workflow-action-registry";
 import { z } from "zod";
 import type { PgTransactionClient } from "@bakery/persistence";
 import { sha256Hex } from "../../platform/canonical-json.ts";
@@ -307,9 +308,11 @@ export async function executeClaim(
         throw new Error("WORKER_CLAIM_REPLAY_INVALID");
       }
 
-      const hostCapabilities = asStringArray(identity.host.capabilities).map((
-        entry,
-      ) => entry.toLowerCase());
+      const hostCapabilities = hostAllowedCapabilities(
+        asStringArray(identity.host.capabilities).map((entry) =>
+          entry.toLowerCase()
+        ),
+      );
       if (!isSubset(requestedCapabilities, hostCapabilities)) {
         throw new StandardError({ code: "AUTH_FORBIDDEN" });
       }

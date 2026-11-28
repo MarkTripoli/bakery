@@ -1,3 +1,4 @@
+import { hostAllowedCapabilities } from "@bakery/contracts/workflow-action-registry";
 import { StandardError } from "@bakery/contracts/http";
 import type { PgTransactionClient } from "./postgres.ts";
 import {
@@ -1281,10 +1282,14 @@ export function createMachineReadinessWorkflows(
       if (input.expectedInventoryRevision !== hostRow.inventoryRevision) {
         throw new StandardError({ code: "STATE_CONFLICT" });
       }
-      const hostCapabilities = Array.isArray(hostRow.capabilities) &&
+      const hostCapabilities = hostAllowedCapabilities(
+        Array.isArray(hostRow.capabilities) &&
           hostRow.capabilities.every((entry) => typeof entry === "string")
-        ? (hostRow.capabilities as string[]).map((entry) => entry.toLowerCase())
-        : [];
+          ? (hostRow.capabilities as string[]).map((entry) =>
+            entry.toLowerCase()
+          )
+          : [],
+      );
       const componentKeys = new Set<string>();
       for (const component of input.components) {
         if (componentKeys.has(component.componentKey)) {

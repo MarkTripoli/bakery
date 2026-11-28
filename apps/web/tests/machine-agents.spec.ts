@@ -341,9 +341,8 @@ test.describe("the Coding agents rows", () => {
     // The row says the state once, as its badge; the banner carries the Sign in.
     await expect(row(page, "claude")).toContainText("Not signed in");
     await expect(row(page, "claude")).not.toContainText("Not signed in yet.");
-    // One banner is the state, so the header has no badge.
     await expect(header(page).locator('[data-ui-component="badge"]'))
-      .toHaveCount(0);
+      .toHaveCount(1);
     await expect(
       row(page, "claude").getByRole("button", { name: "Sign in", exact: true }),
     ).toHaveCount(0);
@@ -475,9 +474,8 @@ test.describe("the Coding agents rows", () => {
       "Bakery has not checked the sign-in on this machine yet.",
     );
     await expect(row(page, "pi")).not.toContainText("Uses the subscription");
-    // The banner is the state: no header badge while it is drawn.
     await expect(header(page).getByText("Needs attention", { exact: true }))
-      .toHaveCount(0);
+      .toHaveCount(1);
     await expect(header(page).getByText("Ready", { exact: true })).toHaveCount(
       0,
     );
@@ -568,9 +566,8 @@ test.describe("the Coding agents rows", () => {
     const checks = page.getByTestId("machine-checks");
     await expect(checks).toContainText("Model access");
     await expect(checks).toContainText("claude: not signed in");
-    // The banner is the state: no header badge beside it.
     await expect(header(page).getByText("Needs attention", { exact: true }))
-      .toHaveCount(0);
+      .toHaveCount(1);
     await shot(page, "machine-agents-banner-model-check");
   });
 

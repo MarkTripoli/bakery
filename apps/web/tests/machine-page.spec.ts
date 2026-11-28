@@ -28,6 +28,7 @@ type Facts = {
   readinessReason: string | null;
   failedCheckIds: string[];
   version: number;
+  unsettledAttemptCount?: number;
 };
 
 type Fixture = {
@@ -222,6 +223,9 @@ function worker(f: Fixture) {
     readiness: f.facts.readiness,
     readinessReason: f.facts.readinessReason,
     failedCheckIds: f.facts.failedCheckIds,
+    ...(f.facts.unsettledAttemptCount === undefined
+      ? {}
+      : { unsettledAttemptCount: f.facts.unsettledAttemptCount }),
     lastHeartbeatAt: "2026-01-01T00:00:00.000Z",
     activeAttemptCount: 0,
     credentialGeneration: 1,
@@ -658,7 +662,10 @@ test.describe("machine page: mode and Retire", () => {
     );
     // The one thing a person fears: what happens to what is running on it.
     await expect(dialog).toContainText(
-      "Work running on it is not stopped or moved, and it can no longer report on that work. To let it finish first, choose Finish and stop instead, and retire the machine when it has no work.",
+      'If it is running tasks, retiring now cuts them off. Bakery marks each one "Lost contact" when its time runs out.',
+    );
+    await expect(dialog).toContainText(
+      "To let them finish first, choose Finish and stop.",
     );
     await expect(dialog.getByRole("button")).toHaveText([
       "Cancel",
@@ -756,13 +763,82 @@ test.describe("machine page: mode and Retire", () => {
     }).toPass();
   });
 
-  test("a machine with a banner has no header badge: the banner is its status", async ({ page }) => {
+  test("a machine with a banner keeps its status word in the header", async ({ page }) => {
     await open(page, fixture({ status: "offline", connectivity: "offline" }));
     await expect(banner(page)).toBeVisible();
     const badge = page.getByTestId("machine-detail-page").locator(
       '[data-ui-component="badge"]',
     );
-    await expect(badge.filter({ hasText: /^Offline$/ })).toHaveCount(0);
+    await expect(badge.filter({ hasText: /^Offline$/ })).toHaveCount(1);
+  });
+
+  for (
+    const [name, facts, words] of [
+      [
+        "finishing with work",
+        {
+          desiredMode: "draining",
+          status: "draining",
+          unsettledAttemptCount: 2,
+        },
+        "It finishes 2 tasks, then takes nothing new.",
+      ],
+      [
+        "finished",
+        {
+          desiredMode: "draining",
+          status: "draining",
+          unsettledAttemptCount: 0,
+        },
+        "It has no work left. You can retire it.",
+      ],
+      [
+        "paused with work",
+        { desiredMode: "paused", status: "offline", unsettledAttemptCount: 1 },
+        "1 task continues.",
+      ],
+    ] as const
+  ) {
+    test(`a machine ${name} counts its tasks in the banner`, async ({ page }) => {
+      await open(page, fixture(facts));
+      await expect(banner(page)).toContainText(words);
+      await shot(page, `machine-page-${name.replaceAll(" ", "-")}`);
+    });
+  }
+
+  for (const unsettled of [0, 2]) {
+    test(`retiring a finishing machine with ${unsettled} tasks does not offer to finish`, async ({ page }) => {
+      await open(
+        page,
+        fixture({
+          desiredMode: "draining",
+          status: "draining",
+          unsettledAttemptCount: unsettled,
+        }),
+      );
+      await page.getByRole("button", { name: "Retire this machine" }).first()
+        .click();
+      const dialog = page.getByRole("alertdialog");
+      await expect(dialog).toContainText("Retire fixture-host?");
+      await expect(dialog).not.toContainText("choose Finish and stop");
+      await expect(dialog.getByRole("button")).toHaveText([
+        "Cancel",
+        "Retire now",
+      ]);
+      await shot(page, `machine-page-retire-finishing-${unsettled}`, [], {
+        windowOnly: true,
+      });
+    });
+  }
+
+  test("retiring a machine with unfinished tasks says they are cut off", async ({ page }) => {
+    await open(page, fixture({ unsettledAttemptCount: 2 }));
+    await page.getByRole("button", { name: "Retire this machine" }).first()
+      .click();
+    await expect(page.getByRole("alertdialog")).toContainText(
+      'It is running 2 tasks. Retiring now cuts them off, and Bakery marks each one "Lost contact" when its time runs out.',
+    );
+    await shot(page, "machine-page-retire-running", [], { windowOnly: true });
   });
 
   test("a retired machine shows its header, one banner and About, with no empty Checks or Coding agents", async ({ page }) => {
@@ -778,7 +854,7 @@ test.describe("machine page: mode and Retire", () => {
       detail.locator('[data-ui-component="badge"]').filter({
         hasText: /^Retired$/,
       }),
-    ).toHaveCount(0);
+    ).toHaveCount(1);
     await expect(page.getByTestId("machine-about")).toBeVisible();
     await expect(page.getByTestId("machine-checks")).toHaveCount(0);
     await expect(page.getByTestId("machine-agents")).toHaveCount(0);

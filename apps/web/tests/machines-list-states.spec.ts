@@ -441,7 +441,7 @@ test.describe("machines list states", () => {
     const machinesBox = await rowOf(page, "build-linux-01").boundingBox();
     expect(groupBox!.y).toBeLessThan(machinesBox!.y);
     await shot(page, "machines-list-finishing");
-    await group.getByRole("button", { name: "Get new settings for late-box" })
+    await group.getByRole("button", { name: "Continue setup of late-box" })
       .click();
     await expect(page).toHaveURL(
       /\/machines\/new\?finish=00000000-0000-4000-8000-0000000000f2$/,

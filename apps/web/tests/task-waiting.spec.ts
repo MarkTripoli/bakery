@@ -412,7 +412,7 @@ test("a wait of less than a minute shows no card and no badge", async ({ page })
     .toHaveCount(0);
 });
 
-test("with no other way to run the step the card reads the same and has no button", async ({ page }) => {
+test("with no other way to run the step the card says so and has no button", async ({ page }) => {
   await openWaiting(page, [
     offerRow({
       targets: [],
@@ -429,6 +429,9 @@ test("with no other way to run the step the card reads the same and has no butto
     }),
   ]);
   await expect(card(page)).toContainText(SECOND_LINE);
+  await expect(card(page)).toContainText(
+    "There is no other way to run this step right now.",
+  );
   await expect(card(page).getByRole("button")).toHaveCount(0);
 });
 
