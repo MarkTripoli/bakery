@@ -12,6 +12,7 @@ import {
 } from "./service.ts";
 
 export const LINK_LINUX_ACCOUNT = "bakery-worker";
+export const REGISTRATION_SET_ASIDE = "registration.before-repair.json";
 export const LINK_LINUX_ROOT = "/var/lib/bakery-worker";
 
 const HARNESSES: Readonly<Record<string, { prefix: string; program: string }>> =
@@ -92,14 +93,31 @@ function fileFrom(text: string, path: string, mode: string, owner: string) {
 export function linuxLinkScript(
   binding: PairingBinding,
   sourceRoot: string,
+  repairOf: string | null = null,
 ): string {
   const root = LINK_LINUX_ROOT;
   const account = LINK_LINUX_ACCOUNT;
   const spec = linkServiceSpec(binding, root, account);
   const source = quoted(sourceRoot);
   const target = quoted(root);
+  const registration = quoted(join(root, "state", "registration.json"));
+  const setAside = quoted(join(root, "state", REGISTRATION_SET_ASIDE));
+  const hostPattern = repairOf === null
+    ? ""
+    : quoted(`"workerHostId" *: *"${repairOf}"`);
+  const repairCheck = repairOf === null ? [] : [
+    `grep -Eqs ${hostPattern} ${registration} || grep -Eqs ${hostPattern} ${setAside} || exit 3`,
+  ];
+  const repairSetAside = repairOf === null ? [] : [
+    `if [ -e ${registration} ]; then mv -f ${registration} ${setAside}; fi`,
+    `trap 'if [ -e ${setAside.replaceAll("'", "'\\''")} ]; then mv -f ${
+      setAside.replaceAll("'", "'\\''")
+    } ${registration.replaceAll("'", "'\\''")}; fi' EXIT`,
+  ];
+  const repairDone = repairOf === null ? [] : ["trap - EXIT"];
   return [
     "set -eu",
+    ...repairCheck,
     `id -u ${account} >/dev/null 2>&1 || useradd --system --user-group --home-dir ${target} --shell /usr/sbin/nologin ${account}`,
     `install --directory --owner ${account} --group ${account} --mode 0700 ${target} ${
       quoted(harnessWorkspace(root))
@@ -115,9 +133,11 @@ export function linuxLinkScript(
       account,
     ),
     fileFrom(renderSystemdUnit(spec), LINUX_UNIT_PATH, "0644", "root"),
+    ...repairSetAside,
     "systemctl daemon-reload",
     `systemctl enable ${LINUX_SERVICE}`,
     `systemctl restart ${LINUX_SERVICE}`,
+    ...repairDone,
     "",
   ].join("\n");
 }
