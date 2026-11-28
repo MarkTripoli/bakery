@@ -5,6 +5,7 @@
 // the fenced, sequenced worker report route.
 import { assert, assertEquals } from "@std/assert";
 import {
+  adminRequest,
   problemCode,
   registeredWorker,
   workerFixtureCapabilities,
@@ -952,4 +953,40 @@ Deno.test("the list cursor is bound to the includeArchived choice", () =>
     );
     assertEquals(switched.status, 400);
     assertEquals(await problemCode(switched), "INVALID_CURSOR");
+  }));
+
+Deno.test("a heartbeat between reading a machine and saving it does not refuse the save", () =>
+  withWorkerFixture(async (fixture) => {
+    const worker = await registeredWorker(fixture, { name: "issue70-beat" });
+    const hostId = worker.registration.workerHostId;
+    const read = async () => {
+      const response = await readMaintenance(fixture, `/v1/workers/${hostId}`);
+      assertEquals(response.status, 200);
+      return (await response.json() as { version: number }).version;
+    };
+    const update = (version: number, status: string) =>
+      adminRequest(fixture, `/v1/workers/${hostId}`, { status }, {
+        method: "PATCH",
+        headers: { "If-Match": `"${version}"` },
+      });
+
+    const seen = await read();
+    await heartbeatAssignments(fixture, worker);
+    await heartbeatAssignments(fixture, worker);
+    assertEquals(await read(), seen);
+    const paused = await update(seen, "offline");
+    assertEquals(paused.status, 200, await paused.clone().text());
+    await paused.body?.cancel();
+
+    const stale = await update(seen, "online");
+    assertEquals(stale.status, 412);
+    await stale.body?.cancel();
+
+    await fixture.pgDatabase.query(
+      `update bakery.worker_hosts set status = 'offline' where id = $1`,
+      [hostId],
+    );
+    const offline = await read();
+    await heartbeatAssignments(fixture, worker);
+    assertEquals(await read(), offline + 1);
   }));
