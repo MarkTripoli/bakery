@@ -2082,15 +2082,15 @@ async function claudeModelCheck(
   };
 }
 
-/**
- * Opt-in real Claude Code executor. Unsupported actions remain delegated to
- * the wrapped deterministic/native executor.
- */
 function callsModel(action: string): boolean {
   return action === COORDINATOR_TURN_ACTION ||
     workerActionCapabilities(action).includes("model");
 }
 
+/**
+ * Opt-in real Claude Code executor. Unsupported actions remain delegated to
+ * the wrapped deterministic/native executor.
+ */
 export function createClaudeHarnessExecutor(
   options: ClaudeHarnessOptions,
 ): WorkerExecutor {

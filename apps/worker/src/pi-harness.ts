@@ -2276,7 +2276,6 @@ async function executePiFreeform(
   }
 }
 
-/** Opt-in Pi RPC executor; all non-Pi actions delegate to the wrapped executor. */
 const PI_MODEL_KEY_VARIABLES: ModelKeyVariables = {
   anthropic: "ANTHROPIC_API_KEY",
   openai: "OPENAI_API_KEY",
@@ -2312,6 +2311,7 @@ function piCredentials(
   });
 }
 
+/** Opt-in Pi RPC executor; all non-Pi actions delegate to the wrapped executor. */
 export function createPiHarnessExecutor(
   options: PiHarnessOptions,
 ): WorkerExecutor {

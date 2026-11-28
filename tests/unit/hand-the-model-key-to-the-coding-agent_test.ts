@@ -1,6 +1,7 @@
 import { assertEquals, assertRejects } from "@std/assert";
 import {
   meteredModelKey,
+  ModelKeySchema,
   ModelKeyUnavailable,
   type ModelKeyVariables,
   type ReadModelKey,
@@ -142,4 +143,12 @@ Deno.test("an independent review paid by API key redacts that key, not the host 
     await reviewer.credentialRedactionSecrets?.(review as JobAssignment),
     ["anthropic-fixture-key"],
   );
+});
+
+Deno.test("the worker accepts any key the server's contract allows", () => {
+  const apiKey = "k".repeat(5_000);
+  assertEquals(ModelKeySchema.parse({ provider: "openrouter", apiKey }), {
+    provider: "openrouter",
+    apiKey,
+  });
 });

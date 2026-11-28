@@ -752,13 +752,6 @@ async function executeCodexFreeform(
   }
 }
 
-/**
- * Opt-in real harness executor. `harness.implement` runs the pinned
- * `codex exec` batch interface; every other action delegates to the wrapped
- * executor (the deterministic/native default). Production defaults stay on
- * the deterministic executor; this adapter activates only through explicit
- * configuration.
- */
 const CODEX_MODEL_KEY_VARIABLES: ModelKeyVariables = {
   openai: "CODEX_API_KEY",
 };
@@ -792,6 +785,13 @@ function codexCredentials(
   });
 }
 
+/**
+ * Opt-in real harness executor. `harness.implement` runs the pinned
+ * `codex exec` batch interface; every other action delegates to the wrapped
+ * executor (the deterministic/native default). Production defaults stay on
+ * the deterministic executor; this adapter activates only through explicit
+ * configuration.
+ */
 export function createCodexHarnessExecutor(
   options: CodexHarnessOptions,
 ): WorkerExecutor {

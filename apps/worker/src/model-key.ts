@@ -1,18 +1,10 @@
-import { z } from "zod";
+import type { z } from "zod";
+import { contractSchemas } from "../../../packages/contracts/src/contracts.ts";
 import { type AttemptProof, attemptProofOf } from "./client.ts";
 import type { ExecutionOutcome, WorkerExecutor } from "./executor.ts";
 import type { JobAssignment } from "./types.ts";
 
-export const ModelKeySchema = z.object({
-  provider: z.enum(["anthropic", "openai", "openrouter"]).describe(
-    "The model provider the key belongs to.",
-  ),
-  apiKey: z.string().min(1).max(4096).describe(
-    "The metered model API key the coding agent pays with.",
-  ),
-}).strict().describe(
-  "The model API key the server hands to the worker holding the attempt's lease.",
-);
+export const ModelKeySchema = contractSchemas.WorkerModelKey;
 export type ModelKey = z.infer<typeof ModelKeySchema>;
 
 export type ReadModelKey = (
