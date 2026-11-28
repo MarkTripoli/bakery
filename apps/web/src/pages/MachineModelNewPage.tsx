@@ -374,7 +374,7 @@ export function MachineModelNewPage(
                 )}
               </UI.Text>
             )}
-            {chosen !== null && paidPerUse(chosen)
+            {(chosen === null ? rows.some(paidPerUse) : paidPerUse(chosen))
               ? null
               : (
                 <UI.Text variant="muted">

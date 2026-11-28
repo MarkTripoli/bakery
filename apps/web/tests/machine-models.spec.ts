@@ -761,8 +761,16 @@ test.describe("machine page: Add a model", () => {
 
   test("a Pi model is paid per use, never by a subscription", async ({ page }) => {
     await open(page, world({ pi: true }), `/machines/${MACHINE_ID}/models/new`);
-    await page.getByRole("radio", { name: "Pi" }).check({ force: true });
     const form = page.getByTestId("machine-model-new");
+    const pi = page.getByRole("radio", { name: "Pi" });
+    await expect(pi).toBeVisible();
+    await expect(pi).not.toBeChecked();
+    await expect(form).toContainText("How it is paid");
+    await expect(form).not.toContainText(
+      "Paying with an API key is not available yet.",
+    );
+    await still(page, "add-model-pi-unchosen");
+    await pi.check({ force: true });
     await expect(form).toContainText(
       "Pi is paid per use by its model provider.",
     );
