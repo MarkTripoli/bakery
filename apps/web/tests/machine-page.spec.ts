@@ -283,6 +283,8 @@ test.describe("machine page: states", () => {
     await expect(loading).toBeVisible();
     await expect(loading.locator("[data-ui-component=skeleton]"))
       .toHaveCount(3);
+    await expect(page.getByTestId("machine-detail-page"))
+      .not.toContainText(MACHINE_ID);
     await shot(page, "machine-page-loading");
     release();
     await expect(loading).toHaveCount(0);

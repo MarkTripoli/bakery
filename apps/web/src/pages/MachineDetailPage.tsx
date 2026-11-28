@@ -527,7 +527,7 @@ export function MachineDetailPage(
                   time: formatDate(workerData.lastHeartbeatAt ?? ""),
                 },
               )
-              : machineId}
+              : undefined}
             summary={workerData
               ? (
                 <UI.Badge tone={machineBadgeTone(headerBadge)}>
