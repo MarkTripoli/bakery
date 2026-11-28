@@ -64,6 +64,9 @@ export type NotificationMarkAllReadResponse =
   ClientOutputMap["NotificationMarkAllReadResult"];
 export type NotificationCursorQuery = ClientInputMap["NotificationCursorQuery"];
 
+export type WorkerLinkRequestResponse = ClientOutputMap["WorkerLinkRequest"];
+export type WorkerLinkRequestApprove =
+  ClientInputMap["WorkerLinkRequestApprove"];
 export type TaskListResponse = ClientOutputMap["Page<Task>"];
 export type TaskCursorQuery = ClientInputMap["TaskCursorQuery"];
 export type TaskCreate = ClientInputMap["TaskCreate"];
@@ -1452,6 +1455,26 @@ export type BakeryApiClient = {
       readonly limit?: number;
       readonly signal?: AbortSignal;
     }) => Promise<ApiResult<MachineModelListResponse>>;
+  };
+  readonly workerLinkRequests: {
+    readonly find: (options: {
+      readonly organizationId: string;
+      readonly userCode: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<WorkerLinkRequestResponse>>;
+    readonly approve: (options: {
+      readonly organizationId: string;
+      readonly id: string;
+      readonly input: WorkerLinkRequestApprove;
+      readonly idempotencyKey?: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<WorkerLinkRequestResponse>>;
+    readonly decline: (options: {
+      readonly organizationId: string;
+      readonly id: string;
+      readonly idempotencyKey?: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<WorkerLinkRequestResponse>>;
   };
   readonly workerEnrollments: {
     readonly list: (options: {
@@ -4037,6 +4060,41 @@ export function createBakeryApiClient({
               cursor: options.cursor,
               limit: options.limit,
             }, { signal: options.signal }),
+        );
+      },
+    },
+    workerLinkRequests: {
+      find(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["workerLinkRequests.find"](
+              { userCode: options.userCode },
+              { signal: options.signal },
+            ),
+        );
+      },
+      approve(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["workerLinkRequests.approve"](
+              { id: options.id, ...options.input },
+              {
+                idempotencyKey: options.idempotencyKey,
+                signal: options.signal,
+              },
+            ),
+        );
+      },
+      decline(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["workerLinkRequests.decline"]({ id: options.id }, {
+              idempotencyKey: options.idempotencyKey,
+              signal: options.signal,
+            }),
         );
       },
     },
