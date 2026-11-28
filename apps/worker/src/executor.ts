@@ -66,6 +66,7 @@ export type WorkerExecutor = {
   credentialRedactionSecrets?(
     assignment: JobAssignment,
   ): Promise<readonly string[]>;
+  attemptEnded?(attemptId: string): void;
   execute(
     assignment: JobAssignment,
     signal: AbortSignal,

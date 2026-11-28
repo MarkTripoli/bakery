@@ -55,6 +55,12 @@ import type {
   JsonValue,
   WorkerInventoryCheck,
 } from "./types.ts";
+import {
+  type MeteredModelKey,
+  meteredModelKey,
+  type ReadModelKey,
+} from "./model-key.ts";
+import { CLAUDE_MODEL_KEY_VARIABLES } from "./claude-harness.ts";
 
 /**
  * The independent reviewer (issue #94): the worker executor of
@@ -175,6 +181,7 @@ export type ReviewerExecutorOptions = {
   /** Private worker state root; attempt roots live in its `reviews` subdirectory. */
   readonly stateDir: string;
   readonly claude: ReviewerClaudeOptions;
+  readonly readModelKey?: ReadModelKey;
   /** Values that must never reach a report (configured secrets). */
   readonly redactionSecrets?: readonly string[];
   /** Credential and state files of the worker; the attempt root keeps clear of them. */
@@ -575,12 +582,24 @@ async function executeReview(
   }
   const claude = options.claude;
   if (signal.aborted) return provenCanceledOutcome();
-  if (!await claudeAuthSourceAvailable(claude.authSourceDir)) {
+  let metered: MeteredModelKey | null;
+  try {
+    metered = await meteredModelKey(
+      assignment,
+      options.readModelKey,
+      CLAUDE_MODEL_KEY_VARIABLES,
+    );
+  } catch {
+    return unavailable(CLI_CREDENTIAL_REASON);
+  }
+  if (
+    metered === null && !await claudeAuthSourceAvailable(claude.authSourceDir)
+  ) {
     return unavailable(CLI_CREDENTIAL_REASON);
   }
   let credentialSecrets: readonly string[];
   try {
-    credentialSecrets = await harnessCredentialSecrets(
+    credentialSecrets = metered?.secrets ?? await harnessCredentialSecrets(
       join(claude.authSourceDir, CLAUDE_CREDENTIALS_FILE),
     );
   } catch {
@@ -690,7 +709,9 @@ async function executeReview(
     try {
       await Deno.mkdir(configPath, { mode: 0o700 });
       await Deno.chmod(configPath, 0o700);
-      await prepareClaudeAuth(claude.authSourceDir, configPath);
+      if (metered === null) {
+        await prepareClaudeAuth(claude.authSourceDir, configPath);
+      }
     } catch {
       return unavailable(CLI_CREDENTIAL_REASON);
     }
@@ -745,6 +766,7 @@ async function executeReview(
       output,
       groupKillExecutable: claude.groupKillExecutable,
       environment: {
+        ...metered?.environment,
         HOME: layout.home,
         CLAUDE_CONFIG_DIR: configPath,
         TMPDIR: layout.tmp,
@@ -956,6 +978,12 @@ export function createReviewerExecutor(
       if (assignment.action !== REVIEW_ACTION) {
         return await inner.credentialRedactionSecrets?.(assignment) ?? [];
       }
+      const metered = await meteredModelKey(
+        assignment,
+        options.readModelKey,
+        CLAUDE_MODEL_KEY_VARIABLES,
+      );
+      if (metered !== null) return metered.secrets;
       return await harnessCredentialSecrets(
         join(options.claude.authSourceDir, CLAUDE_CREDENTIALS_FILE),
       );
