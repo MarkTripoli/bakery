@@ -92,3 +92,59 @@ Deno.test("an unknown provider is refused before anything is sent", async () => 
     await f.cleanup();
   }
 });
+
+Deno.test("rotating a model API key checks the new key with the same provider", async () => {
+  const f = await openSecretsFixture();
+  try {
+    f.setProvider(() => Promise.resolve(Response.json({ data: [] })));
+    const created = await f.client.actions["secrets.create"]({
+      applicationId: f.applicationId,
+      name: "Rotated model key",
+      provider: "openai",
+      value: `sk-${crypto.randomUUID()}`,
+    }, { idempotencyKey: crypto.randomUUID() });
+    const calls = f.calls();
+    const next = `sk-${crypto.randomUUID()}`;
+    const rotated = await f.client.actions["secrets.rotate"]({
+      id: created.id,
+      applicationId: f.applicationId,
+      value: next,
+    }, { idempotencyKey: crypto.randomUUID(), ifMatch: '"v1"' });
+    assertEquals(rotated.activeVersionRevision, 2);
+    assertEquals(
+      [
+        rotated.provider,
+        rotated.verifiedProviderAccountId,
+        rotated.verifiedLogin,
+      ],
+      ["openai", null, null],
+    );
+    assertEquals(f.calls(), calls + 1);
+    assertEquals(f.providerUrls().at(-1), "https://api.openai.com/v1/models");
+    assertEquals(f.providerAuthorizations().at(-1), `Bearer ${next}`);
+
+    f.setProvider(() => Promise.resolve(new Response("{}", { status: 401 })));
+    const refused = await f.request(
+      `/v1/secrets/${created.id}/versions`,
+      {
+        applicationId: f.applicationId,
+        value: "sk-refused",
+      },
+      crypto.randomUUID(),
+      undefined,
+      { method: "POST", ifMatch: '"v2"' },
+    );
+    assertEquals(refused.status, 422, await refused.clone().text());
+    const versions = await f.fixture.pgDatabase.query<{ count: number }>(
+      "select count(*)::int as count from bakery.secret_versions where secret_id = $1",
+      [created.id],
+    );
+    assertEquals(
+      versions.rows[0]!.count,
+      2,
+      "a refused rotation stores nothing",
+    );
+  } finally {
+    await f.cleanup();
+  }
+});
