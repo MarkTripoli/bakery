@@ -218,6 +218,7 @@ test.describe("real API machines authenticated projections", () => {
         "failedChecks",
         "credentialGeneration",
         "inventoryRevision",
+        "meteredModelReady",
       ]),
     );
     for (const check of body.failedChecks) {

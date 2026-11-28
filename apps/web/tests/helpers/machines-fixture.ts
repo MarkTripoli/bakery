@@ -99,6 +99,7 @@ export async function adminMachinesFixture(
         failedChecks: [],
         credentialGeneration: 1,
         inventoryRevision: 1,
+        meteredModelReady: false,
       }));
     }
     return route.fulfill(json({ items: [], nextCursor: null }));

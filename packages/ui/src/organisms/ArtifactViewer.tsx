@@ -6,6 +6,14 @@ import {
   useId,
 } from "react";
 import "../artifacts.css";
+import {
+  HEADING,
+  INLINE_LINK,
+  INLINE_TOKEN,
+  MOST_TABLE_CELLS,
+  readTable,
+  startsTable,
+} from "../markdown-lines.ts";
 
 export type ArtifactViewerContent =
   | {
@@ -60,7 +68,7 @@ export type ArtifactViewerProps = {
 };
 
 function inlineMarkdown(text: string): ReactNode[] {
-  return text.split(/(`[^`]+`|\*\*[^*]+\*\*|\*[^*]+\*|\[[^\]]+\]\([^\s)]+\))/g)
+  return text.split(INLINE_TOKEN)
     .map((part, index) => {
       if (part.startsWith("`") && part.endsWith("`")) {
         return <code key={index}>{part.slice(1, -1)}</code>;
@@ -71,7 +79,7 @@ function inlineMarkdown(text: string): ReactNode[] {
       if (part.startsWith("*") && part.endsWith("*")) {
         return <em key={index}>{part.slice(1, -1)}</em>;
       }
-      const link = /^\[([^\]]+)\]\(([^\s)]+)\)$/.exec(part);
+      const link = INLINE_LINK.exec(part);
       if (link?.[1] && link[2] && /^(https?:\/\/|mailto:|#)/i.test(link[2])) {
         return (
           <a key={index} href={link[2]} rel="noopener noreferrer">{link[1]}</a>
@@ -81,12 +89,15 @@ function inlineMarkdown(text: string): ReactNode[] {
     });
 }
 
+const RULE_LINE = /^(-{3,}|\*{3,}|_{3,})\s*$/;
+
 // Markdown is constructed exclusively from React text nodes and an allowlist of elements.
 // Raw HTML, embedded media, and non-web link schemes never become executable markup.
 function markdown(text: string): ReactNode[] {
   const lines = text.replace(/\r\n?/g, "\n").split("\n");
   const blocks: ReactNode[] = [];
   let index = 0;
+  let cellsLeft = MOST_TABLE_CELLS;
   while (index < lines.length) {
     const line = lines[index] ?? "";
     const key = index;
@@ -108,7 +119,59 @@ function markdown(text: string): ReactNode[] {
       );
       continue;
     }
-    const heading = /^(#{1,6})\s+(.+)$/.exec(line);
+    if (RULE_LINE.test(line)) {
+      blocks.push(<hr key={key} />);
+      index++;
+      continue;
+    }
+    if (startsTable(lines, index)) {
+      const { header, rows, overflow, cells, end } = readTable(
+        lines,
+        index,
+        cellsLeft,
+      );
+      cellsLeft -= cells;
+      index = end;
+      if (header.length > 0) {
+        blocks.push(
+          <div
+            className="ui-artifact-viewer__table"
+            key={key}
+            role="group"
+            aria-label={header.join(", ")}
+            tabIndex={0}
+          >
+            <table>
+              <thead>
+                <tr>
+                  {header.map((cell, column) => (
+                    <th key={column} scope="col">{inlineMarkdown(cell)}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row, at) => (
+                  <tr key={at}>
+                    {header.map((_, column) => (
+                      <td key={column}>{inlineMarkdown(row[column] ?? "")}</td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>,
+        );
+      }
+      if (overflow.length > 0) {
+        blocks.push(
+          <pre dir="ltr" data-ui-overflow="wrap" key={`${key}-rest`}>
+            <code>{overflow.join("\n")}</code>
+          </pre>,
+        );
+      }
+      continue;
+    }
+    const heading = HEADING.exec(line);
     if (heading?.[1] && heading[2]) {
       blocks.push(
         createElement(
@@ -136,7 +199,8 @@ function markdown(text: string): ReactNode[] {
     index++;
     while (
       index < lines.length && lines[index]?.trim() &&
-      !/^(#{1,6}\s|[-*+]\s|```)/.test(lines[index] ?? "")
+      !/^(#{1,6}\s|[-*+]\s|```)/.test(lines[index] ?? "") &&
+      !startsTable(lines, index) && !RULE_LINE.test(lines[index] ?? "")
     ) paragraph.push(lines[index++] ?? "");
     blocks.push(<p key={key}>{inlineMarkdown(paragraph.join("\n"))}</p>);
   }

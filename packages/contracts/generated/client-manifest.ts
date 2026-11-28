@@ -82055,6 +82055,10 @@ export const clientManifest = {
           "minimum": -9007199254740991,
           "maximum": 9007199254740991,
           "description": "Current inventory revision used to judge check freshness."
+        },
+        "meteredModelReady": {
+          "type": "boolean",
+          "description": "Whether the machine still takes model work paid by API key although its model check fails: the only blocked capability is model and the machine has an enabled api_secret binding to a live key that allows model.inference. The claim gate then admits only api-route jobs that such a key covers."
         }
       },
       "required": [
@@ -82065,7 +82069,8 @@ export const clientManifest = {
         "blockedCapabilities",
         "failedChecks",
         "credentialGeneration",
-        "inventoryRevision"
+        "inventoryRevision",
+        "meteredModelReady"
       ],
       "additionalProperties": false,
       "description": "Safe per-machine dispatch gate projection. Freshness is evaluated against the host credential generation, inventory revision and check expiry by the same dispatchGate rule the worker claim gate uses, which also folds in host status, desired mode and heartbeat connectivity; stale results are omitted."
