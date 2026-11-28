@@ -1,5 +1,25 @@
 import type { PgTransactionClient } from "./postgres.ts";
 
+const LIVE_MODEL_KEY_SOURCE = `
+       from bakery.worker_provider_bindings as binding
+       join bakery.secrets as secret
+         on secret.organization_id = binding.organization_id
+        and secret.id = binding.secret_id
+       join bakery.secret_versions as version
+         on version.organization_id = secret.organization_id
+        and version.id = secret.active_version_id
+      where binding.organization_id = $1
+        and binding.worker_host_id = $2
+        and binding.billing_route = 'api_metered'
+        and binding.auth_mode = 'api_secret'
+        and binding.enabled
+        and secret.provider = binding.provider
+        and secret.provider in ('anthropic', 'openai', 'openrouter')
+        and secret.application_id is not null
+        and secret.revoked_at is null
+        and (secret.expires_at is null or secret.expires_at > clock_timestamp())
+        and (version.expires_at is null or version.expires_at > clock_timestamp())`;
+
 export const MODEL_KEY_ACTION = "model.inference";
 
 const HARNESS_COMPONENT_KEYS: Readonly<Record<string, string>> = {
@@ -105,26 +125,9 @@ export async function coveringModelKey(
             secret.expires_at as "secretExpiresAt",
             version.revision, version.key_id as "keyId",
             version.ciphertext, version.nonce
-       from bakery.worker_provider_bindings as binding
-       join bakery.secrets as secret
-         on secret.organization_id = binding.organization_id
-        and secret.id = binding.secret_id
-       join bakery.secret_versions as version
-         on version.organization_id = secret.organization_id
-        and version.id = secret.active_version_id
-      where binding.organization_id = $1
-        and binding.worker_host_id = $2
+${LIVE_MODEL_KEY_SOURCE}
         and binding.component_key = $3
         and binding.provider = $4
-        and binding.billing_route = 'api_metered'
-        and binding.auth_mode = 'api_secret'
-        and binding.enabled
-        and secret.provider = binding.provider
-        and secret.provider in ('anthropic', 'openai', 'openrouter')
-        and secret.application_id is not null
-        and secret.revoked_at is null
-        and (secret.expires_at is null or secret.expires_at > clock_timestamp())
-        and (version.expires_at is null or version.expires_at > clock_timestamp())
       order by binding.created_at, binding.id
       limit 1`,
     [organizationId, workerHostId, componentKey, job.provider],
@@ -148,19 +151,7 @@ export async function hostHoldsModelKey(
   workerHostId: string,
 ): Promise<boolean> {
   const found = await transaction.query(
-    `select 1
-       from bakery.worker_provider_bindings as binding
-       join bakery.secrets as secret
-         on secret.organization_id = binding.organization_id
-        and secret.id = binding.secret_id
-      where binding.organization_id = $1
-        and binding.worker_host_id = $2
-        and binding.billing_route = 'api_metered'
-        and binding.auth_mode = 'api_secret'
-        and binding.enabled
-        and secret.provider = binding.provider
-        and secret.revoked_at is null
-        and (secret.expires_at is null or secret.expires_at > clock_timestamp())
+    `select 1 ${LIVE_MODEL_KEY_SOURCE}
         and secret.allowed_actions ? $3
       limit 1`,
     [organizationId, workerHostId, MODEL_KEY_ACTION],

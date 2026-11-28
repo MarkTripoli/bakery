@@ -687,3 +687,24 @@ Deno.test("a bound key never holds back work that needs no model", async () => {
     await f.cleanup();
   }
 });
+
+Deno.test("a machine whose only key version has expired is not ready for api-paid work", async () => {
+  const f = await openSecretsFixture();
+  try {
+    const fixture = asWorkerFixture(f);
+    const { worker } = await keyOnlyMachine(f, fixture, "issue70-expired");
+    assertEquals(await meteredModelReady(fixture, worker), true);
+    await fixture.pgDatabase.query(
+      `update bakery.secret_versions as version
+          set expires_at = clock_timestamp() - interval '1 minute'
+         from bakery.worker_provider_bindings as binding
+        where binding.worker_host_id = $1
+          and version.secret_id = binding.secret_id`,
+      [worker.registration.workerHostId],
+    );
+    assertEquals(await meteredModelReady(fixture, worker), false);
+    assertEquals((await claimStatus(fixture, worker)).status, 204);
+  } finally {
+    await f.cleanup();
+  }
+});
