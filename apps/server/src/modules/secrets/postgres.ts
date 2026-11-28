@@ -349,6 +349,9 @@ export async function updateSecretPolicy(
   if (current.version !== expectedVersion || current.revokedAt !== null) {
     throw new StandardError({ code: "PRECONDITION_FAILED" });
   }
+  if (!secretActionsFitProvider(current.provider, input.allowedActions)) {
+    throw new StandardError({ code: "UNPROCESSABLE" });
+  }
   const version = current.version + 1;
   await transaction.query(
     `update bakery.secrets set allowed_principals=$4::jsonb,allowed_actions=$5::jsonb,policy_revision=policy_revision+1,invalidation_generation=invalidation_generation+1,version=$6,updated_at=now() where ${scope} and id=$3`,

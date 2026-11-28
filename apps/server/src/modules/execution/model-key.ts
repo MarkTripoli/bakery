@@ -28,8 +28,9 @@ type SealedModelKey = {
   keyId: string;
   ciphertext: Uint8Array<ArrayBuffer>;
   nonce: Uint8Array<ArrayBuffer>;
-  provider: ModelKeyProvider;
 };
+
+type ReleasedModelKey = { provider: ModelKeyProvider; apiKey: string };
 
 const DECIMAL = /^(?:0|[1-9][0-9]*)$/;
 const LIVE_ATTEMPT_STATUSES = new Set(["leased", "running"]);
@@ -54,10 +55,10 @@ function modelKeyRefusal(reason: string): StandardError {
   return new StandardError({ code: "STATE_CONFLICT", params: { reason } });
 }
 
-async function sealedModelKey(
+async function releasedModelKey(
   context: Context,
   options: ExecutionRouteOptions,
-): Promise<SealedModelKey> {
+): Promise<ReleasedModelKey> {
   const attemptId = readAttemptId(context);
   const metadata = requestMetadata(context);
   const headers = context.req.raw.headers;
@@ -195,9 +196,18 @@ async function sealedModelKey(
         !textList(key.allowedPrincipals).includes(job.requestedBy) ||
         !textList(key.allowedActions).includes(MODEL_KEY_ACTION)
       ) throw modelKeyRefusal("model_key_not_allowed");
+      const apiKey = await decryptModelKey(options, {
+        organizationId: attempt.organization_id,
+        applicationId: key.applicationId,
+        secretId: key.secretId,
+        revision: key.revision,
+        keyId: key.keyId,
+        ciphertext: key.ciphertext,
+        nonce: key.nonce,
+      });
       await appendAudit(transaction, {
         organizationId: attempt.organization_id,
-        principalId: job.requestedBy,
+        principalId: identity.host.principal_id,
         operation: "worker.modelKey",
         resourceType: "secret",
         resourceId: key.secretId,
@@ -206,6 +216,7 @@ async function sealedModelKey(
         details: {
           attemptId: attempt.id,
           workerHostId: identity.host.id,
+          startedBy: job.requestedBy,
           bindingId: key.bindingId,
           provider: key.provider,
           revision: key.revision,
@@ -215,25 +226,15 @@ async function sealedModelKey(
           leaseExpiresAt: new Date(attempt.lease_expires_at).toISOString(),
         },
       });
-      return {
-        organizationId: attempt.organization_id,
-        applicationId: key.applicationId,
-        secretId: key.secretId,
-        revision: key.revision,
-        keyId: key.keyId,
-        ciphertext: key.ciphertext,
-        nonce: key.nonce,
-        provider: key.provider,
-      };
+      return { provider: key.provider, apiKey };
     },
   );
 }
 
-export async function workerModelKeyRoute(
-  context: Context,
+async function decryptModelKey(
   options: ExecutionRouteOptions,
-): Promise<Response> {
-  const sealed = await sealedModelKey(context, options);
+  sealed: SealedModelKey,
+): Promise<string> {
   let plaintext: Uint8Array | undefined;
   try {
     if (!options.secretsKey || sealed.keyId !== options.secretsKey.keyId) {
@@ -247,13 +248,22 @@ export async function workerModelKeyRoute(
       revision: sealed.revision,
       keyId: sealed.keyId,
     }, { ciphertext: sealed.ciphertext, nonce: sealed.nonce });
-    const apiKey = new TextDecoder("utf-8", { fatal: true }).decode(plaintext);
-    const response = jsonResponse({ provider: sealed.provider, apiKey }, 200);
-    response.headers.set("Cache-Control", "no-store");
-    return response;
+    return new TextDecoder("utf-8", { fatal: true }).decode(plaintext);
+  } catch {
+    throw modelKeyRefusal("model_key_unreadable");
   } finally {
     plaintext?.fill(0);
     sealed.ciphertext.fill(0);
     sealed.nonce.fill(0);
   }
+}
+
+export async function workerModelKeyRoute(
+  context: Context,
+  options: ExecutionRouteOptions,
+): Promise<Response> {
+  const released = await releasedModelKey(context, options);
+  const response = jsonResponse(released, 200);
+  response.headers.set("Cache-Control", "no-store");
+  return response;
 }

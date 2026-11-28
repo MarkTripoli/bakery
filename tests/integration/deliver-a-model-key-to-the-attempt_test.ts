@@ -347,6 +347,15 @@ Deno.test("each coding agent's job reads the key bound to its own harness", asyn
       );
       assertEquals(audits.rows.length, 1);
       assertEquals(audits.rows[0]!.details.attemptId, assignment.attemptId);
+      assertEquals(audits.rows[0]!.details.startedBy, f.principalId);
+      const reader = await fixture.pgDatabase.query<{ matches: boolean }>(
+        `select audit.principal_id = host.principal_id as matches
+           from bakery.audit_events audit
+           join bakery.worker_hosts host on host.id = $2
+          where audit.operation = 'worker.modelKey' and audit.resource_id = $1::text`,
+        [secretId, worker.registration.workerHostId],
+      );
+      assertEquals(reader.rows[0]?.matches, true);
     }
   } finally {
     await f.cleanup();
@@ -442,6 +451,85 @@ Deno.test("an attempt that is being canceled gets no key", async () => {
       await refusal(await readModelKey(fixture, worker, assignment)),
       [409, "model_key_attempt_ending"],
     );
+  } finally {
+    await f.cleanup();
+  }
+});
+
+Deno.test("a key whose bytes cannot be read is refused and leaves no audit row", async () => {
+  const f = await openSecretsFixture();
+  try {
+    const fixture = asWorkerFixture(f);
+    const worker = await registeredWorker(fixture, {
+      name: "issue70-unreadable",
+    });
+    const { assignment, applicationId } = await claimMeteredJob(
+      fixture,
+      worker,
+      "api",
+    );
+    await reportHarnesses(fixture, worker);
+    const secretId = await saveKey(
+      f,
+      applicationId,
+      "anthropic",
+      `sk-ant-${crypto.randomUUID()}`,
+    );
+    const bound = await bindKey(fixture, worker, secretId);
+    assertEquals(bound.status, 201, await bound.clone().text());
+    await bound.body?.cancel();
+    await fixture.pgDatabase.query(
+      `update bakery.secret_versions set key_id = 'another-key-v9' where secret_id = $1`,
+      [secretId],
+    );
+    assertEquals(
+      await refusal(await readModelKey(fixture, worker, assignment)),
+      [409, "model_key_unreadable"],
+    );
+    const audits = await fixture.pgDatabase.query(
+      `select 1 from bakery.audit_events
+        where operation = 'worker.modelKey' and resource_id = $1::text`,
+      [secretId],
+    );
+    assertEquals(audits.rows, []);
+  } finally {
+    await f.cleanup();
+  }
+});
+
+Deno.test("a policy update cannot give a key the other kind of secret's action", async () => {
+  const f = await openSecretsFixture();
+  try {
+    const fixture = asWorkerFixture(f);
+    const job = await seedEligibleNonmodelJob(
+      fixture.pgDatabase,
+      fixture.organizationId,
+      fixture.principalId,
+    );
+    const modelKey = await saveKey(
+      f,
+      job.applicationId,
+      "anthropic",
+      `sk-ant-${crypto.randomUUID()}`,
+    );
+    const refused = await f.request(
+      `/v1/secrets/${modelKey}`,
+      {
+        applicationId: job.applicationId,
+        allowedPrincipalIds: [f.principalId],
+        allowedActions: ["identity.read"],
+      },
+      crypto.randomUUID(),
+      f.organizationId,
+      { method: "PATCH", ifMatch: '"v1"' },
+    );
+    assertEquals(refused.status, 422, await refused.clone().text());
+    await refused.body?.cancel();
+    const kept = await fixture.pgDatabase.query<{ allowed_actions: unknown }>(
+      `select allowed_actions from bakery.secrets where id = $1`,
+      [modelKey],
+    );
+    assertEquals(kept.rows[0]?.allowed_actions, ["model.inference"]);
   } finally {
     await f.cleanup();
   }
