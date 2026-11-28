@@ -1,3 +1,4 @@
+import { escapeIlikePattern } from "../../platform/like-pattern.ts";
 import { type Context } from "hono";
 import { paymentMethodsOf } from "./coding-agent-payment.ts";
 import { parseStrongIfMatch, StandardError } from "@bakery/contracts/http";
@@ -696,10 +697,16 @@ export async function archiveWorker(
   );
 }
 
-/** cursor, limit and includeArchived only; includeArchived is true|false. */
+const WORKER_NAME_QUERY_MAX = 200;
+
 function parseWorkerListQuery(
   context: Context<{ Variables: AuthVariables }>,
-): { cursor?: string; limit: number; includeArchived: boolean } {
+): {
+  cursor?: string;
+  limit: number;
+  includeArchived: boolean;
+  query: string | null;
+} {
   const search = new URL(context.req.url).searchParams;
   const flags = search.getAll("includeArchived");
   const flag = flags[0];
@@ -709,12 +716,18 @@ function parseWorkerListQuery(
   ) {
     throw new StandardError({ code: "MALFORMED_REQUEST" });
   }
+  const queries = search.getAll("query");
+  const query = queries[0]?.trim() ?? "";
+  if (queries.length > 1 || query.length > WORKER_NAME_QUERY_MAX) {
+    throw new StandardError({ code: "MALFORMED_REQUEST" });
+  }
   const cursor = search.get("cursor") ?? undefined;
   const limit = Math.min(Number(search.get("limit") ?? 25), 100);
   return {
     ...(cursor === undefined ? {} : { cursor }),
     limit,
     includeArchived: flag === "true",
+    query: query === "" ? null : query,
   };
 }
 
@@ -734,7 +747,10 @@ export async function listWorkers(
         organizationId: organization,
         principalId: principal.principalId,
         ordering: "createdAt:asc,id:asc",
-        filters: JSON.stringify({ includeArchived: query.includeArchived }),
+        filters: JSON.stringify({
+          includeArchived: query.includeArchived,
+          query: query.query,
+        }),
         schemaVersion: 1,
       };
       const limit = query.limit;
@@ -749,8 +765,10 @@ export async function listWorkers(
         `select id, created_at from bakery.worker_hosts
          where organization_id = $1
            and ($5::boolean or archived_at is null)
-           and ($2::timestamptz is null or (created_at, id) > ($2, $3::uuid))
-         order by created_at asc, id asc
+           and ($6::text is null or name ilike $6 escape '\\')
+           and ($2::timestamptz is null
+             or (date_trunc('milliseconds', created_at), id) > ($2, $3::uuid))
+         order by date_trunc('milliseconds', created_at) asc, id asc
          limit $4`,
         [
           organization,
@@ -758,6 +776,7 @@ export async function listWorkers(
           position?.id ?? null,
           limit + 1,
           query.includeArchived,
+          query.query === null ? null : `%${escapeIlikePattern(query.query)}%`,
         ],
       );
       const visible = rows.rows.slice(0, limit);
