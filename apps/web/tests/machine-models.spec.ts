@@ -104,6 +104,7 @@ type World = {
   listCalls: number;
   /** While true, the read of this machine's sign-ins fails. */
   failBindings: boolean;
+  pi?: boolean;
 };
 
 let nextRoute = 1;
@@ -162,14 +163,14 @@ function world(over: Partial<World> = {}): World {
   };
 }
 
-function machine() {
+function machine(agent = "claude") {
   return {
     id: MACHINE_ID,
     principalId: "00000000-0000-4000-8000-0000000000a2",
     name: "fixture-host",
     os: "linux",
     architecture: "x86_64",
-    capabilities: ["git", "shell", "web", "model", "claude"],
+    capabilities: ["git", "shell", "web", "model", agent],
     toolchainVersions: {},
     slots: 2,
     status: "online",
@@ -255,8 +256,8 @@ async function open(
         items: w.bound
           ? [{
             id: "00000000-0000-4000-8000-0000000000c0",
-            componentKey: "harness.claude",
-            paymentMethods: ["subscription"],
+            componentKey: w.pi ? "harness.pi" : "harness.claude",
+            paymentMethods: w.pi ? ["api_metered", "local"] : ["subscription"],
             kind: "harness",
             actualVersion: "1.0.0",
             actualDigest: null,
@@ -275,8 +276,16 @@ async function open(
       if (w.role !== "admin") return r.fulfill(problem(403, "AUTH_FORBIDDEN"));
       if (w.gate !== null) await w.gate;
       if (w.failBindings) return r.fulfill(problem(500, "INTERNAL"));
+      const signedIn = w.pi
+        ? {
+          ...bindingWire,
+          componentKey: "harness.pi",
+          provider: "pi",
+          billingRoute: "api_metered",
+        }
+        : bindingWire;
       return r.fulfill(
-        json({ items: w.bound ? [bindingWire] : [], nextCursor: null }),
+        json({ items: w.bound ? [signedIn] : [], nextCursor: null }),
       );
     }
     if (url.pathname.endsWith("/models")) {
@@ -300,7 +309,7 @@ async function open(
   });
   await page.route(
     (url) => url.pathname === `/v1/workers/${MACHINE_ID}`,
-    (r) => r.fulfill(json(machine())),
+    (r) => r.fulfill(json(machine(w.pi ? "pi" : "claude"))),
   );
   await page.route(
     (url) => url.pathname === "/v1/provider-routes",
@@ -748,6 +757,31 @@ test.describe("machine page: Add a model", () => {
     const listed = await row(page, "acme-small").boundingBox();
     expect(added!.y).toBeGreaterThan(listed!.y);
     await still(page, "add-model-saved");
+  });
+
+  test("a Pi model is paid per use, never by a subscription", async ({ page }) => {
+    await open(page, world({ pi: true }), `/machines/${MACHINE_ID}/models/new`);
+    const form = page.getByTestId("machine-model-new");
+    const pi = page.getByRole("radio", { name: "Pi" });
+    await expect(pi).toBeVisible();
+    await expect(pi).not.toBeChecked();
+    await expect(pi).toBeEnabled();
+    await expect(form).toContainText(
+      "Choose a coding agent to see how it is paid.",
+    );
+    await expect(form).not.toContainText(
+      "Paying with an API key is not available yet.",
+    );
+    await still(page, "add-model-pi-unchosen");
+    await pi.check({ force: true });
+    await expect(form).toContainText(
+      "Pi is paid per use by its model provider.",
+    );
+    await expect(form).not.toContainText("subscription signed in");
+    await expect(form).not.toContainText(
+      "Paying with an API key is not available yet.",
+    );
+    await still(page, "add-model-pi");
   });
 
   test("another provider is typed in, and an empty form says what is missing", async ({ page }) => {
