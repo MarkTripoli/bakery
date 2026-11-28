@@ -33,7 +33,9 @@ function asWorkerFixture(f: SecretsFixture): WorkerFixture {
   };
 }
 
-async function reportClaudeHarness(fixture: WorkerFixture, worker: Worker) {
+const HARNESS_COMPONENTS = ["harness.claude", "harness.codex", "harness.pi"];
+
+async function reportHarnesses(fixture: WorkerFixture, worker: Worker) {
   const response = await workerRequest(
     fixture,
     worker.credential,
@@ -42,8 +44,8 @@ async function reportClaudeHarness(fixture: WorkerFixture, worker: Worker) {
       reportId: crypto.randomUUID(),
       hostGeneration: worker.registration.registrationGeneration,
       expectedInventoryRevision: 1,
-      components: [{
-        componentKey: "harness.claude",
+      components: HARNESS_COMPONENTS.map((componentKey) => ({
+        componentKey,
         kind: "harness",
         actualVersion: "1.0",
         installOwner: "external",
@@ -51,7 +53,7 @@ async function reportClaudeHarness(fixture: WorkerFixture, worker: Worker) {
         observedAt: OBSERVED,
         capabilities: ["git", "shell"],
         maintenanceSupport: { remoteLogin: "none" },
-      }],
+      })),
       checks: [],
     },
     {
@@ -68,14 +70,15 @@ async function saveKey(
   applicationId: string,
   provider: string,
   value: string,
+  policy: { principals?: string[]; actions?: string[] } = {},
 ): Promise<string> {
   const created = await f.request("/v1/secrets", {
     applicationId,
     name: `Model key ${crypto.randomUUID().slice(0, 8)}`,
     provider,
     value,
-    allowedPrincipalIds: [f.principalId],
-    allowedActions: ["identity.read"],
+    allowedPrincipalIds: policy.principals ?? [f.principalId],
+    allowedActions: policy.actions ?? ["model.inference"],
   }, crypto.randomUUID());
   assertEquals(created.status, 201, await created.clone().text());
   return (await created.json() as { id: string }).id;
@@ -86,12 +89,13 @@ function bindKey(
   worker: Worker,
   secretId: string,
   provider = "anthropic",
+  componentKey = "harness.claude",
 ): Promise<Response> {
   return adminRequest(
     fixture,
     `/v1/workers/${worker.registration.workerHostId}/provider-bindings`,
     {
-      componentKey: "harness.claude",
+      componentKey,
       provider,
       billingRoute: "api_metered",
       authMode: "api_secret",
@@ -106,6 +110,10 @@ async function claimMeteredJob(
   fixture: WorkerFixture,
   worker: Worker,
   billingRoute: string,
+  agent: { harness: string; provider: string } = {
+    harness: "claude_code",
+    provider: "anthropic",
+  },
 ): Promise<{ assignment: WorkerAssignment; applicationId: string }> {
   const job = await seedEligibleNonmodelJob(
     fixture.pgDatabase,
@@ -129,10 +137,16 @@ async function claimMeteredJob(
   assertEquals(assignment.jobId, job.jobId);
   await fixture.pgDatabase.query(
     `update bakery.jobs
-        set agent_config = jsonb_set(coalesce(agent_config, '{}'::jsonb), '{harness}', '"claude"'),
-            billing = jsonb_build_object('provider', 'anthropic', 'billingRoute', $3::text)
+        set agent_config = jsonb_set(coalesce(agent_config, '{}'::jsonb), '{harness}', to_jsonb($4::text)),
+            billing = jsonb_build_object('provider', $5::text, 'billingRoute', $3::text)
       where organization_id = $1 and id = $2`,
-    [fixture.organizationId, job.jobId, billingRoute],
+    [
+      fixture.organizationId,
+      job.jobId,
+      billingRoute,
+      agent.harness,
+      agent.provider,
+    ],
   );
   return { assignment, applicationId: job.applicationId };
 }
@@ -178,7 +192,7 @@ Deno.test("the worker holding the lease reads the bound model key, and nothing e
       worker,
       "api",
     );
-    await reportClaudeHarness(fixture, worker);
+    await reportHarnesses(fixture, worker);
 
     assertEquals(
       await refusal(await readModelKey(fixture, worker, assignment)),
@@ -230,7 +244,7 @@ Deno.test("a subscription job gets no key even when the machine has one bound", 
       worker,
       "subscription",
     );
-    await reportClaudeHarness(fixture, worker);
+    await reportHarnesses(fixture, worker);
     const secretId = await saveKey(
       f,
       applicationId,
@@ -256,7 +270,7 @@ Deno.test("a binding refuses a key saved for another provider", async () => {
     const worker = await registeredWorker(fixture, {
       name: "issue70-mismatch",
     });
-    await reportClaudeHarness(fixture, worker);
+    await reportHarnesses(fixture, worker);
     const job = await seedEligibleJob(
       fixture.pgDatabase,
       fixture.organizationId,
@@ -280,6 +294,154 @@ Deno.test("a binding refuses a key saved for another provider", async () => {
       [worker.registration.workerHostId],
     );
     assertEquals(rows.rows, []);
+  } finally {
+    await f.cleanup();
+  }
+});
+
+Deno.test("each coding agent's job reads the key bound to its own harness", async () => {
+  const f = await openSecretsFixture();
+  try {
+    const fixture = asWorkerFixture(f);
+    for (
+      const [harness, provider, componentKey] of [
+        ["claude_code", "anthropic", "harness.claude"],
+        ["codex", "openai", "harness.codex"],
+        ["pi", "openrouter", "harness.pi"],
+      ] as const
+    ) {
+      const worker = await registeredWorker(fixture, {
+        name: `issue70-${harness}`,
+      });
+      const { assignment, applicationId } = await claimMeteredJob(
+        fixture,
+        worker,
+        "api",
+        { harness, provider },
+      );
+      await reportHarnesses(fixture, worker);
+      const value = `${provider}-fixture-${crypto.randomUUID()}`;
+      const secretId = await saveKey(f, applicationId, provider, value);
+      const bound = await bindKey(
+        fixture,
+        worker,
+        secretId,
+        provider,
+        componentKey,
+      );
+      assertEquals(bound.status, 201, await bound.clone().text());
+      await bound.body?.cancel();
+      const read = await readModelKey(fixture, worker, assignment);
+      assertEquals(
+        read.status,
+        200,
+        `${harness}: ${await read.clone().text()}`,
+      );
+      assertEquals(await read.json(), { provider, apiKey: value });
+      const audits = await fixture.pgDatabase.query<
+        { details: Record<string, unknown> }
+      >(
+        `select details from bakery.audit_events
+          where operation = 'worker.modelKey' and resource_id = $1::text`,
+        [secretId],
+      );
+      assertEquals(audits.rows.length, 1);
+      assertEquals(audits.rows[0]!.details.attemptId, assignment.attemptId);
+    }
+  } finally {
+    await f.cleanup();
+  }
+});
+
+Deno.test("a key outside the job's project or its own allowed list is never released", async () => {
+  const f = await openSecretsFixture();
+  try {
+    const fixture = asWorkerFixture(f);
+    const cases = [
+      {
+        name: "issue70-project",
+        reason: "model_key_project_mismatch",
+        save: (_applicationId: string) =>
+          saveKey(
+            f,
+            f.applicationB,
+            "anthropic",
+            `sk-ant-${crypto.randomUUID()}`,
+          ),
+      },
+      {
+        name: "issue70-allowed",
+        reason: "model_key_not_allowed",
+        save: (applicationId: string) =>
+          saveKey(
+            f,
+            applicationId,
+            "anthropic",
+            `sk-ant-${crypto.randomUUID()}`,
+            {
+              principals: [],
+            },
+          ),
+      },
+    ];
+    for (const item of cases) {
+      const worker = await registeredWorker(fixture, { name: item.name });
+      const { assignment, applicationId } = await claimMeteredJob(
+        fixture,
+        worker,
+        "api",
+      );
+      await reportHarnesses(fixture, worker);
+      const secretId = await item.save(applicationId);
+      const bound = await bindKey(fixture, worker, secretId);
+      assertEquals(bound.status, 201, await bound.clone().text());
+      await bound.body?.cancel();
+      assertEquals(
+        await refusal(await readModelKey(fixture, worker, assignment)),
+        [409, item.reason],
+      );
+      const audits = await fixture.pgDatabase.query(
+        `select 1 from bakery.audit_events
+          where operation = 'worker.modelKey' and resource_id = $1::text`,
+        [secretId],
+      );
+      assertEquals(audits.rows, []);
+    }
+  } finally {
+    await f.cleanup();
+  }
+});
+
+Deno.test("an attempt that is being canceled gets no key", async () => {
+  const f = await openSecretsFixture();
+  try {
+    const fixture = asWorkerFixture(f);
+    const worker = await registeredWorker(fixture, {
+      name: "issue70-canceling",
+    });
+    const { assignment, applicationId } = await claimMeteredJob(
+      fixture,
+      worker,
+      "api",
+    );
+    await reportHarnesses(fixture, worker);
+    const secretId = await saveKey(
+      f,
+      applicationId,
+      "anthropic",
+      `sk-ant-${crypto.randomUUID()}`,
+    );
+    const bound = await bindKey(fixture, worker, secretId);
+    assertEquals(bound.status, 201, await bound.clone().text());
+    await bound.body?.cancel();
+    await fixture.pgDatabase.query(
+      `update bakery.job_attempts set status = 'canceling' where id = $1`,
+      [assignment.attemptId],
+    );
+    assertEquals(
+      await refusal(await readModelKey(fixture, worker, assignment)),
+      [409, "model_key_attempt_ending"],
+    );
   } finally {
     await f.cleanup();
   }

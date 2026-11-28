@@ -115,6 +115,16 @@ export function createSecretsListHandler(cursorSecret: string) {
     };
   };
 }
+const SECRET_ACTIONS = new Set(["identity.read", "model.inference"]);
+
+function secretActionsFitProvider(
+  provider: string | null | undefined,
+  actions: readonly string[],
+): boolean {
+  const fitting = provider === "github" ? "identity.read" : "model.inference";
+  return actions.every((action) => action === fitting);
+}
+
 export async function createSecret(
   context: ActionContext,
   input: z.output<typeof contractSchemas.SecretCreate>,
@@ -123,6 +133,9 @@ export async function createSecret(
   const { transaction, organizationId, principalId } = requireWorkTransaction(
     context,
   );
+  if (!secretActionsFitProvider(input.provider, input.allowedActions ?? [])) {
+    throw new StandardError({ code: "UNPROCESSABLE" });
+  }
   const prepared = await requireSecretPreparation(context, input);
   const grants = input.allowedPrincipalIds ?? [];
   if (grants.length) {
@@ -313,7 +326,7 @@ export async function updateSecretPolicy(
     new Set(input.allowedPrincipalIds).size !==
       input.allowedPrincipalIds.length ||
     new Set(input.allowedActions).size !== input.allowedActions.length ||
-    !input.allowedActions.every((action) => action === "identity.read")
+    !input.allowedActions.every((action) => SECRET_ACTIONS.has(action))
   ) {
     throw new StandardError({ code: "UNPROCESSABLE" });
   }

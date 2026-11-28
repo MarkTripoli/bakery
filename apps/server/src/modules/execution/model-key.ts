@@ -1,6 +1,7 @@
 import type { Context } from "hono";
 import { StandardError } from "@bakery/contracts/http";
 import { sha256Hex } from "../../platform/canonical-json.ts";
+import { appendAudit } from "@bakery/persistence/event-audit";
 import { decryptSecret, loadSecretKey } from "../secrets/crypto.ts";
 import {
   MODEL_KEY_PROVIDERS,
@@ -15,6 +16,7 @@ import {
   assertWorkerMutationSessionShape,
   type ExecutionRouteOptions,
   readAttemptId,
+  requestMetadata,
   workerTransaction,
 } from "./shared.ts";
 
@@ -30,6 +32,19 @@ type SealedModelKey = {
 };
 
 const DECIMAL = /^(?:0|[1-9][0-9]*)$/;
+const LIVE_ATTEMPT_STATUSES = new Set(["leased", "running"]);
+export const MODEL_KEY_ACTION = "model.inference";
+const HARNESS_COMPONENT_KEYS: Readonly<Record<string, string>> = {
+  claude_code: "harness.claude",
+  codex: "harness.codex",
+  pi: "harness.pi",
+};
+
+function textList(value: unknown): readonly string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [];
+}
 
 function isModelKeyProvider(value: string): value is ModelKeyProvider {
   return (MODEL_KEY_PROVIDERS as readonly string[]).includes(value);
@@ -44,6 +59,7 @@ async function sealedModelKey(
   options: ExecutionRouteOptions,
 ): Promise<SealedModelKey> {
   const attemptId = readAttemptId(context);
+  const metadata = requestMetadata(context);
   const headers = context.req.raw.headers;
   const leaseToken = headers.get("X-Worker-Lease-Token") ?? "";
   const fence = headers.get("X-Worker-Fence") ?? "";
@@ -73,36 +89,71 @@ async function sealedModelKey(
         generation,
       );
       assertActiveLease(attempt, identity, tokenHash, fence);
+      if (!LIVE_ATTEMPT_STATUSES.has(attempt.status)) {
+        throw modelKeyRefusal("model_key_attempt_ending");
+      }
       const jobs = await transaction.query<{
         harness: string | null;
         provider: string | null;
         billingRoute: string | null;
+        applicationId: string | null;
+        requestedBy: string | null;
+        requesterActive: boolean;
       }>(
-        `select agent_config->>'harness' as harness,
-                billing->>'provider' as provider,
-                billing->>'billingRoute' as "billingRoute"
-           from bakery.jobs where organization_id = $1 and id = $2`,
+        `select job.agent_config->>'harness' as harness,
+                job.billing->>'provider' as provider,
+                job.billing->>'billingRoute' as "billingRoute",
+                run.application_id as "applicationId",
+                run.requested_by as "requestedBy",
+                coalesce(
+                  membership.status = 'active' and requester.disabled_at is null,
+                  false
+                ) as "requesterActive"
+           from bakery.jobs as job
+           join bakery.run_steps as step
+             on step.organization_id = job.organization_id
+            and step.id = job.run_step_id
+           join bakery.workflow_runs as run
+             on run.organization_id = step.organization_id
+            and run.id = step.run_id
+           left join bakery.principals as requester
+             on requester.id = run.requested_by
+           left join bakery.organization_memberships as membership
+             on membership.organization_id = job.organization_id
+            and membership.principal_id = run.requested_by
+          where job.organization_id = $1 and job.id = $2`,
         [attempt.organization_id, attempt.job_id],
       );
       const job = jobs.rows[0];
-      if (
-        job === undefined || job.billingRoute !== "api"
-      ) throw modelKeyRefusal("model_key_not_metered");
-      if (job.harness === null || job.provider === null) {
+      if (job === undefined || job.billingRoute !== "api") {
+        throw modelKeyRefusal("model_key_not_metered");
+      }
+      const componentKey = job.harness === null
+        ? undefined
+        : HARNESS_COMPONENT_KEYS[job.harness];
+      if (componentKey === undefined || job.provider === null) {
         throw modelKeyRefusal("model_key_unbound");
       }
       const keys = await transaction.query<{
+        bindingId: string;
         secretId: string;
         applicationId: string;
         provider: string;
+        allowedPrincipals: unknown;
+        allowedActions: unknown;
+        secretExpiresAt: Date | string | null;
         revision: number;
         keyId: string;
         ciphertext: Uint8Array<ArrayBuffer>;
         nonce: Uint8Array<ArrayBuffer>;
       }>(
-        `select secret.id as "secretId",
+        `select binding.id as "bindingId", secret.id as "secretId",
                 secret.application_id as "applicationId",
-                secret.provider, version.revision, version.key_id as "keyId",
+                secret.provider,
+                secret.allowed_principals as "allowedPrincipals",
+                secret.allowed_actions as "allowedActions",
+                secret.expires_at as "secretExpiresAt",
+                version.revision, version.key_id as "keyId",
                 version.ciphertext, version.nonce
            from bakery.worker_provider_bindings as binding
            join bakery.secrets as secret
@@ -113,7 +164,7 @@ async function sealedModelKey(
             and version.id = secret.active_version_id
           where binding.organization_id = $1
             and binding.worker_host_id = $2
-            and binding.component_key = 'harness.' || $3
+            and binding.component_key = $3
             and binding.provider = $4
             and binding.billing_route = 'api_metered'
             and binding.auth_mode = 'api_secret'
@@ -128,7 +179,7 @@ async function sealedModelKey(
         [
           attempt.organization_id,
           identity.host.id,
-          job.harness,
+          componentKey,
           job.provider,
         ],
       );
@@ -136,6 +187,34 @@ async function sealedModelKey(
       if (key === undefined || !isModelKeyProvider(key.provider)) {
         throw modelKeyRefusal("model_key_unbound");
       }
+      if (key.applicationId !== job.applicationId) {
+        throw modelKeyRefusal("model_key_project_mismatch");
+      }
+      if (
+        job.requestedBy === null || !job.requesterActive ||
+        !textList(key.allowedPrincipals).includes(job.requestedBy) ||
+        !textList(key.allowedActions).includes(MODEL_KEY_ACTION)
+      ) throw modelKeyRefusal("model_key_not_allowed");
+      await appendAudit(transaction, {
+        organizationId: attempt.organization_id,
+        principalId: job.requestedBy,
+        operation: "worker.modelKey",
+        resourceType: "secret",
+        resourceId: key.secretId,
+        requestId: metadata.requestId,
+        traceId: metadata.traceId,
+        details: {
+          attemptId: attempt.id,
+          workerHostId: identity.host.id,
+          bindingId: key.bindingId,
+          provider: key.provider,
+          revision: key.revision,
+          secretExpiresAt: key.secretExpiresAt === null
+            ? null
+            : new Date(key.secretExpiresAt).toISOString(),
+          leaseExpiresAt: new Date(attempt.lease_expires_at).toISOString(),
+        },
+      });
       return {
         organizationId: attempt.organization_id,
         applicationId: key.applicationId,
