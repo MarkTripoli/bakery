@@ -611,7 +611,6 @@ Deno.test("a failed repair keeps this computer's link as it was", async () => {
 Deno.test("a macOS repair whose agent starts but never connects can be repaired again with the next code", async () => {
   const mac = { supportedSystems: [{ os: "macos", architecture: "arm64" }] };
   let bootstraps = 0;
-  const seen: string[] = [];
   const first = await harness({
     platform: "darwin",
     routes: {
@@ -681,17 +680,24 @@ Deno.test("a macOS repair whose agent starts but never connects can be repaired 
         code: "AAAA-BBBB",
         root: first.root,
       }, io);
-      seen.push(
-        "attempt " + attempt + " exit " + code + " bootstraps " + bootstraps +
-          " :: " +
-          h.text().trim().split("\n").filter(Boolean).slice(-3).join(" / "),
+      assertEquals(code, 1, h.text());
+      assert(h.text().includes("Link this machine? [y/N] "), h.text());
+      assert(!h.text().includes("already linked"), h.text());
+      assert(
+        h.text().includes("Bakery has not seen this machine yet"),
+        "the agent started but never connected",
       );
+      assertEquals(bootstraps, attempt);
       await h.close();
     }
+    assert(
+      await stat(join(first.root, "state", "registration.before-repair.json"))
+        .then(() => true, () => false),
+      "the set-aside registration is kept for the next repair",
+    );
   } finally {
     await first.close();
   }
-  console.log("QAP", JSON.stringify(seen, null, 1));
 });
 
 Deno.test("a failed install says what failed, where the log is, and to rerun", async () => {
