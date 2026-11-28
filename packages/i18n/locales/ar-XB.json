@@ -7880,5 +7880,9 @@
   "library.editor.conflictReload": "⟪Reload⟫",
   "library.editor.publishAway": "⟪You are offline. Publish when you are back.⟫",
   "library.editor.publishConflict": "⟪Reload to see their changes, then publish.⟫",
-  "library.editor.offlineEditing": "⟪You are offline. Changes are kept on this page and saved when you are back.⟫"
+  "library.editor.offlineEditing": "⟪You are offline. Changes are kept on this page and saved when you are back.⟫",
+  "machines.offline.lastUpdated": "⟪You are offline. Last updated {time}.⟫",
+  "machines.agents.signedInAs": "⟪Signed in as {account}.⟫",
+  "machines.checks.showMore": "⟪Show more⟫",
+  "machines.checks.showLess": "⟪Show less⟫"
 }

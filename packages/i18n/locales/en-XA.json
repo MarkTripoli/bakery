@@ -7880,5 +7880,9 @@
   "library.editor.conflictReload": "⟦Ŕëļôàð…⟧",
   "library.editor.publishAway": "⟦Ÿôû àŕë ôƒƒļïñë. Þûƀļïšĥ ŵĥëñ ÿôû àŕë ƀàçķ. ŧëšŧ çôþÿ ŧëš⟧",
   "library.editor.publishConflict": "⟦Ŕëļôàð ŧô šëë ŧĥëïŕ çĥàñĝëš, ŧĥëñ þûƀļïšĥ. ŧëšŧ çôþÿ ŧë⟧",
-  "library.editor.offlineEditing": "⟦Ÿôû àŕë ôƒƒļïñë. Çĥàñĝëš àŕë ķëþŧ ôñ ŧĥïš þàĝë àñð šàṽëð ŵĥëñ ÿôû àŕë ƀàçķ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ⟧"
+  "library.editor.offlineEditing": "⟦Ÿôû àŕë ôƒƒļïñë. Çĥàñĝëš àŕë ķëþŧ ôñ ŧĥïš þàĝë àñð šàṽëð ŵĥëñ ÿôû àŕë ƀàçķ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ⟧",
+  "machines.offline.lastUpdated": "⟦Ÿôû àŕë ôƒƒļïñë. Ļàšŧ ûþðàŧëð {time}. ŧëšŧ çôþÿŧ⟧",
+  "machines.agents.signedInAs": "⟦Šïĝñëð ïñ àš {account}. ŧëšŧ ç⟧",
+  "machines.checks.showMore": "⟦Šĥôŵ ɱôŕë ŧ⟧",
+  "machines.checks.showLess": "⟦Šĥôŵ ļëšš ŧ⟧"
 }

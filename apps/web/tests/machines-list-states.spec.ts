@@ -298,6 +298,18 @@ test.describe("machines list states", () => {
     await shot(page, "machines-list-filter");
   });
 
+  test("offline says when the list was read and does not offer Add machine", async ({ page, context }) => {
+    await open(page, {});
+    await expect(page.getByRole("button", { name: "Add machine", exact: true }))
+      .toBeEnabled();
+    await context.setOffline(true);
+    await expect(page.getByText(/You are offline\. Last updated /))
+      .toBeVisible();
+    await expect(page.getByRole("button", { name: "Add machine", exact: true }))
+      .toBeDisabled();
+    await shot(page, "machines-list-offline-last-updated");
+  });
+
   test("an administrator with no machines is invited to add one; anyone else is told whom to ask", async ({ page }) => {
     await open(page, { workers: [] });
     await expect(page.getByText("No machines yet")).toBeVisible();

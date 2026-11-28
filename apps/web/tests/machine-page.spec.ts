@@ -239,6 +239,77 @@ const openChecks = async (page: Page) => {
   await expect(page).toHaveURL(/\/machines\/[^/]+\/checks/);
 };
 
+test.describe("machine page: states", () => {
+  test("offline keeps the last data, says when it was read and disables changes", async ({ page, context }) => {
+    await open(page, fixture());
+    await expect(page.getByTestId("machine-about")).toBeVisible();
+    await context.setOffline(true);
+    await expect(page.getByText(/You are offline\. Last updated /))
+      .toBeVisible();
+    for (const mode of ["Taking work", "Paused", "Finish and stop"]) {
+      await expect(page.getByRole("radio", { name: mode })).toBeDisabled();
+    }
+    await expect(
+      page.getByRole("button", { name: "Retire this machine" }).first(),
+    ).toBeDisabled();
+    await expect(page.getByTestId("machine-about")).toBeVisible();
+    await shot(page, "machine-page-offline-last-updated");
+  });
+
+  test("loading shows placeholder rows, not a banner", async ({ page }) => {
+    let release = () => {};
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await open(page, fixture());
+    await expect(page.getByTestId("machine-about")).toBeVisible();
+    await page.route(
+      (url) => url.pathname === `/v1/workers/${MACHINE_ID}`,
+      async (route) => {
+        await held;
+        await route.fallback();
+      },
+    );
+    await page.reload();
+    const loading = page.getByRole("status", { name: "Loading machine data…" });
+    await expect(loading).toBeVisible();
+    await expect(loading.locator("[data-ui-component=skeleton]"))
+      .toHaveCount(3);
+    await shot(page, "machine-page-loading");
+    release();
+    await expect(loading).toHaveCount(0);
+  });
+
+  test("a long check reason is clamped and can be shown whole", async ({ page }) => {
+    const reason = Array.from(
+      { length: 40 },
+      (_, line) => `line ${line + 1}: git exited with a long explanation`,
+    ).join("\n");
+    await open(
+      page,
+      fixture(
+        {
+          readiness: "needs_attention",
+          readinessReason: "check_failed",
+          failedCheckIds: ["capability:git"],
+        },
+        {
+          blockedCapabilities: ["git"],
+          failedChecks: [{ checkId: "capability:git", reason }],
+        },
+      ),
+    );
+    await openChecks(page);
+    const more = page.getByRole("button", { name: "Show more" });
+    await expect(more).toBeVisible();
+    await shot(page, "machine-page-check-reason-clamped");
+    await more.click();
+    await expect(page.getByRole("button", { name: "Show less" }))
+      .toBeVisible();
+    await expect(page.getByTestId("machine-checks")).toContainText("line 40:");
+  });
+});
+
 test.describe("machine page: the one banner", () => {
   const cases: readonly {
     name: string;

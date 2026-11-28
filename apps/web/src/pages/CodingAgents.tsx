@@ -606,13 +606,14 @@ function agentLineKey(
 }
 
 export function CodingAgentRow(
-  { row, translate, access, signIn, inBanner }: {
+  { row, translate, access, signIn, inBanner, account, offline = false }: {
     row: AgentRow;
     translate: Translator;
     access: AgentAccess;
     signIn: AgentSignIn;
-    /** The banner above names this agent and carries its Sign in: the row does not repeat the button. */
     inBanner: boolean;
+    account?: string;
+    offline?: boolean;
   },
 ) {
   const busy = signIn.checking === row.agent;
@@ -631,6 +632,13 @@ export function CodingAgentRow(
                 {message(translate, lineKey, {
                   agent: agentName(translate, row.agent),
                 })}
+                {account !== undefined && row.state === "ready"
+                  ? ` ${
+                    message(translate, "machines.agents.signedInAs", {
+                      account,
+                    })
+                  }`
+                  : null}
               </span>
             )
             : null}
@@ -655,6 +663,7 @@ export function CodingAgentRow(
                   ? (
                     <UI.Button
                       variant="primary"
+                      disabled={offline}
                       data-agent-signin={row.agent}
                       onClick={() => signIn.signIn(row)}
                     >
@@ -666,6 +675,7 @@ export function CodingAgentRow(
                   ? (
                     <UI.Button
                       variant="primary"
+                      disabled={offline}
                       data-agent-signin={row.agent}
                       onClick={() => signIn.signIn(row)}
                     >
@@ -677,6 +687,7 @@ export function CodingAgentRow(
                   ? (
                     <UI.Button
                       variant="secondary"
+                      disabled={offline}
                       data-agent-check={row.agent}
                       loading={busy}
                       onClick={() => signIn.check(row)}
@@ -701,12 +712,13 @@ export function CodingAgentRow(
 
 /** The one banner for an agent that is not signed in or is signed out. */
 export function CodingAgentBanner(
-  { row, translate, signIn, otherAgentReady }: {
+  { row, translate, signIn, otherAgentReady, offline = false }: {
     row: AgentRow;
     translate: Translator;
     signIn: AgentSignIn;
     /** Another coding agent on the machine is Ready: only then does the banner say other work continues. */
     otherAgentReady: boolean;
+    offline?: boolean;
   },
 ) {
   const name = agentName(translate, row.agent);
@@ -718,7 +730,11 @@ export function CodingAgentBanner(
       data-testid="agent-banner"
       action={canSignIn
         ? (
-          <UI.Button variant="secondary" onClick={() => signIn.signIn(row)}>
+          <UI.Button
+            variant="secondary"
+            disabled={offline}
+            onClick={() => signIn.signIn(row)}
+          >
             {message(
               translate,
               kind === "signedOut"

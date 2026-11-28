@@ -19,6 +19,7 @@ export type BindingFacts = Readonly<{
   billingRoute: string;
   enabled: boolean;
   lastCheckedAt?: string | null;
+  modelProviderAccountId?: string | null;
   /** Present when the server has recorded a problem with this sign-in. */
   safeProblem?: unknown;
 }>;

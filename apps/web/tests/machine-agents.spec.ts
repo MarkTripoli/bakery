@@ -26,6 +26,7 @@ type Binding = {
   lastCheckedAt: string | null;
   safeProblem: string | null;
   enabled: boolean;
+  modelProviderAccountId?: string;
 };
 
 type Script = {
@@ -117,7 +118,7 @@ const wire = (b: Binding) => ({
   enabled: b.enabled,
   authMode: "host_native",
   credentialLocation: "harness_host",
-  modelProviderAccountId: null,
+  modelProviderAccountId: b.modelProviderAccountId ?? null,
   authGeneration: 1,
   lastCheckedAt: b.lastCheckedAt,
   safeProblem: b.safeProblem,
@@ -1086,6 +1087,44 @@ test.describe("the sign-in dialog", () => {
       .toHaveCount(0);
     expect(w.createdAttempts).toEqual([]);
   });
+});
+
+test("a signed-in agent names the account it is signed in as", async ({ page }) => {
+  const accountId = "00000000-0000-4000-8000-0000000000d1";
+  await page.route("**/v1/model-provider-accounts**", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        items: [{
+          id: accountId,
+          provider: "anthropic",
+          billingRoute: "subscription",
+          displayIdentity: "a***@example.com",
+          verifiedAt: "2026-11-14T00:00:00.000Z",
+          authState: "signed_in",
+          lastCheckedAt: "2026-11-14T00:00:00.000Z",
+          quotaSource: null,
+          quotaRemaining: null,
+          quotaObservedAt: null,
+        }],
+        nextCursor: null,
+      }),
+    }));
+  await open(
+    page,
+    world({
+      bindings: [
+        binding({
+          lastCheckedAt: "2026-11-14T00:00:00.000Z",
+          modelProviderAccountId: accountId,
+        }),
+      ],
+    }),
+  );
+  await expect(row(page, "claude")).toContainText(
+    "Uses the subscription signed in on this machine. Signed in as a***@example.com.",
+  );
+  await shot(page, "machine-agents-signed-in-as");
 });
 
 test.describe("the dialog while it starts", () => {

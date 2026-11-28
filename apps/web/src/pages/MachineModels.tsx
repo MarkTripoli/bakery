@@ -31,6 +31,7 @@ import {
   updateRefusal,
 } from "./machine-models.ts";
 import type { CodingAgent } from "./machine-state.ts";
+import { MachineLoading } from "./MachineLoading.tsx";
 
 type Say = (key: string, arguments_?: MessageArguments) => string;
 
@@ -163,11 +164,7 @@ export function MachineModels(
     });
 
   if (read.isPending || isAdmin && bindings.state === "loading") {
-    return (
-      <UI.AlertBanner tone="information">
-        {say("machines.loading")}
-      </UI.AlertBanner>
-    );
+    return <MachineLoading label={say("machines.loading")} />;
   }
   if (read.isError || isAdmin && bindings.state === "failed") {
     return (
