@@ -23,7 +23,11 @@ import type {
   WorkerOutputBinding,
 } from "../../apps/worker/src/types.ts";
 import { localAssignment } from "../helpers/worker-execution/recovery-support.ts";
-import type { ReadModelKey } from "../../apps/worker/src/model-key.ts";
+import {
+  type ReadModelKey,
+  readOncePerAttempt,
+} from "../../apps/worker/src/model-key.ts";
+import { runClaudeStructuredCall } from "../../apps/worker/src/claude-structured-call.ts";
 import { prepareScratchRepository } from "../helpers/harness.ts";
 import {
   buildCoordinatorTurnJobInput,
@@ -2014,10 +2018,13 @@ printf '%s\\n' '{"type":"result","subtype":"success","is_error":false,"session_i
     const value = await meteredAssignment();
     const executor = executorFor(scratch.dir, fake, 5_000, {
       authSourceDir: emptyAuth,
-      readModelKey: (attemptId, proof) => {
+      readModelKey: readOncePerAttempt((attemptId, proof) => {
         reads.push(`${attemptId}:${proof.fence}`);
-        return Promise.resolve({ provider: "anthropic", apiKey: key });
-      },
+        return Promise.resolve({
+          provider: "anthropic",
+          apiKey: reads.length === 1 ? key : "rotated-after-the-first-read",
+        });
+      }),
     });
     assertEquals(await executor.credentialRedactionSecrets?.(value), [key]);
     const outcome = await executor.execute(value, new AbortController().signal);
@@ -2030,10 +2037,7 @@ printf '%s\\n' '{"type":"result","subtype":"success","is_error":false,"session_i
         ".credentials.json",
       ),
     );
-    assertEquals(reads, [
-      `${value.attemptId}:${value.fence}`,
-      `${value.attemptId}:${value.fence}`,
-    ]);
+    assertEquals(reads, [`${value.attemptId}:${value.fence}`]);
   },
 });
 
@@ -2085,6 +2089,42 @@ printf '%s\\n' '{"type":"result","subtype":"success","is_error":false,"session_i
     assertEquals(
       readEnvDump(await Deno.readTextFile(envDump)).ANTHROPIC_API_KEY,
       undefined,
+    );
+  },
+});
+
+Deno.test({
+  name:
+    "a judge or coordinator call paid by API key gives Claude the key and needs no login",
+  ...RUN_PERMISSIONS,
+  fn: async () => {
+    const scratch = await prepareScratchRepository("bakery-claude-call-key-");
+    const envDump = `${scratch.dir}/env.txt`;
+    const fake = await fakeClaude(
+      scratch.dir,
+      `env > '${envDump}'
+printf '%s\\n' '{"type":"system","subtype":"init","session_id":"${SESSION_ID}","claude_code_version":"2.1.0"}'`,
+    );
+    const key = `sk-ant-fixture-${crypto.randomUUID()}`;
+    const result = await runClaudeStructuredCall(await meteredAssignment(), {
+      claudeExecutable: fake,
+      stateDir: `${scratch.dir}/state`,
+      authSourceDir: `${scratch.dir}/no-login`,
+      readModelKey: () =>
+        Promise.resolve({ provider: "anthropic", apiKey: key }),
+    }, {
+      cwd: scratch.dir,
+      prompt: "fixture",
+      jsonSchema: { type: "object" },
+      tools: "",
+      effort: "low",
+      timeLimitMs: 5_000,
+      signal: new AbortController().signal,
+    });
+    assertFalse(result.kind === "credential_unavailable");
+    assertEquals(
+      readEnvDump(await Deno.readTextFile(envDump)).ANTHROPIC_API_KEY,
+      key,
     );
   },
 });

@@ -2033,7 +2033,7 @@ async function runClaudeFreeform(
   }
 }
 
-const CLAUDE_MODEL_KEY_VARIABLES: ModelKeyVariables = {
+export const CLAUDE_MODEL_KEY_VARIABLES: ModelKeyVariables = {
   anthropic: "ANTHROPIC_API_KEY",
 };
 
@@ -2126,6 +2126,12 @@ export function createClaudeHarnessExecutor(
       await initializeHarnessWorktree(guard, harnessBusy);
     },
     async credentialRedactionSecrets(assignment) {
+      const metered = await meteredModelKey(
+        assignment,
+        options.readModelKey,
+        CLAUDE_MODEL_KEY_VARIABLES,
+      );
+      if (metered !== null) return metered.secrets;
       if (
         !isHarnessEditAction(assignment.action) &&
         assignment.action !== FREEFORM_ACTION &&
@@ -2134,12 +2140,6 @@ export function createClaudeHarnessExecutor(
       ) {
         return await inner?.credentialRedactionSecrets?.(assignment) ?? [];
       }
-      const metered = await meteredModelKey(
-        assignment,
-        options.readModelKey,
-        CLAUDE_MODEL_KEY_VARIABLES,
-      );
-      if (metered !== null) return metered.secrets;
       return await harnessCredentialSecrets(
         join(options.authSourceDir, CLAUDE_AUTH_ALLOWLIST[0]),
       );

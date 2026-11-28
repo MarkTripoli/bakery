@@ -58,6 +58,7 @@ import {
   WorkerShutdownQuiescenceError,
   WorkerSupervisor,
 } from "./supervisor.ts";
+import { readOncePerAttempt } from "./model-key.ts";
 
 export type WorkerMainOptions = {
   monitoring?: RuntimeMonitoring;
@@ -309,6 +310,9 @@ export async function main(options: WorkerMainOptions = {}): Promise<void> {
     // test executor keeps exactly the actions it declares. The score judge
     // makes its one model call through the configured Claude Code CLI; any
     // other harness leaves it without a transport, so scores are unscored.
+    const readModelKey = readOncePerAttempt((attemptId, proof) =>
+      client.attemptModelKey(attemptId, proof)
+    );
     const executor = options.executor === undefined
       ? createEvaluationExecutor(baseExecutor, {
         readAttemptContext: async (attemptId, proof) => {
@@ -318,6 +322,7 @@ export async function main(options: WorkerMainOptions = {}): Promise<void> {
         judge: codingHarness?.name === "claude"
           ? {
             transport: createClaudeJudgeTransport({
+              readModelKey,
               authSourceDir: config.claudeAuthSourceDir ??
                 join(home!, ".claude"),
               claudeExecutable: codingHarness.executable,
@@ -365,8 +370,6 @@ export async function main(options: WorkerMainOptions = {}): Promise<void> {
       const served = await client.attemptContext(attemptId, proof);
       return served.value;
     };
-    const readModelKey = (attemptId: string, proof: AttemptProof) =>
-      client.attemptModelKey(attemptId, proof);
     const harnessExecutor = codingHarness?.name === "claude"
       ? createClaudeHarnessExecutor({
         publishFor: publishArtifactFor,
@@ -459,6 +462,7 @@ export async function main(options: WorkerMainOptions = {}): Promise<void> {
         },
         redactionSecrets: config.outputRedactionSecrets,
         credentialPaths,
+        readModelKey,
       })
       : harnessExecutor;
     // One wrapper around every adapter (#404): the session's operation

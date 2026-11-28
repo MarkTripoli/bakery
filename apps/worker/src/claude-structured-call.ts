@@ -1,6 +1,7 @@
 import type { NativeOutputSink } from "./native-output.ts";
 import { runBoundedHarness } from "./harness-common.ts";
 import {
+  CLAUDE_MODEL_KEY_VARIABLES,
   CLAUDE_UUID_PATTERN,
   claudeConfigDirectory,
   type ClaudeHarnessOptions,
@@ -10,6 +11,7 @@ import {
   prepareClaudeAuth,
 } from "./claude-harness.ts";
 import type { JobAssignment } from "./types.ts";
+import { type MeteredModelKey, meteredModelKey } from "./model-key.ts";
 
 /**
  * One bounded, structured-output Claude Code CLI call: credentials staged into
@@ -25,7 +27,12 @@ const CREDENTIAL_FAILURE_PATTERN =
 /** The harness options one structured call reads. */
 export type ClaudeStructuredCallOptions = Pick<
   ClaudeHarnessOptions,
-  "authSourceDir" | "claudeExecutable" | "model" | "stateDir" | "eventRecorder"
+  | "authSourceDir"
+  | "claudeExecutable"
+  | "model"
+  | "stateDir"
+  | "eventRecorder"
+  | "readModelKey"
 >;
 
 export type ClaudeStructuredCallRequest = Readonly<{
@@ -139,11 +146,19 @@ export async function runClaudeStructuredCall(
 ): Promise<ClaudeStructuredCallResult> {
   const config = await claudeConfigDirectory(options, assignment);
   try {
+    let metered: MeteredModelKey | null;
     try {
-      if (!options.authSourceDir) {
-        throw new Error("CLAUDE_HARNESS_AUTH_UNAVAILABLE");
+      metered = await meteredModelKey(
+        assignment,
+        options.readModelKey,
+        CLAUDE_MODEL_KEY_VARIABLES,
+      );
+      if (metered === null) {
+        if (!options.authSourceDir) {
+          throw new Error("CLAUDE_HARNESS_AUTH_UNAVAILABLE");
+        }
+        await prepareClaudeAuth(options.authSourceDir, config.path);
       }
-      await prepareClaudeAuth(options.authSourceDir, config.path);
     } catch {
       return { kind: "credential_unavailable" };
     }
@@ -175,6 +190,7 @@ export async function runClaudeStructuredCall(
       output: request.output,
       environment: {
         ...request.environment,
+        ...metered?.environment,
         HOME: config.home,
         CLAUDE_CONFIG_DIR: config.path,
       },

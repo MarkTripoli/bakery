@@ -20,6 +20,24 @@ export type ReadModelKey = (
   proof: AttemptProof,
 ) => Promise<ModelKey>;
 
+const REMEMBERED_ATTEMPTS = 8;
+
+export function readOncePerAttempt(read: ReadModelKey): ReadModelKey {
+  const remembered = new Map<string, Promise<ModelKey>>();
+  return (attemptId, proof) => {
+    const key = `${attemptId}:${proof.fence}`;
+    const known = remembered.get(key);
+    if (known !== undefined) return known;
+    const pending = read(attemptId, proof);
+    remembered.set(key, pending);
+    pending.catch(() => remembered.delete(key));
+    while (remembered.size > REMEMBERED_ATTEMPTS) {
+      remembered.delete(remembered.keys().next().value!);
+    }
+    return pending;
+  };
+}
+
 export type MeteredModelKey = Readonly<{
   environment: Readonly<Record<string, string>>;
   secrets: readonly string[];
