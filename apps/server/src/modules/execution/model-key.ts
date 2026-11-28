@@ -29,7 +29,6 @@ type SealedModelKey = {
   provider: ModelKeyProvider;
 };
 
-const METERED_JOB_ROUTES = new Set(["api", "api_metered"]);
 const DECIMAL = /^(?:0|[1-9][0-9]*)$/;
 
 function isModelKeyProvider(value: string): value is ModelKeyProvider {
@@ -87,8 +86,7 @@ async function sealedModelKey(
       );
       const job = jobs.rows[0];
       if (
-        job === undefined || job.billingRoute === null ||
-        !METERED_JOB_ROUTES.has(job.billingRoute)
+        job === undefined || job.billingRoute !== "api"
       ) throw modelKeyRefusal("model_key_not_metered");
       if (job.harness === null || job.provider === null) {
         throw modelKeyRefusal("model_key_unbound");
