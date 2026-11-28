@@ -42,6 +42,7 @@ async function harness(options: {
   arch?: string;
   install?: () => Promise<void>;
   startService?: () => Promise<void>;
+  registeredHost?: string | null;
 }) {
   const root = await mkdtemp(join(tmpdir(), "bakery-link-"));
   const out: string[] = [];
@@ -98,6 +99,7 @@ async function harness(options: {
       events.push("forget");
       return Promise.resolve();
     },
+    registeredHost: () => Promise.resolve(options.registeredHost ?? null),
   };
   return {
     root,
@@ -298,6 +300,9 @@ Deno.test("a computer already linked is not changed", async () => {
   }
 });
 
+const THIS_HOST = "6c1f0c1e-4b0e-4c55-9a59-3c3e8f6b1a01";
+const OTHER_HOST = "0b2d6f43-5c1e-4f8e-8d2a-7e9a1c4b2f02";
+
 Deno.test("a repair code for this machine re-links it: new pairing and code, the old registration dropped", async () => {
   const h = await harness({
     routes: {
@@ -310,9 +315,10 @@ Deno.test("a repair code for this machine re-links it: new pairing and code, the
   try {
     assertEquals(await h.run(), 0);
     const repair = await harness({
+      registeredHost: THIS_HOST,
       routes: {
         [INSPECT]: [
-          { status: 200, body: preview({ repair: true }) },
+          { status: 200, body: preview({ repairsWorkerHostId: THIS_HOST }) },
           { status: 409, body: { reason: "used" } },
         ],
       },
@@ -332,26 +338,92 @@ Deno.test("a repair code for this machine re-links it: new pairing and code, the
     } finally {
       await repair.close();
     }
-    const elsewhere = await harness({
+  } finally {
+    await h.close();
+  }
+});
+
+Deno.test("a linked computer refuses a repair code for any other machine, even one of the same name", async () => {
+  const h = await harness({
+    routes: {
+      [INSPECT]: [
+        { status: 200, body: preview() },
+        { status: 409, body: { reason: "used" } },
+      ],
+    },
+  });
+  try {
+    assertEquals(await h.run(), 0);
+    for (
+      const [registeredHost, body] of [
+        [THIS_HOST, preview({ repairsWorkerHostId: OTHER_HOST })],
+        [THIS_HOST, preview({ repairsWorkerHostId: null })],
+        [null, preview({ repairsWorkerHostId: THIS_HOST })],
+        [
+          THIS_HOST,
+          preview({
+            repairsWorkerHostId: THIS_HOST,
+            organizationName: "Other Org",
+          }),
+        ],
+      ] as const
+    ) {
+      const other = await harness({
+        registeredHost,
+        routes: { [INSPECT]: [{ status: 200, body }] },
+      });
+      try {
+        assertEquals(
+          await runLink(
+            { server: SERVER, code: "CCCC-DDDD", root: h.root },
+            other.io,
+          ),
+          0,
+        );
+        assertEquals(other.events, []);
+        assertEquals(
+          other.text(),
+          "This computer is already linked to Fixture Org as build-box-01. Nothing was changed.\n",
+        );
+      } finally {
+        await other.close();
+      }
+    }
+  } finally {
+    await h.close();
+  }
+});
+
+Deno.test("rerunning the used command on a linked computer says it is linked", async () => {
+  const h = await harness({
+    routes: {
+      [INSPECT]: [
+        { status: 200, body: preview() },
+        { status: 409, body: { reason: "used" } },
+      ],
+    },
+  });
+  try {
+    assertEquals(await h.run(), 0);
+    const again = await harness({
       routes: {
         [INSPECT]: [{
-          status: 200,
-          body: preview({ repair: true, organizationName: "Other Org" }),
+          status: 409,
+          body: { code: "STATE_CONFLICT", reason: "used" },
         }],
       },
     });
     try {
       assertEquals(
-        await runLink(
-          { server: SERVER, code: "CCCC-DDDD", root: h.root },
-          elsewhere.io,
-        ),
+        await runLink({ server: SERVER, code: CODE, root: h.root }, again.io),
         0,
       );
-      assertEquals(elsewhere.events, []);
-      assert(elsewhere.text().startsWith("This computer is already linked"));
+      assertEquals(
+        again.text(),
+        "This computer is already linked to Fixture Org as build-box-01. Nothing was changed.\n",
+      );
     } finally {
-      await elsewhere.close();
+      await again.close();
     }
   } finally {
     await h.close();

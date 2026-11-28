@@ -107,6 +107,8 @@ export type LinkIo = Readonly<{
   startService: (binding: PairingBinding) => Promise<void>;
   /** Drops the worker's own registration, so it registers again with the new code. */
   forgetRegistration: (root: string) => Promise<void>;
+  /** The machine this computer's worker registered as, or null when it has not. */
+  registeredHost: (root: string) => Promise<string | null>;
 }>;
 
 const AGENT_NAMES: Readonly<Record<string, string>> = {
@@ -140,7 +142,7 @@ type Inspection = Readonly<{
   supported: boolean;
   supportedSystems: readonly { os: string; architecture: string }[];
   expiresAt: string;
-  repair: boolean;
+  repairsWorkerHostId: string | null;
 }>;
 
 /** A line Bakery supplied, refused if it could forge or erase what is shown. */
@@ -177,7 +179,10 @@ function parseInspection(value: unknown): Inspection {
       };
     }),
     expiresAt: shownText(body.expiresAt, 40),
-    repair: body.repair === true,
+    repairsWorkerHostId: typeof body.repairsWorkerHostId === "string" &&
+        /^[0-9a-f-]{36}$/i.test(body.repairsWorkerHostId)
+      ? body.repairsWorkerHostId.toLowerCase()
+      : null,
   };
 }
 
@@ -318,10 +323,12 @@ function repairsThisLink(
   existing: PairingBinding,
   inspection: Inspection,
   origin: string,
+  registeredHost: string | null,
 ): boolean {
-  return inspection.repair && existing.serverOrigin === origin &&
-    existing.organizationName === inspection.organizationName &&
-    existing.name === inspection.name;
+  return registeredHost !== null &&
+    inspection.repairsWorkerHostId === registeredHost.toLowerCase() &&
+    existing.serverOrigin === origin &&
+    existing.organizationName === inspection.organizationName;
 }
 
 async function linkWithCode(
@@ -343,6 +350,10 @@ async function linkWithCode(
       await post(io, origin, "/v1/worker/link-code-inspection", report),
     );
   } catch (error) {
+    if (error instanceof Refused && existing !== null) {
+      io.write(alreadyLinked(existing));
+      return 0;
+    }
     if (error instanceof Refused) {
       io.write(`${refusalText(error.reason, origin)}\n`);
       return 2;
@@ -359,7 +370,15 @@ async function linkWithCode(
     );
     return 2;
   }
-  if (existing !== null && !repairsThisLink(existing, inspection, origin)) {
+  if (
+    existing !== null &&
+    !repairsThisLink(
+      existing,
+      inspection,
+      origin,
+      await io.registeredHost(command.root),
+    )
+  ) {
     io.write(alreadyLinked(existing));
     return 0;
   }

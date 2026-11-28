@@ -212,7 +212,7 @@ export async function inspectLinkCode(
         architecture: entry.architecture,
       })),
       expiresAt: iso(row.expires_at),
-      repair: row.target_worker_host_id !== null,
+      repairsWorkerHostId: row.target_worker_host_id,
     });
     return noStoreJsonResponse(projection, 200);
   }, context.req.raw.signal);

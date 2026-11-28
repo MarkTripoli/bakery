@@ -1,7 +1,7 @@
 import process from "node:process";
 import { isAbsolute, join } from "node:path";
 import { createInterface } from "node:readline/promises";
-import { lstat, rm } from "node:fs/promises";
+import { lstat, readFile, rm } from "node:fs/promises";
 import { hostname } from "node:os";
 import { LinkStepFailed } from "./link.ts";
 import type { ReleaseConfig } from "./bootstrap.ts";
@@ -64,6 +64,18 @@ export async function main(
       isTerminal: process.stdin.isTTY === true,
       forgetRegistration: async (root) => {
         await rm(join(root, "state", "registration.json"), { force: true });
+      },
+      registeredHost: async (root) => {
+        try {
+          const registered = JSON.parse(
+            await readFile(join(root, "state", "registration.json"), "utf8"),
+          ) as { workerHostId?: unknown };
+          return typeof registered.workerHostId === "string"
+            ? registered.workerHostId
+            : null;
+        } catch {
+          return null;
+        }
       },
       ask,
       waitForEnter: async () => {

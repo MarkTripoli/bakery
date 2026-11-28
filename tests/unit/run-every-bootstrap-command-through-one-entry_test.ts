@@ -210,6 +210,7 @@ function harness(
       install: () => Promise.resolve(),
       startService: () => Promise.resolve(),
       forgetRegistration: () => Promise.resolve(),
+      registeredHost: () => Promise.resolve(null),
     },
     operation: {
       write: (text) => void out.push(text),
