@@ -7,6 +7,7 @@ import {
   derivedEnrollmentState,
   dispatchGate,
   evaluateReadiness,
+  isFreshCheck,
 } from "@bakery/persistence/machine-readiness";
 import { IDEMPOTENCY_REPLAY_TTL_SECONDS } from "@bakery/persistence";
 import { appendDomainEvent } from "@bakery/persistence/event-audit";
@@ -286,9 +287,18 @@ async function safeWorkerProjection(
     checks: checks.rows.map((row) => ({
       checkId: row.check_id,
       componentKey: row.component_key,
-      result: row.host_generation === host.credential_generation &&
-          row.inventory_revision === host.inventory_revision &&
-          new Date(row.expires_at).getTime() > now.getTime()
+      result: isFreshCheck({
+          checkId: row.check_id,
+          componentKey: row.component_key,
+          status: row.status,
+          hostGeneration: row.host_generation,
+          inventoryRevision: row.inventory_revision,
+          expiresAt: row.expires_at,
+        }, {
+          now,
+          credentialGeneration: host.credential_generation,
+          inventoryRevision: host.inventory_revision,
+        })
         ? row.status
         : "unknown",
       reason: row.reason,
