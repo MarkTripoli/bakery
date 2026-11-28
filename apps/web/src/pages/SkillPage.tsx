@@ -632,6 +632,7 @@ function SourceDetails(
         <SkillSourceCheckControl
           address={data.locator}
           skill={{ ...skill, activeVersionId: versionId }}
+          archive={data.sourceType === "url"}
         />
       </UI.Stack>
     )

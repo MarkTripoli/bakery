@@ -3642,12 +3642,12 @@ export function skillUseGrantsQueryOptions(
   });
 }
 
-export function gitSkillSourcesQueryOptions(
+export function importableSkillSourcesQueryOptions(
   client: Pick<BakeryApiClient, "listSkillSources">,
   scope: ApiScope,
 ) {
   return queryOptions<SkillSource[], ApiFailure>({
-    queryKey: protectedQueryKey(scope, "skillSources.git", {}),
+    queryKey: protectedQueryKey(scope, "skillSources.importable", {}),
     queryFn: async ({ signal }) => {
       const items: SkillSource[] = [];
       let cursor: string | undefined;
@@ -3662,8 +3662,8 @@ export function gitSkillSourcesQueryOptions(
         );
         items.push(
           ...read.items.filter((source) =>
-            source.sourceType === "git" && source.enabled &&
-            source.license !== null
+            (source.sourceType === "git" || source.sourceType === "url") &&
+            source.enabled && source.license !== null
           ),
         );
         if (!read.nextCursor) break;

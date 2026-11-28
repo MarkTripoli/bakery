@@ -3072,9 +3072,12 @@ function safeProblem(problem: ApiProblem): SafeProblem | null {
       }
       : {}),
     ...((problem.code === "STATE_CONFLICT" ||
-        problem.code === "PRECONDITION_FAILED") &&
-        typeof problem.reason === "string" &&
-        /^[a-z][a-z0-9_]{0,63}$/.test(problem.reason)
+            problem.code === "PRECONDITION_FAILED") &&
+          typeof problem.reason === "string" &&
+          /^[a-z][a-z0-9_]{0,63}$/.test(problem.reason) ||
+        problem.code === "DEPENDENCY_UNAVAILABLE" &&
+          typeof problem.reason === "string" &&
+          /^SOURCE_[A-Z_]{1,40}$/.test(problem.reason)
       ? { reason: problem.reason }
       : {}),
     ...(problem.issueCodes ? { issueCodes: problem.issueCodes } : {}),

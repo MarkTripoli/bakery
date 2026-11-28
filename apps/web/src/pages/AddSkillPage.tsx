@@ -6,7 +6,7 @@ import type { MessageKey } from "@bakery/i18n";
 import { useBakeryApi } from "../api/context.tsx";
 import {
   effectiveAccessQueryOptions,
-  gitSkillSourcesQueryOptions,
+  importableSkillSourcesQueryOptions,
   organizationsListQueryOptions,
 } from "../api/query.ts";
 import { failureStatus } from "../app/async-state.ts";
@@ -31,6 +31,7 @@ const POLL_MS = 1500;
 const FAILURE_ID = "skill-add-failure";
 
 type Who = "organization" | "personal";
+type From = "git" | "url" | "saved";
 
 type AddKey = MessageKey extends infer Key
   ? Key extends `library.skills.add.${infer Suffix}` ? Suffix : never
@@ -41,6 +42,7 @@ type Attempt = {
   readonly address: string;
   readonly folder: string;
   readonly revision: string;
+  readonly archive: boolean;
   readonly alreadyAdded: boolean;
   readonly startedAt: string;
   readonly inUseBefore: ReadonlyMap<string, number | null>;
@@ -48,7 +50,7 @@ type Attempt = {
 
 class AddFailed extends Error {
   constructor(
-    readonly kind: ImportFailure | "saved",
+    readonly kind: ImportFailure | "saved" | "savedArchive",
     readonly sourceId: string | null,
   ) {
     super("ADD_SKILL_FAILED");
@@ -65,9 +67,10 @@ export function AddSkillPage() {
   const access = useQuery(effectiveAccessQueryOptions(api, scope));
   const organizations = useQuery(organizationsListQueryOptions(api, scope));
   const admin = access.data?.role === "admin";
+  const mayAdd = admin || access.data?.role === "developer";
   const sources = useQuery({
-    ...gitSkillSourcesQueryOptions(api, scope),
-    enabled: admin,
+    ...importableSkillSourcesQueryOptions(api, scope),
+    enabled: mayAdd,
   });
   const saved = sources.data ?? [];
   const organizationName =
@@ -75,8 +78,16 @@ export function AddSkillPage() {
       ?.name ?? "";
 
   const [form, setForm] = useState<SourceForm>(EMPTY_SOURCE_FORM);
-  const [fromSaved, setFromSaved] = useState(false);
-  const [who, setWho] = useState<Who>("organization");
+  const [pickedFrom, setFrom] = useState<From>("git");
+  const [newKind, setNewKind] = useState<"git" | "url">("git");
+  const pickNew = (kind: "git" | "url") => {
+    setNewKind(kind);
+    setFrom(kind);
+  };
+  const [pickedWho, setWho] = useState<Who>("organization");
+  const from: From = admin ? pickedFrom : "saved";
+  const fromSaved = from === "saved";
+  const who: Who = admin ? pickedWho : "personal";
   const [tried, setTried] = useState(false);
   const [attempt, setAttempt] = useState<Attempt | null>(null);
   const importKey = useRef<{ body: string; key: string } | null>(null);
@@ -88,6 +99,9 @@ export function AddSkillPage() {
 
   const chosen = saved.find((source) => source.id === form.sourceId);
   const address = fromSaved ? chosen?.locator ?? "" : form.address.trim();
+  const archive = fromSaved
+    ? (chosen?.sourceType ?? newKind) === "url"
+    : from === "url";
 
   const add = useMutation({
     mutationKey: ["skills.import"],
@@ -98,7 +112,7 @@ export function AddSkillPage() {
         const made = await api.createSkillSource({
           organizationId,
           input: {
-            sourceType: "git",
+            sourceType: archive ? "url" : "git",
             url: form.address.trim(),
             name: form.name.trim(),
             license: form.licence.trim(),
@@ -108,7 +122,11 @@ export function AddSkillPage() {
         if (!made.ok) {
           const status = failureStatus(made.error);
           throw new AddFailed(
-            status === 409 ? "saved" : status === 422 ? "origin" : "other",
+            status === 409
+              ? archive ? "savedArchive" : "saved"
+              : status === 422
+              ? "origin"
+              : "other",
             null,
           );
         }
@@ -116,9 +134,12 @@ export function AddSkillPage() {
         created = made.data.id;
       }
       const folder = cleanFolder(form.folder);
+      const revision = archive ? "" : form.revision.trim();
+      const label = archive ? form.label.trim() : "";
       const input = {
         sourceId,
-        revision: form.revision.trim(),
+        ...(revision === "" ? {} : { revision }),
+        ...(label === "" ? {} : { label }),
         ...(folder === "" ? {} : { path: folder }),
         scope: who,
       };
@@ -148,8 +169,13 @@ export function AddSkillPage() {
       if (!run.ok) {
         const status = failureStatus(run.error);
         if (status !== null && status < 500) importKey.current = null;
+        const reason = run.error.kind === "problem"
+          ? run.error.problem.reason ?? null
+          : null;
         throw new AddFailed(
-          status === 404 || status === 409 ? "removed" : "other",
+          status === 404 || status === 409
+            ? "removed"
+            : importFailureKind(reason, folder, revision, archive),
           created,
         );
       }
@@ -158,7 +184,8 @@ export function AddSkillPage() {
         runId: run.data.id,
         address,
         folder,
-        revision: input.revision,
+        revision,
+        archive,
         alreadyAdded: run.data.status === "completed",
         startedAt: run.data.createdAt,
         inUseBefore,
@@ -196,7 +223,7 @@ export function AddSkillPage() {
   const outcome = attempt === null ? undefined : result.data;
 
   function pickSaved(sourceId: string) {
-    setFromSaved(true);
+    setFrom("saved");
     change({ sourceId });
   }
 
@@ -279,18 +306,24 @@ export function AddSkillPage() {
       outcome.failureCode,
       attempt?.folder ?? "",
       attempt?.revision ?? "",
+      attempt?.archive ?? false,
     )
     : null;
-  const problems = tried ? sourceProblems(form, fromSaved) : {};
+  const problems = tried ? sourceProblems(form, fromSaved, archive) : {};
   const problem = (field: keyof SourceForm) => {
     const kind = problems[field];
-    return kind === undefined ? undefined : copy(`problem.${kind}`);
+    if (kind === undefined) return undefined;
+    return copy(
+      archive && kind === "address"
+        ? "problem.archiveAddress"
+        : `problem.${kind}`,
+    );
   };
 
   const submit = () => {
     if (reading) return;
     setTried(true);
-    const [first] = Object.keys(sourceProblems(form, fromSaved));
+    const [first] = Object.keys(sourceProblems(form, fromSaved, archive));
     if (first !== undefined) {
       globalThis.document.getElementById(`skill-add-${first}`)?.focus();
       return;
@@ -302,15 +335,16 @@ export function AddSkillPage() {
     void navigate({ to: "/library", search: { tab: "skills" } });
 
   const text = (
-    field: "address" | "name" | "licence" | "revision" | "folder",
+    field: "address" | "name" | "licence" | "revision" | "folder" | "label",
     required: boolean,
     hint?: string,
+    label = copy(`field.${field}`),
   ) => (
     <UI.Field
       error={problem(field)}
       hint={hint}
       htmlFor={`skill-add-${field}`}
-      label={copy(`field.${field}`)}
+      label={label}
       required={required}
     >
       <UI.TextInput
@@ -342,7 +376,8 @@ export function AddSkillPage() {
     </>
   );
 
-  if (access.isPending || !admin) {
+  const noSource = mayAdd && !admin && sources.isSuccess && saved.length === 0;
+  if (access.isPending || !mayAdd || noSource) {
     return (
       <UI.Stack gap="spacious" data-testid="skill-add-page">
         {header}
@@ -353,7 +388,8 @@ export function AddSkillPage() {
                 {copy("back")}
               </UI.Button>
             }
-            title={copy("forbidden")}
+            title={copy(noSource ? "noSource" : "forbidden")}
+            {...(noSource ? { description: copy("noSourceHint") } : {})}
             variant="firstUse"
           />
         )}
@@ -363,7 +399,7 @@ export function AddSkillPage() {
 
   const failureValues = {
     address: attempt?.address ?? address,
-    folder: attempt?.folder ?? "",
+    folder: attempt?.folder ?? cleanFolder(form.folder),
     revision: attempt?.revision ?? form.revision.trim(),
     host: httpsAddress(attempt?.address ?? address)?.host ?? "",
   };
@@ -439,29 +475,40 @@ export function AddSkillPage() {
           <UI.Stack gap="spacious">
             <UI.Stack gap="standard">
               <UI.Heading level="section">{copy("from")}</UI.Heading>
-              {saved.length === 0 ? null : (
+              {!admin ? null : (
                 <UI.Stack
                   gap="tight"
                   role="radiogroup"
                   aria-label={copy("from")}
                 >
                   <UI.PresetOption
-                    checked={!fromSaved}
+                    checked={from === "git"}
                     disabled={reading}
                     name="skill-add-from"
-                    onChange={() => setFromSaved(false)}
+                    onChange={() => pickNew("git")}
                     title={copy("newRepository")}
-                    value="new"
+                    value="git"
                   />
                   <UI.PresetOption
-                    checked={fromSaved}
-                    description={copy("savedCount", { count: saved.length })}
+                    checked={from === "url"}
+                    description={copy("webAddressHint")}
                     disabled={reading}
                     name="skill-add-from"
-                    onChange={() => setFromSaved(true)}
-                    title={copy("savedSource")}
-                    value="saved"
+                    onChange={() => pickNew("url")}
+                    title={copy("webAddress")}
+                    value="url"
                   />
+                  {saved.length === 0 ? null : (
+                    <UI.PresetOption
+                      checked={fromSaved}
+                      description={copy("savedCount", { count: saved.length })}
+                      disabled={reading}
+                      name="skill-add-from"
+                      onChange={() => setFrom("saved")}
+                      title={copy("savedSource")}
+                      value="saved"
+                    />
+                  )}
                 </UI.Stack>
               )}
               {fromSaved
@@ -487,7 +534,9 @@ export function AddSkillPage() {
                       <UI.DescriptionList>
                         {chosen.name === null ? null : (
                           <UI.DescriptionItem
-                            title={copy("field.address")}
+                            title={copy(
+                              archive ? "field.webAddress" : "field.address",
+                            )}
                             description={chosen.locator}
                           />
                         )}
@@ -505,7 +554,12 @@ export function AddSkillPage() {
                 )
                 : (
                   <>
-                    {text("address", true, copy("hint.address"))}
+                    {text(
+                      "address",
+                      true,
+                      copy(archive ? "hint.webAddress" : "hint.address"),
+                      copy(archive ? "field.webAddress" : "field.address"),
+                    )}
                     {text("name", true, copy("hint.name"))}
                     {text("licence", true, copy("hint.licence"))}
                   </>
@@ -513,8 +567,14 @@ export function AddSkillPage() {
             </UI.Stack>
             <UI.Stack gap="standard">
               <UI.Heading level="section">{copy("take")}</UI.Heading>
-              {text("revision", true, copy("hint.revision"))}
-              {text("folder", false, copy("hint.folder"))}
+              {archive
+                ? text("label", false, copy("hint.label"))
+                : text("revision", true, copy("hint.revision"))}
+              {text(
+                "folder",
+                false,
+                copy(archive ? "hint.archiveFolder" : "hint.folder"),
+              )}
             </UI.Stack>
             <UI.Stack
               gap="tight"
@@ -526,13 +586,21 @@ export function AddSkillPage() {
               </UI.Heading>
               <UI.PresetOption
                 checked={who === "organization"}
-                {...(organizationName === "" ? {} : {
-                  description: translate(
-                    "library.skill.copy.organizationHint",
-                    { organization: organizationName },
-                  ),
-                })}
-                disabled={reading}
+                {...(!admin
+                  ? {
+                    description: translate(
+                      "library.skill.copy.organizationOnlyAdmins",
+                    ),
+                  }
+                  : organizationName === ""
+                  ? {}
+                  : {
+                    description: translate(
+                      "library.skill.copy.organizationHint",
+                      { organization: organizationName },
+                    ),
+                  })}
+                disabled={reading || !admin}
                 name="skill-add-who"
                 onChange={() => setWho("organization")}
                 title={translate("library.skill.scope.organization")}

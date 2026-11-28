@@ -220,16 +220,17 @@ function safeConflictReason(value: unknown): string | undefined {
     ? value
     : undefined;
 }
-/**
- * The only reasons a DEPENDENCY_UNAVAILABLE may name: a busy draft worker pool
- * or the caller's own organization share of it (#297). An exact allowlist,
- * so a 503 never carries free text or anything about another tenant.
- */
 const UNAVAILABLE_REASONS: ReadonlySet<string> = new Set([
   "draft_worker_pool_busy",
   "draft_worker_organization_share_used",
-  // No plugin generator or preview runtime is configured (#45).
   "plugin_authoring_unavailable",
+  "SOURCE_INVALID",
+  "SOURCE_LIMIT_EXCEEDED",
+  "SOURCE_ORIGIN_REJECTED",
+  "SOURCE_REVISION_MISMATCH",
+  "SOURCE_REVISION_NOT_FOUND",
+  "SOURCE_TIMEOUT",
+  "SOURCE_UNAVAILABLE",
 ]);
 function safeUnavailableReason(value: unknown): string | undefined {
   return typeof value === "string" && UNAVAILABLE_REASONS.has(value)

@@ -66,12 +66,15 @@ type Source = {
   readonly name: string;
   readonly locator: string;
   readonly license?: string;
+  readonly sourceType?: "git" | "url";
 };
 
-const source = ({ id, name, locator, license = "MIT" }: Source) => ({
+const source = (
+  { id, name, locator, license = "MIT", sourceType = "git" }: Source,
+) => ({
   id,
   name,
-  sourceType: "git",
+  sourceType,
   locator,
   publisher: null,
   license,
@@ -89,9 +92,10 @@ const ACME = {
 };
 
 type Setup = {
-  readonly role?: "admin" | "developer";
+  readonly role?: "admin" | "developer" | "viewer";
   readonly saved?: readonly Source[];
   readonly failureCode?: string;
+  readonly unreadable?: string;
   readonly hold?: boolean;
   readonly createStatus?: number;
   readonly madeVersionId?: string;
@@ -172,6 +176,7 @@ async function addPage(page: Page, setup: Setup = {}) {
       const body = route.request().postDataJSON() as {
         url: string;
         name: string;
+        sourceType: "git" | "url";
       };
       record("/v1/skill-sources", body);
       if (setup.createStatus !== undefined) {
@@ -188,6 +193,7 @@ async function addPage(page: Page, setup: Setup = {}) {
         id: uuid(812),
         name: body.name,
         locator: body.url,
+        sourceType: body.sourceType,
       });
       sources.push(made);
       return route.fulfill(json(made, 201));
@@ -198,6 +204,19 @@ async function addPage(page: Page, setup: Setup = {}) {
     (route) => {
       const body = route.request().postDataJSON() as { sourceId: string };
       record("/v1/skill-imports", body);
+      if (setup.unreadable !== undefined) {
+        return route.fulfill(json({
+          type: "about:blank",
+          title: "x",
+          status: 503,
+          code: "DEPENDENCY_UNAVAILABLE",
+          detail: "x",
+          requestId: uuid(110),
+          traceId: uuid(111),
+          retryable: true,
+          reason: setup.unreadable,
+        }, 503));
+      }
       return route.fulfill(json(run(body.sourceId, "queued"), 201));
     },
   );
@@ -245,7 +264,7 @@ test.describe("add a skill from a source", () => {
   });
 
   test("someone who does not manage skills is told so", async ({ page }) => {
-    await addPage(page, { role: "developer" });
+    await addPage(page, { role: "viewer" });
     await expect(
       page.getByText(
         "Only people who manage skills can add one from a source.",
@@ -254,6 +273,111 @@ test.describe("add a skill from a source", () => {
     await expect(submit(page)).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Back to skills" }))
       .toBeVisible();
+  });
+
+  test("a developer adds a private skill from a saved source", async ({ page }) => {
+    const { sent } = await addPage(page, { role: "developer", saved: [ACME] });
+    await expect(page.getByRole("radio", { name: "A Git repository" }))
+      .toHaveCount(0);
+    await expect(page.getByRole("radio", { name: "Organization" }))
+      .toBeDisabled();
+    await expect(page.getByRole("radio", { name: "Private" })).toBeChecked();
+    await expect(
+      page.getByText(
+        "Only people who manage the Library can add organization skills.",
+      ),
+    ).toBeVisible();
+    await page.getByRole("combobox", { name: "Source" }).selectOption(ACME.id);
+    await box(page, /Branch, tag or commit/).fill("main");
+    await still(page, "skill-add-developer");
+    await submit(page).click();
+    await expect(page).toHaveURL(new RegExp(`/skills/${IDS.releaseNotes}$`));
+    expect(sent.map((one) => [one.path, one.body])).toEqual([
+      ["/v1/skill-imports", {
+        sourceId: ACME.id,
+        revision: "main",
+        scope: "personal",
+      }],
+    ]);
+  });
+
+  test("a developer with no saved source is told who adds one", async ({ page }) => {
+    await addPage(page, { role: "developer" });
+    await expect(page.getByText("No source to add from yet")).toBeVisible();
+    await expect(submit(page)).toHaveCount(0);
+    await still(page, "skill-add-no-source");
+  });
+
+  test("a web address is saved and added with a version name and no revision", async ({ page }) => {
+    const { sent } = await addPage(page);
+    await page.getByRole("radio", { name: "A web address" }).check();
+    await expect(box(page, /Branch, tag or commit/)).toHaveCount(0);
+    await submit(page).click();
+    await expect(page.getByText("Enter the web address.")).toBeVisible();
+    await box(page, /Web address/).fill(
+      "https://example.test/acme/release.tar.gz",
+    );
+    await box(page, /Name for this source/).fill("Acme archive");
+    await box(page, /Licence/).fill("MIT");
+    await box(page, /Version name/).fill("Spring release");
+    await still(page, "skill-add-web-address");
+    await submit(page).click();
+    await expect(page).toHaveURL(new RegExp(`/skills/${IDS.releaseNotes}$`));
+    expect(sent.map((one) => [one.path, one.body])).toEqual([
+      ["/v1/skill-sources", {
+        sourceType: "url",
+        url: "https://example.test/acme/release.tar.gz",
+        name: "Acme archive",
+        license: "MIT",
+      }],
+      ["/v1/skill-imports", {
+        sourceId: uuid(812),
+        label: "Spring release",
+        scope: "organization",
+      }],
+    ]);
+  });
+
+  test("an archive that is not a skill is said in plain words", async ({ page }) => {
+    await addPage(page, {
+      failureCode: "SOURCE_INVALID",
+      saved: [{
+        id: uuid(813),
+        name: "Acme archive",
+        locator: "https://example.test/acme/release.tar.gz",
+        sourceType: "url",
+      }],
+    });
+    await page.getByRole("radio", { name: "A source added before" }).check();
+    await page.getByRole("combobox", { name: "Source" }).selectOption(
+      uuid(813),
+    );
+    await expect(box(page, /Branch, tag or commit/)).toHaveCount(0);
+    await submit(page).click();
+    await expect(page.getByRole("alert")).toContainText(
+      "The file at https://example.test/acme/release.tar.gz is not a skill Bakery can use. It needs to be a .tar.gz archive",
+    );
+    await still(page, "skill-add-web-failed");
+  });
+
+  test("an archive that cannot be read is said in plain words and keeps the source", async ({ page }) => {
+    await addPage(page, { unreadable: "SOURCE_UNAVAILABLE" });
+    await page.getByRole("radio", { name: "A web address" }).check();
+    await box(page, /Web address/).fill(
+      "https://example.test/acme/release.tar.gz",
+    );
+    await box(page, /Name for this source/).fill("Acme archive");
+    await box(page, /Licence/).fill("MIT");
+    await submit(page).click();
+    await expect(page.getByRole("alert")).toContainText(
+      "Bakery could not read https://example.test/acme/release.tar.gz. Check the address and that this installation can read it.",
+    );
+    await expect(page.getByRole("alert")).toContainText("The source is saved");
+    await expect(page.getByText("Enter a branch, tag or commit.")).toHaveCount(
+      0,
+    );
+    await expect(box(page, /Branch, tag or commit/)).toHaveCount(0);
+    await still(page, "skill-add-web-unreadable");
   });
 
   test("missing and unusable fields are named, and nothing is sent", async ({ page }) => {

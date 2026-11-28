@@ -7943,5 +7943,19 @@
   "machines.checks.outOfDate": "⟪Out of date⟫",
   "machines.checks.outOfDateAdvice": "⟪This result is out of date. It is checked again when the machine is back.⟫",
   "machines.tabs.checksUnchecked": "⟪{count} not checked⟫",
-  "machines.repair.byHand": "⟪Set up by hand instead⟫"
+  "machines.repair.byHand": "⟪Set up by hand instead⟫",
+  "library.skills.add.webAddress": "⟪A web address⟫",
+  "library.skills.add.webAddressHint": "⟪A .tar.gz archive of the skill's files.⟫",
+  "library.skills.add.noSource": "⟪No source to add from yet⟫",
+  "library.skills.add.noSourceHint": "⟪An organization administrator saves a source first. You can then add a private skill from it.⟫",
+  "library.skills.add.field.webAddress": "⟪Web address⟫",
+  "library.skills.add.field.label": "⟪Version name (optional)⟫",
+  "library.skills.add.hint.webAddress": "⟪Where the archive is. It must be an address this installation is allowed to read.⟫",
+  "library.skills.add.hint.label": "⟪Shown with the version. Without one, the version is known by the archive's fingerprint.⟫",
+  "library.skills.add.hint.archiveFolder": "⟪Where the skill is in the archive. Leave empty when it is at the top.⟫",
+  "library.skills.add.problem.archiveAddress": "⟪Enter the web address.⟫",
+  "library.skills.add.failure.invalidArchive": "⟪What is in {folder} of the archive is not a skill Bakery can use. A skill needs an instructions file, usually SKILL.md.⟫",
+  "library.skills.add.failure.invalidArchiveAtTop": "⟪The file at {address} is not a skill Bakery can use. It needs to be a .tar.gz archive with an instructions file, usually SKILL.md, at the top.⟫",
+  "library.skills.add.failure.unavailableArchive": "⟪Bakery could not read {address}. Check the address and that this installation can read it.⟫",
+  "library.skills.add.failure.savedArchive": "⟪This address is already saved. Choose it under A source added before.⟫"
 }

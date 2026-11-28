@@ -178,7 +178,7 @@ export type SkillsOptions = {
   readonly ownLicenses?: Readonly<Record<string, string>>;
   /** The licence the source of Writing guide declares; MIT unless this says otherwise. */
   readonly sourceLicense?: string | null;
-  readonly role?: "admin" | "developer";
+  readonly role?: "admin" | "developer" | "viewer";
   readonly updateStatus?: number;
   readonly copyStatus?: number;
   readonly stopStatus?: number;
