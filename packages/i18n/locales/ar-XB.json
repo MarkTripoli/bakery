@@ -7927,6 +7927,7 @@
   "machines.checks.showMore": "⟪Show more⟫",
   "machines.checks.showLess": "⟪Show less⟫",
   "machines.offline.now": "⟪You are offline.⟫",
+  "machines.checks.none": "⟪No failed checks.⟫",
   "machines.checks.passed": "⟪Passed⟫",
   "machines.checks.unknown": "⟪Could not be checked⟫",
   "machines.checks.notApplicable": "⟪Does not apply⟫",
@@ -7937,6 +7938,5 @@
   "machines.checks.checkedAt": "⟪Checked {time}⟫",
   "machines.checks.couldNotRun": "⟪Bakery could not run this check. Check again in a moment.⟫",
   "machines.retired.by": "⟪Retired by {name} on {date}⟫",
-  "machines.retired.on": "⟪Retired on {date}⟫",
-  "machines.checks.none": "⟪No failed checks.⟫"
+  "machines.retired.on": "⟪Retired on {date}⟫"
 }
