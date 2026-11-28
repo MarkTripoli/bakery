@@ -14,9 +14,11 @@ import {
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useRestoreOrganizationScope } from "../app/restore-organization.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
+import { useConnectivity } from "../app/connectivity.ts";
+import { formatMachineDate } from "./MachinesPage.tsx";
 import { MACHINES_HOME, WORK_HOME } from "../shell/breadcrumb-paths.ts";
 import { ShellActiveNavigation, ShellSlot } from "../shell/shell-slots.tsx";
-import { agentRows } from "./machine-agents.ts";
+import { agentRows, paidPerUse } from "./machine-agents.ts";
 import {
   agentChoosable,
   createRefusal,
@@ -45,11 +47,16 @@ export function MachineModelNewPage(
   const scope = useProtectedScope();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const { translate } = useI18n();
+  const { translate, locale, timeZone } = useI18n();
   const say: Say = (key, arguments_) =>
     translate(key as MessageKey, arguments_);
   useRestoreOrganizationScope();
   const worker = useQuery(workerQueryOptions(api, scope, machineId));
+  const offline = useConnectivity({
+    refetch: worker.refetch,
+    refetching: worker.isFetching,
+    dataUpdatedAt: worker.dataUpdatedAt,
+  }) === "offline";
   const access = useQuery(effectiveAccessQueryOptions(api, scope));
   const isAdmin = access.data?.role === "admin";
   const bindings = useQuery({
@@ -238,6 +245,7 @@ export function MachineModelNewPage(
                       <UI.Inline variant="flow">
                         <UI.Button
                           variant="secondary"
+                          disabled={offline}
                           onClick={() =>
                             void navigate({
                               to: "/machines/$machineId",
@@ -366,14 +374,27 @@ export function MachineModelNewPage(
           >
             {chosen === null ? null : (
               <UI.Text>
-                {say("machines.models.new.paidBySubscription", {
-                  agent: say(`machines.agent.${chosen.agent}`),
-                })}
+                {say(
+                  paidPerUse(chosen)
+                    ? "machines.agents.paidPerUse"
+                    : "machines.models.new.paidBySubscription",
+                  { agent: say(`machines.agent.${chosen.agent}`) },
+                )}
               </UI.Text>
             )}
-            <UI.Text variant="muted">
-              {say("machines.agents.apiKeyLater")}
-            </UI.Text>
+            {chosen === null && rows.some(paidPerUse)
+              ? (
+                <UI.Text variant="muted">
+                  {say("machines.models.new.paidChooseAgent")}
+                </UI.Text>
+              )
+              : chosen !== null && paidPerUse(chosen)
+              ? null
+              : (
+                <UI.Text variant="muted">
+                  {say("machines.agents.apiKeyLater")}
+                </UI.Text>
+              )}
           </UI.SettingsSection>
           <UI.InlineNotice tone="information">
             {say("machines.models.new.fixedNotice")}
@@ -395,7 +416,12 @@ export function MachineModelNewPage(
             <UI.Button variant="secondary" onClick={back}>
               {say("machines.models.new.cancel")}
             </UI.Button>
-            <UI.Button variant="primary" type="submit" loading={saving}>
+            <UI.Button
+              variant="primary"
+              type="submit"
+              disabled={offline}
+              loading={saving}
+            >
               {saving
                 ? say("machines.models.new.submitting")
                 : say("machines.models.new.submit")}
@@ -425,6 +451,20 @@ export function MachineModelNewPage(
           variant="list"
           title={say("machines.models.new.title")}
         />
+        {offline && worker.data
+          ? (
+            <UI.AlertBanner tone="warning">
+              {say("machines.offline.lastUpdated", {
+                time: formatMachineDate(
+                  new Date(worker.dataUpdatedAt).toISOString(),
+                  locale,
+                  timeZone,
+                  say("machines.never"),
+                ),
+              })}
+            </UI.AlertBanner>
+          )
+          : null}
         {isAdmin
           ? (
             <UI.Text variant="muted">

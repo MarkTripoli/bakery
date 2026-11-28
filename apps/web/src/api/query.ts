@@ -86,6 +86,7 @@ import type {
   MetricSourcePage,
   MetricSourcesQuery,
   MetricsQuery,
+  ModelProviderAccountListResponse,
   MySlackLink,
   NotificationCountResponse,
   NotificationCursorQuery,
@@ -921,6 +922,23 @@ export function workerComponentsListQueryOptions(
     enabled: Boolean(scope.organizationId && workerId),
     retry: retryNetworkOnce,
     refetchInterval: 15_000,
+  });
+}
+
+export function modelProviderAccountsQueryOptions(
+  client: Pick<BakeryApiClient, "modelProviderAccounts">,
+  scope: ApiScope,
+) {
+  return queryOptions<ModelProviderAccountListResponse, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "modelProviderAccounts.list", {}),
+    queryFn: ({ signal }) => {
+      const organizationId = requireOrganization(scope);
+      return readAllPages((cursor) =>
+        client.modelProviderAccounts.list({ organizationId, cursor, signal })
+      );
+    },
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
   });
 }
 

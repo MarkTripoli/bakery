@@ -6353,9 +6353,11 @@ export const clientManifest = {
       "idempotency": "Read; opaque cursor pagination",
       "errors": [
         "AUTH_REQUIRED",
-        "AUTH_FORBIDDEN"
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST"
       ],
-      "organizationContext": "none",
+      "organizationContext": "required_authenticated_context",
       "implemented": true
     },
     {
@@ -22944,9 +22946,12 @@ export const clientManifest = {
         "provider": {
           "type": "string",
           "enum": [
-            "github"
+            "github",
+            "anthropic",
+            "openai",
+            "openrouter"
           ],
-          "description": "Fixed credential verifier; no caller-selected endpoint."
+          "description": "Fixed credential verifier; no caller-selected endpoint. github is checked against the GitHub user read; anthropic, openai and openrouter (a coding agent's model API key) are checked once against that provider's fixed models read."
         },
         "name": {
           "type": "string",
@@ -52935,20 +52940,43 @@ export const clientManifest = {
               },
               "provider": {
                 "type": "string",
-                "const": "github",
-                "description": "Fixed verified credential provider."
+                "enum": [
+                  "github",
+                  "anthropic",
+                  "openai",
+                  "openrouter"
+                ],
+                "description": "Credential verifier the secret was checked by: github, or anthropic, openai or openrouter for a coding agent's model API key."
               },
               "verifiedProviderAccountId": {
-                "type": "string",
-                "pattern": "^(?:0|[1-9][0-9]*)$",
-                "description": "Positive GitHub account ID selected from bounded authenticated verification."
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^(?:0|[1-9][0-9]*)$",
+                    "description": "GitHub account id the credential authenticated as; null for a model API key, whose provider names no account."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "SecretMetadata.verifiedProviderAccountId may be null in this transport value."
               },
               "verifiedLogin": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 39,
-                "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?$",
-                "description": "Validated GitHub login selected from verification, never caller supplied."
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 39,
+                    "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?$",
+                    "description": "GitHub login the credential authenticated as; null for a model API key."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "SecretMetadata.verifiedLogin may be null in this transport value."
               },
               "activeVersionRevision": {
                 "type": "integer",
@@ -76399,20 +76427,43 @@ export const clientManifest = {
         },
         "provider": {
           "type": "string",
-          "const": "github",
-          "description": "Fixed verified credential provider."
+          "enum": [
+            "github",
+            "anthropic",
+            "openai",
+            "openrouter"
+          ],
+          "description": "Credential verifier the secret was checked by: github, or anthropic, openai or openrouter for a coding agent's model API key."
         },
         "verifiedProviderAccountId": {
-          "type": "string",
-          "pattern": "^(?:0|[1-9][0-9]*)$",
-          "description": "Positive GitHub account ID selected from bounded authenticated verification."
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "GitHub account id the credential authenticated as; null for a model API key, whose provider names no account."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "SecretMetadata.verifiedProviderAccountId may be null in this transport value."
         },
         "verifiedLogin": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 39,
-          "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?$",
-          "description": "Validated GitHub login selected from verification, never caller supplied."
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 39,
+              "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?$",
+              "description": "GitHub login the credential authenticated as; null for a model API key."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "SecretMetadata.verifiedLogin may be null in this transport value."
         },
         "activeVersionRevision": {
           "type": "integer",
@@ -127067,6 +127118,21 @@ export const clientManifest = {
           "format": "date-time",
           "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
           "description": "UTC timestamp after which the code no longer works."
+        },
+        "repairsWorkerHostId": {
+          "description": "WorkerLinkCodeInspection.repairsWorkerHostId may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The machine this code repairs (Set up again), or null for a code that adds a new machine. The terminal on a linked computer re-links only when this is the machine it is registered as."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
         }
       },
       "required": [

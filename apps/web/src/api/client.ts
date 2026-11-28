@@ -333,6 +333,8 @@ export type WorkerProviderBindingResponse =
   ClientOutputMap["WorkerProviderBinding"];
 export type WorkerProviderBindingCreate =
   ClientInputMap["WorkerProviderBindingCreate"];
+export type ModelProviderAccountListResponse =
+  ClientOutputMap["Page<ModelProviderAccount>"];
 export type ProviderRouteListResponse = ClientOutputMap["Page<ProviderRoute>"];
 export type ProviderRouteResponse = ClientOutputMap["ProviderRoute"];
 export type RouteHealthResponse = ClientOutputMap["RouteHealth"];
@@ -1401,6 +1403,13 @@ export type BakeryApiClient = {
       readonly idempotencyKey?: string;
       readonly signal?: AbortSignal;
     }) => Promise<ApiResult<WorkerResponse>>;
+  };
+  readonly modelProviderAccounts: {
+    readonly list: (options: {
+      readonly organizationId: string;
+      readonly cursor?: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<ModelProviderAccountListResponse>>;
   };
   /** The models work may be sent to (`/v1/provider-routes`). The server lists them for the whole organization. */
   readonly providerRoutes: {
@@ -3971,6 +3980,17 @@ export function createBakeryApiClient({
               idempotencyKey: options.idempotencyKey,
               signal: options.signal,
             }),
+        );
+      },
+    },
+    modelProviderAccounts: {
+      list(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["modelProviderAccounts.list"]({
+              cursor: options.cursor,
+            }, { signal: options.signal }),
         );
       },
     },

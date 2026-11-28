@@ -167,12 +167,14 @@ export async function inspectLinkCode(
       expires_at: Date;
       consumed_at: Date | null;
       canceled_at: Date | null;
+      target_worker_host_id: string | null;
       organization_name: string;
       now: Date;
     }>(
       `select e.id, e.organization_id, e.principal_id, e.name, e.os,
               e.architecture, e.allowed_capabilities, e.slots, e.expires_at,
-              e.consumed_at, e.canceled_at, o.name as organization_name,
+              e.consumed_at, e.canceled_at, e.target_worker_host_id,
+              o.name as organization_name,
               clock_timestamp() as now
        from bakery.worker_enrollments e
        join bakery.organizations o on o.id = e.organization_id
@@ -215,6 +217,7 @@ export async function inspectLinkCode(
         architecture: entry.architecture,
       })),
       expiresAt: iso(row.expires_at),
+      repairsWorkerHostId: row.target_worker_host_id,
     });
     return noStoreJsonResponse(projection, 200);
   }, context.req.raw.signal);

@@ -7919,5 +7919,13 @@
   "machines.finishing.expired": "⟪The setup expired.⟫",
   "machines.finishing.continue": "⟪Continue setup⟫",
   "machines.finishing.continueNamed": "⟪Continue setup of {name}⟫",
-  "machines.retire.description": "⟪A retired machine takes no work until it is set up again.⟫"
+  "machines.retire.description": "⟪A retired machine takes no work until it is set up again.⟫",
+  "machines.agents.paidPerUse": "⟪{agent} is paid per use by its model provider.⟫",
+  "machines.agents.banner.notSignedIn.bodyPerUse": "⟪Sign in so this machine can take {agent} work.⟫",
+  "machines.models.new.paidChooseAgent": "⟪Choose a coding agent to see how it is paid.⟫",
+  "machines.offline.lastUpdated": "⟪You are offline. Last updated {time}.⟫",
+  "machines.agents.signedInAs": "⟪Signed in as {account}.⟫",
+  "machines.checks.showMore": "⟪Show more⟫",
+  "machines.checks.showLess": "⟪Show less⟫",
+  "machines.offline.now": "⟪You are offline.⟫"
 }

@@ -4037,9 +4037,12 @@ const transportSchemas = {
           "name": "provider",
           "type": "enum",
           "required": true,
-          "description": "Fixed credential verifier; no caller-selected endpoint.",
+          "description": "Fixed credential verifier; no caller-selected endpoint. github is checked against the GitHub user read; anthropic, openai and openrouter (a coding agent's model API key) are checked once against that provider's fixed models read.",
           "enum": [
-            "github"
+            "github",
+            "anthropic",
+            "openai",
+            "openrouter"
           ]
         },
         {
@@ -25998,9 +26001,9 @@ const transportSchemas = {
         "updatedAt": "timestamp",
         "version": "integer",
         "applicationId": "uuid",
-        "provider": "literal(github)",
-        "verifiedProviderAccountId": "decimalString",
-        "verifiedLogin": "githubLogin",
+        "provider": "enum(github|anthropic|openai|openrouter)",
+        "verifiedProviderAccountId": "decimalString|null",
+        "verifiedLogin": "githubLogin|null",
         "activeVersionRevision": "positiveInteger",
         "generation": "positiveInteger",
         "policyRevision": "positiveInteger",
@@ -26009,7 +26012,9 @@ const transportSchemas = {
       },
       "nullableFields": [
         "activeVersionId",
-        "revokedAt"
+        "revokedAt",
+        "verifiedProviderAccountId",
+        "verifiedLogin"
       ],
       "description": "A secret's identity and access policy without its value: name, the active-version pointer, the allowed-principals/allowed-actions lists (both default-deny), and revokedAt; returned by create, rotate and policy-update so a caller can confirm the change without ever seeing ciphertext.",
       "fieldDescriptions": {
@@ -26023,9 +26028,9 @@ const transportSchemas = {
         "updatedAt": "UTC timestamp when the record was last updated.",
         "version": "Optimistic-concurrency version used when updating the record.",
         "applicationId": "Owning live application UUID; legacy unscoped rows are not returned.",
-        "provider": "Fixed verified credential provider.",
-        "verifiedProviderAccountId": "Positive GitHub account ID selected from bounded authenticated verification.",
-        "verifiedLogin": "Validated GitHub login selected from verification, never caller supplied.",
+        "provider": "Credential verifier the secret was checked by: github, or anthropic, openai or openrouter for a coding agent's model API key.",
+        "verifiedProviderAccountId": "GitHub account id the credential authenticated as; null for a model API key, whose provider names no account.",
+        "verifiedLogin": "GitHub login the credential authenticated as; null for a model API key.",
         "activeVersionRevision": "Immutable revision number of the active encrypted version, distinct from metadata.version.",
         "generation": "Credential lifecycle generation; first creation is one.",
         "policyRevision": "Default-deny policy revision; first creation is one.",
@@ -39499,7 +39504,8 @@ const transportSchemas = {
         "capabilities",
         "supported",
         "supportedSystems",
-        "expiresAt"
+        "expiresAt",
+        "repairsWorkerHostId"
       ],
       "fieldTypes": {
         "organizationName": "string",
@@ -39508,8 +39514,15 @@ const transportSchemas = {
         "capabilities": "json",
         "supported": "boolean",
         "supportedSystems": "json",
-        "expiresAt": "timestamp"
+        "expiresAt": "timestamp",
+        "repairsWorkerHostId": "uuid|null"
       },
+      "nullableFields": [
+        "repairsWorkerHostId"
+      ],
+      "optionalFields": [
+        "repairsWorkerHostId"
+      ],
       "description": "What a link code would do, shown in the terminal before its one question: the organization, machine name, slots and capabilities it binds, and whether this machine's system is supported. Never contains the code, its hash or any credential.",
       "fieldDescriptions": {
         "organizationName": "Display name of the organization the machine would join.",
@@ -39518,7 +39531,8 @@ const transportSchemas = {
         "capabilities": "Capabilities the machine may run.",
         "supported": "Whether the reported system and processor are supported (and match any system the Admin set); false means nothing should be installed and the code stays unused.",
         "supportedSystems": "The supported systems as a list of {os, architecture} pairs, such as linux arm64.",
-        "expiresAt": "UTC timestamp after which the code no longer works."
+        "expiresAt": "UTC timestamp after which the code no longer works.",
+        "repairsWorkerHostId": "The machine this code repairs (Set up again), or null for a code that adds a new machine. The terminal on a linked computer re-links only when this is the machine it is registered as."
       }
     },
     "WorkerLinkRequestCreated": {

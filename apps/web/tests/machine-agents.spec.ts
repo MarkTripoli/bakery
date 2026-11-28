@@ -26,6 +26,7 @@ type Binding = {
   lastCheckedAt: string | null;
   safeProblem: string | null;
   enabled: boolean;
+  modelProviderAccountId?: string;
 };
 
 type Script = {
@@ -117,7 +118,7 @@ const wire = (b: Binding) => ({
   enabled: b.enabled,
   authMode: "host_native",
   credentialLocation: "harness_host",
-  modelProviderAccountId: null,
+  modelProviderAccountId: b.modelProviderAccountId ?? null,
   authGeneration: 1,
   lastCheckedAt: b.lastCheckedAt,
   safeProblem: b.safeProblem,
@@ -182,7 +183,9 @@ async function open(page: Page, w: World, path = `/machines/${MACHINE_ID}`) {
         items: w.components.map((key, index) => ({
           id: `00000000-0000-4000-8000-0000000000c${index}`,
           componentKey: key,
-          paymentMethods: ["subscription"],
+          paymentMethods: key === "harness.pi"
+            ? ["api_metered", "local"]
+            : ["subscription", "api_metered"],
           kind: "harness",
           actualVersion: "1.0.0",
           actualDigest: null,
@@ -202,6 +205,7 @@ async function open(page: Page, w: World, path = `/machines/${MACHINE_ID}`) {
       const made = binding({
         componentKey: body.componentKey,
         provider: body.provider,
+        billingRoute: body.billingRoute as "subscription" | "api_metered",
       });
       w.bindings.push(made);
       return route.fulfill(json(wire(made), 201));
@@ -1016,6 +1020,26 @@ test.describe("the sign-in dialog", () => {
     expect(w.createdAttempts.length).toBe(1);
   });
 
+  test("offline, a failed sign-in says why it cannot be tried again", async ({ page, context }) => {
+    await open(
+      page,
+      world({
+        failAttempts: 1,
+        script: script({ reads: ["challenge_issued"] }),
+      }),
+    );
+    await banner(page).getByRole("button", { name: "Sign in", exact: true })
+      .click();
+    const again = dialog(page).getByRole("button", { name: "Try again" });
+    await expect(again).toBeEnabled();
+    await context.setOffline(true);
+    await expect(dialog(page)).toContainText("You are offline.");
+    await expect(again).toBeDisabled();
+    await shot(page, "machine-agents-dialog-offline", [], {
+      windowOnly: true,
+    });
+  });
+
   test("closing the dialog while it still says Starting cancels the sign-in as soon as it exists", async ({ page }) => {
     let release: () => void = () => {};
     const w = world({
@@ -1082,6 +1106,86 @@ test.describe("the sign-in dialog", () => {
     await expect(page.getByRole("button", { name: "Sign in", exact: true }))
       .toHaveCount(0);
     expect(w.createdAttempts).toEqual([]);
+  });
+});
+
+test("a signed-in agent names the account it is signed in as", async ({ page }) => {
+  const accountId = "00000000-0000-4000-8000-0000000000d1";
+  const organizations: (string | undefined)[] = [];
+  await page.route("**/v1/model-provider-accounts**", (route) => {
+    organizations.push(route.request().headers()["bakery-organization-id"]);
+    return route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        items: [{
+          id: accountId,
+          provider: "anthropic",
+          billingRoute: "subscription",
+          displayIdentity: "a***@example.com",
+          verifiedAt: "2026-11-14T00:00:00.000Z",
+          authState: "signed_in",
+          lastCheckedAt: "2026-11-14T00:00:00.000Z",
+          quotaSource: null,
+          quotaRemaining: null,
+          quotaObservedAt: null,
+        }],
+        nextCursor: null,
+      }),
+    });
+  });
+  await open(
+    page,
+    world({
+      bindings: [
+        binding({
+          lastCheckedAt: "2026-11-14T00:00:00.000Z",
+          modelProviderAccountId: accountId,
+        }),
+      ],
+    }),
+  );
+  await expect(row(page, "claude")).toContainText(
+    "Uses the subscription signed in on this machine. Signed in as a***@example.com.",
+  );
+  expect(organizations).toContain(MOCK_ORGANIZATION_ID);
+  await shot(page, "machine-agents-signed-in-as");
+});
+
+test.describe("how a new sign-in is paid for", () => {
+  test("Pi is signed in under a way of paying it accepts", async ({ page }) => {
+    const w = world({
+      capabilities: ["git", "pi"],
+      components: ["harness.pi"],
+      bindings: [],
+    });
+    await open(page, w);
+    const sentence = "Pi is paid per use by its model provider.";
+    await expect(row(page, "pi")).toContainText(sentence);
+    await expect(banner(page)).toContainText(
+      "Sign in so this machine can take Pi work.",
+    );
+    await expect(banner(page)).not.toContainText("subscription");
+    await expect(page.getByText("Paying with an API key is not available yet."))
+      .toHaveCount(0);
+    expect(w.createdBindings).toHaveLength(0);
+    await shot(page, "machine-agents-pi-per-use");
+    await banner(page).getByRole("button", { name: "Sign in", exact: true })
+      .click();
+    await expect(dialog(page)).toContainText(sentence);
+    await shot(page, "machine-agents-pi-per-use-dialog", [], {
+      windowOnly: true,
+    });
+    await expect.poll(() => w.createdBindings).toMatchObject([
+      { componentKey: "harness.pi", billingRoute: "api_metered" },
+    ]);
+  });
+
+  test("Claude Code says nothing about paying per use", async ({ page }) => {
+    await open(page, world());
+    await expect(row(page, "claude")).toBeVisible();
+    await expect(page.getByText("paid per use")).toHaveCount(0);
+    await expect(page.getByText("Paying with an API key is not available yet."))
+      .toBeVisible();
   });
 });
 

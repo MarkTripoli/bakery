@@ -1,3 +1,4 @@
+import type { RouteBilling } from "./machine-models.ts";
 import type { CodingAgent, MachineBadge } from "./machine-state.ts";
 
 /**
@@ -19,11 +20,21 @@ export type BindingFacts = Readonly<{
   billingRoute: string;
   enabled: boolean;
   lastCheckedAt?: string | null;
+  modelProviderAccountId?: string | null;
   /** Present when the server has recorded a problem with this sign-in. */
   safeProblem?: unknown;
 }>;
 
-export type ComponentFacts = Readonly<{ componentKey: string }>;
+export type ComponentFacts = Readonly<{
+  componentKey: string;
+  paymentMethods: readonly RouteBilling[];
+}>;
+
+function newSignInRoute(component: ComponentFacts): RouteBilling | undefined {
+  return component.paymentMethods.includes("subscription")
+    ? "subscription"
+    : component.paymentMethods[0];
+}
 
 const AGENT_WORDS: Readonly<Record<CodingAgent, readonly string[]>> = {
   claude: ["claude", "anthropic"],
@@ -74,6 +85,7 @@ export type AgentRow = Readonly<{
   state: AgentState;
   /** The component the machine reported for this agent: what a sign-in is attached to. Null when it has not reported one. */
   componentKey: string | null;
+  billingRoute: RouteBilling | undefined;
 }>;
 
 /**
@@ -98,15 +110,22 @@ export function agentRows(
     const own = bindings.filter((binding) => agentOfBinding(binding) === agent);
     const binding = own.find((entry) => entry.enabled) ?? own[0] ?? null;
     const component = components.find((entry) =>
-      agentOfKey(entry.componentKey) === agent
+      agentOfKey(entry.componentKey) === agent &&
+      newSignInRoute(entry) !== undefined
     );
     return {
       agent,
       binding,
       state: agentState(binding),
       componentKey: binding?.componentKey ?? component?.componentKey ?? null,
+      billingRoute: component && newSignInRoute(component),
     };
   });
+}
+
+export function paidPerUse(row: AgentRow): boolean {
+  return row.agent === "pi" &&
+    (row.binding?.billingRoute ?? row.billingRoute) === "api_metered";
 }
 
 /** The name a provider binding is made under for an agent the person signs in. */

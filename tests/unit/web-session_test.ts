@@ -193,6 +193,7 @@ function fakeApi(
     },
     workerComponents: { list: rejecting },
     workerAttempts: { list: rejecting },
+    modelProviderAccounts: { list: rejecting },
     providerRoutes: {
       list: rejecting,
       health: rejecting,

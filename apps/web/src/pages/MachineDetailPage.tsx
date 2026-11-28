@@ -11,6 +11,7 @@ import { useBakeryApi } from "../api/context.tsx";
 import {
   dispatchBlockersQueryOptions,
   effectiveAccessQueryOptions,
+  modelProviderAccountsQueryOptions,
   workerAttemptsQueryOptions,
   workerComponentsListQueryOptions,
   workerEnrollmentQueryOptions,
@@ -30,6 +31,7 @@ import { useI18n } from "../i18n/I18nProvider.tsx";
 import { MACHINES_HOME, WORK_HOME } from "../shell/breadcrumb-paths.ts";
 import { formatMachineDate } from "./MachinesPage.tsx";
 import { ShellActiveNavigation, ShellSlot } from "../shell/shell-slots.tsx";
+import { MachineLoading } from "./MachineLoading.tsx";
 import {
   bannerBodyKey,
   bannerTitle,
@@ -49,6 +51,7 @@ import {
   agentOfFailedChecks,
   agentRows,
   pageBadge,
+  paidPerUse,
 } from "./machine-agents.ts";
 import {
   type BannerFix,
@@ -250,6 +253,7 @@ export function MachineDetailPage(
     refetching: worker.isFetching,
     dataUpdatedAt: worker.dataUpdatedAt,
   });
+  const offline = connectivity === "offline";
   const organizationId = scope.organizationId;
   const formatDate = (value: string) =>
     dateLabel(value, locale, timeZone, translate);
@@ -331,6 +335,17 @@ export function MachineDetailPage(
       });
     }
   };
+  const accounts = useQuery({
+    ...modelProviderAccountsQueryOptions(api, scope),
+    enabled: isAdmin && Boolean(organizationId) &&
+      providerItems.some((binding) => binding.modelProviderAccountId),
+  });
+  const accountOf = (
+    binding: { modelProviderAccountId?: string | null } | null,
+  ) =>
+    accounts.data?.items.find((account) =>
+      account.id === binding?.modelProviderAccountId
+    )?.displayIdentity;
   const agents = agentRows(
     workerData ? codingAgents(workerData.capabilities) : [],
     providerItems,
@@ -346,6 +361,7 @@ export function MachineDetailPage(
     api,
     organizationId: organizationId ?? "",
     machineId,
+    offline,
     machineName: machineTitle,
     translate,
     onChanged: refreshMachine,
@@ -513,7 +529,7 @@ export function MachineDetailPage(
                   time: formatDate(workerData.lastHeartbeatAt ?? ""),
                 },
               )
-              : machineId}
+              : undefined}
             summary={workerData
               ? (
                 <UI.Badge tone={machineBadgeTone(headerBadge)}>
@@ -528,16 +544,18 @@ export function MachineDetailPage(
             <UI.AlertBanner
               tone={connectivity === "offline" ? "warning" : "information"}
             >
-              {message(translate, `machines.${connectivity}.description`)}
+              {offline && worker.data
+                ? message(translate, "machines.offline.lastUpdated", {
+                  time: formatDate(
+                    new Date(worker.dataUpdatedAt).toISOString(),
+                  ),
+                })
+                : message(translate, `machines.${connectivity}.description`)}
             </UI.AlertBanner>
           )
           : null}
         {worker.isPending
-          ? (
-            <UI.AlertBanner tone="information">
-              {message(translate, "machines.loading")}
-            </UI.AlertBanner>
-          )
+          ? <MachineLoading label={message(translate, "machines.loading")} />
           : forbidden
           ? (
             <UI.EmptyState
@@ -603,6 +621,7 @@ export function MachineDetailPage(
                         <UI.Button
                           variant="secondary"
                           loading={modeBusy}
+                          disabled={offline && fix !== "seeChecks"}
                           onClick={() => runFix(fix)}
                         >
                           {message(translate, `machines.banner.fix.${fix}`)}
@@ -664,6 +683,7 @@ export function MachineDetailPage(
                     row={signInBanner ?? bannerAgent!}
                     translate={translate}
                     signIn={signIn}
+                    offline={offline}
                     otherAgentReady={agents.some((entry) =>
                       entry.agent !== (signInBanner ?? bannerAgent!).agent &&
                       entry.state === "ready"
@@ -709,6 +729,7 @@ export function MachineDetailPage(
                           <UI.Inline gap="compact">
                             <UI.Button
                               variant="primary"
+                              disabled={offline}
                               onClick={() => void repair()}
                             >
                               {message(
@@ -776,6 +797,7 @@ export function MachineDetailPage(
                       options={MACHINE_MODES.map((mode) => ({
                         value: mode,
                         label: message(translate, `machines.mode.${mode}`),
+                        disabled: offline,
                       }))}
                     />
                     {modeNote &&
@@ -936,6 +958,8 @@ export function MachineDetailPage(
                                           signIn={signIn}
                                           inBanner={agentBannerRow?.agent ===
                                             row.agent}
+                                          offline={offline}
+                                          account={accountOf(row.binding)}
                                         />
                                       ))}
                                     </UI.DescriptionList>
@@ -948,7 +972,7 @@ export function MachineDetailPage(
                                       )}
                                     </UI.Text>
                                   )}
-                                {agents.length
+                                {agents.length && !agents.some(paidPerUse)
                                   ? (
                                     <UI.Text variant="muted">
                                       {message(
@@ -982,6 +1006,7 @@ export function MachineDetailPage(
                                 <UI.Inline gap="compact">
                                   <UI.Button
                                     variant="destructive-outline"
+                                    disabled={offline}
                                     onClick={() => {
                                       setRetireFailed(false);
                                       setRetireOpen(true);
@@ -1020,6 +1045,7 @@ export function MachineDetailPage(
                                           <UI.Button
                                             variant="secondary"
                                             loading={modeBusy}
+                                            disabled={offline}
                                             onClick={() => void finishInstead()}
                                           >
                                             {message(
@@ -1033,6 +1059,7 @@ export function MachineDetailPage(
                                   confirmAction={
                                     <UI.Button
                                       variant="destructive"
+                                      disabled={offline}
                                       onClick={() => void retire()}
                                     >
                                       {message(
@@ -1043,6 +1070,19 @@ export function MachineDetailPage(
                                   }
                                 >
                                   <UI.Stack gap="compact">
+                                    {offline
+                                      ? (
+                                        <UI.AlertBanner
+                                          tone="warning"
+                                          role="status"
+                                        >
+                                          {message(
+                                            translate,
+                                            "machines.offline.now",
+                                          )}
+                                        </UI.AlertBanner>
+                                      )
+                                      : null}
                                     <UI.Text>
                                       {message(
                                         translate,
@@ -1091,6 +1131,7 @@ export function MachineDetailPage(
                         <MachineModels
                           machineId={machineId}
                           isAdmin={isAdmin}
+                          offline={offline}
                           agents={agents}
                           bindings={providers.data
                             ? {
