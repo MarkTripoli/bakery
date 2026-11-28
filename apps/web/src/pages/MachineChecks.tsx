@@ -3,7 +3,7 @@ import * as UI from "@bakery/ui";
 import type { MessageArguments, MessageKey, Translator } from "@bakery/i18n";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import { useShellViewport } from "../app/responsive.ts";
-import { boundedReason } from "./MachinesPage.tsx";
+import { MachineLoading } from "./MachineLoading.tsx";
 import { checkInfo, groupChecks } from "./machine-page-state.ts";
 import { type SoftwareRow, softwareRows } from "./machine-software.ts";
 
@@ -80,9 +80,9 @@ export function MachineChecks(
           >
             {blockers.isPending
               ? (
-                <UI.AlertBanner tone="information">
-                  {message(translate, "machines.loading")}
-                </UI.AlertBanner>
+                <MachineLoading
+                  label={message(translate, "machines.loading")}
+                />
               )
               : blockers.isError
               ? (
@@ -171,18 +171,23 @@ export function MachineChecks(
                                       </UI.Text>
                                     )
                                     : null}
-                                  <UI.DataText
-                                    variant="code"
-                                    state="wrapped"
+                                  <UI.ExpandableText
+                                    lines={6}
+                                    showLabel={message(
+                                      translate,
+                                      "machines.checks.showMore",
+                                    )}
+                                    hideLabel={message(
+                                      translate,
+                                      "machines.checks.showLess",
+                                    )}
                                   >
-                                    {boundedReason(
-                                      failed.reason,
-                                    ) ||
+                                    {failed.reason?.trim() ||
                                       message(
                                         translate,
                                         "machines.checks.noReason",
                                       )}
-                                  </UI.DataText>
+                                  </UI.ExpandableText>
                                 </UI.Stack>
                               }
                             />
@@ -360,11 +365,7 @@ function SoftwareSection(
         )
         : components.isSuccess
         ? <UI.Text>{message(translate, "machines.software.empty")}</UI.Text>
-        : (
-          <UI.AlertBanner tone="information">
-            {message(translate, "machines.loading")}
-          </UI.AlertBanner>
-        )}
+        : <MachineLoading label={message(translate, "machines.loading")} />}
       {componentContinuation.isError
         ? (
           <UI.AlertBanner tone="error">

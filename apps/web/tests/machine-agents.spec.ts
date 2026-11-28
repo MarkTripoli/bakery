@@ -26,6 +26,7 @@ type Binding = {
   lastCheckedAt: string | null;
   safeProblem: string | null;
   enabled: boolean;
+  modelProviderAccountId?: string;
 };
 
 type Script = {
@@ -117,7 +118,7 @@ const wire = (b: Binding) => ({
   enabled: b.enabled,
   authMode: "host_native",
   credentialLocation: "harness_host",
-  modelProviderAccountId: null,
+  modelProviderAccountId: b.modelProviderAccountId ?? null,
   authGeneration: 1,
   lastCheckedAt: b.lastCheckedAt,
   safeProblem: b.safeProblem,
@@ -1019,6 +1020,26 @@ test.describe("the sign-in dialog", () => {
     expect(w.createdAttempts.length).toBe(1);
   });
 
+  test("offline, a failed sign-in says why it cannot be tried again", async ({ page, context }) => {
+    await open(
+      page,
+      world({
+        failAttempts: 1,
+        script: script({ reads: ["challenge_issued"] }),
+      }),
+    );
+    await banner(page).getByRole("button", { name: "Sign in", exact: true })
+      .click();
+    const again = dialog(page).getByRole("button", { name: "Try again" });
+    await expect(again).toBeEnabled();
+    await context.setOffline(true);
+    await expect(dialog(page)).toContainText("You are offline.");
+    await expect(again).toBeDisabled();
+    await shot(page, "machine-agents-dialog-offline", [], {
+      windowOnly: true,
+    });
+  });
+
   test("closing the dialog while it still says Starting cancels the sign-in as soon as it exists", async ({ page }) => {
     let release: () => void = () => {};
     const w = world({
@@ -1086,6 +1107,48 @@ test.describe("the sign-in dialog", () => {
       .toHaveCount(0);
     expect(w.createdAttempts).toEqual([]);
   });
+});
+
+test("a signed-in agent names the account it is signed in as", async ({ page }) => {
+  const accountId = "00000000-0000-4000-8000-0000000000d1";
+  const organizations: (string | undefined)[] = [];
+  await page.route("**/v1/model-provider-accounts**", (route) => {
+    organizations.push(route.request().headers()["bakery-organization-id"]);
+    return route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        items: [{
+          id: accountId,
+          provider: "anthropic",
+          billingRoute: "subscription",
+          displayIdentity: "a***@example.com",
+          verifiedAt: "2026-11-14T00:00:00.000Z",
+          authState: "signed_in",
+          lastCheckedAt: "2026-11-14T00:00:00.000Z",
+          quotaSource: null,
+          quotaRemaining: null,
+          quotaObservedAt: null,
+        }],
+        nextCursor: null,
+      }),
+    });
+  });
+  await open(
+    page,
+    world({
+      bindings: [
+        binding({
+          lastCheckedAt: "2026-11-14T00:00:00.000Z",
+          modelProviderAccountId: accountId,
+        }),
+      ],
+    }),
+  );
+  await expect(row(page, "claude")).toContainText(
+    "Uses the subscription signed in on this machine. Signed in as a***@example.com.",
+  );
+  expect(organizations).toContain(MOCK_ORGANIZATION_ID);
+  await shot(page, "machine-agents-signed-in-as");
 });
 
 test.describe("how a new sign-in is paid for", () => {

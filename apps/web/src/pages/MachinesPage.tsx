@@ -24,20 +24,18 @@ import { WORK_HOME } from "../shell/breadcrumb-paths.ts";
 import { ShellActiveNavigation, ShellSlot } from "../shell/shell-slots.tsx";
 import { FinishingSetup } from "./FinishingSetup.tsx";
 import { MachineList } from "./MachineList.tsx";
-import { type MachineFilter, machineMatchesFilter } from "./machine-state.ts";
+import {
+  formatMachineDate,
+  type MachineFilter,
+  machineMatchesFilter,
+} from "./machine-state.ts";
 
 // Above this many machines the list offers a filter; below it, it is just a list.
 const FILTER_MIN_MACHINES = 10;
 
 type MachineRow = WorkerResponse;
 
-export { formatMachineDate } from "./machine-state.ts";
-
-export function boundedReason(reason: string | null | undefined): string {
-  const text = reason?.trim() || "";
-  if (text.length <= 240) return text;
-  return `${text.slice(0, 237)}…`;
-}
+export { formatMachineDate };
 
 function StateError({
   busy = false,
@@ -76,7 +74,7 @@ export function MachinesPage() {
   const api = useBakeryApi();
   const scope = useProtectedScope();
   const navigate = useNavigate();
-  const { translate } = useI18n();
+  const { translate, locale, timeZone } = useI18n();
   useRestoreOrganizationScope();
   const [workerCursor, setWorkerCursor] = useState<string | null>(null);
   const [filter, setFilter] = useState<MachineFilter>("all");
@@ -144,6 +142,7 @@ export function MachinesPage() {
   const addMachine = (
     <UI.Button
       variant="primary"
+      disabled={connectivity === "offline"}
       onClick={() =>
         void navigate({ to: "/machines/new", search: { finish: undefined } })}
     >
@@ -184,7 +183,18 @@ export function MachinesPage() {
             <UI.AlertBanner
               tone={connectivityKind === "offline" ? "warning" : "information"}
             >
-              {translate(`machines.${connectivityKind}.description` as never)}
+              {connectivityKind === "offline" && workers.data
+                ? translate("machines.offline.lastUpdated" as never, {
+                  time: formatMachineDate(
+                    new Date(workers.dataUpdatedAt).toISOString(),
+                    locale,
+                    timeZone,
+                    "",
+                  ),
+                })
+                : translate(
+                  `machines.${connectivityKind}.description` as never,
+                )}
             </UI.AlertBanner>
           )
           : null}

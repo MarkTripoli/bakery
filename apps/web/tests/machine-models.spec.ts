@@ -605,6 +605,25 @@ test.describe("machine page: Models tab", () => {
     }
   });
 
+  test("offline, no model can be added or turned off", async ({ page, context }) => {
+    await open(page, world({ routes: [route()] }));
+    const add = models(page).getByRole("button", { name: "Add a model" });
+    await expect(add).toBeEnabled();
+    await context.setOffline(true);
+    await expect(add).toBeDisabled();
+    await expect(models(page).getByRole("switch")).toBeDisabled();
+  });
+
+  test("offline, a half-written model cannot be sent", async ({ page, context }) => {
+    await open(page, world(), `/machines/${MACHINE_ID}/models/new`);
+    const submit = page.getByRole("button", { name: "Add model" });
+    await expect(submit).toBeEnabled();
+    await context.setOffline(true);
+    await expect(submit).toBeDisabled();
+    await expect(page.getByText(/You are offline\. Last updated /))
+      .toBeVisible();
+  });
+
   test("with no models and a coding agent signed in, the tab offers to add one", async ({ page }) => {
     await open(page, world());
     await expect(models(page)).toContainText("No models yet");

@@ -1822,8 +1822,12 @@
   color: var(--color-fg-muted);
   font: var(--type-caption);
 }
-/* A clamped text keeps its first lines and ends in an ellipsis; the whole text
-   is the element's title. */
+.ui-text[data-lines="6"] {
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 6;
+  display: -webkit-box;
+  overflow: hidden;
+}
 .ui-text[data-lines="3"] {
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;
