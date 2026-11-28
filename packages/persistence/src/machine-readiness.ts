@@ -1447,13 +1447,14 @@ export function createMachineReadinessWorkflows(
         `update bakery.worker_hosts
          set inventory_revision = $2,
              readiness_revision = readiness_revision + $3,
-             updated_at = current_timestamp, version = version + 1
+             updated_at = current_timestamp, version = version + $5
          where organization_id = $1 and id = $4`,
         [
           hostRow.organizationId,
           newInventoryRevision,
           inventoryChanged || checksApplied ? 1 : 0,
           hostRow.id,
+          inventoryChanged ? 1 : 0,
         ],
       );
       if (inventoryChanged) {
