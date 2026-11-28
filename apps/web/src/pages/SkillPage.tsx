@@ -214,7 +214,7 @@ function FilesCard(
                                 opened === file.path ? null : file.path,
                               )}
                           >
-                            <UI.DataText>{file.path}</UI.DataText>
+                            {file.path}
                           </UI.Button>
                         </UI.Inline>
                         <UI.Text variant="caption">{line(file)}</UI.Text>
