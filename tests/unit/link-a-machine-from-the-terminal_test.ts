@@ -394,6 +394,43 @@ Deno.test("a linked computer refuses a repair code for any other machine, even o
   }
 });
 
+Deno.test("on a linked computer an expired or mistyped code says so, not that it is linked", async () => {
+  const h = await harness({
+    routes: {
+      [INSPECT]: [
+        { status: 200, body: preview() },
+        { status: 409, body: { reason: "used" } },
+      ],
+    },
+  });
+  try {
+    assertEquals(await h.run(), 0);
+    for (
+      const reply of [
+        { status: 409, body: { code: "STATE_CONFLICT", reason: "expired" } },
+        { status: 404, body: { code: "RESOURCE_NOT_FOUND" } },
+      ]
+    ) {
+      const other = await harness({ routes: { [INSPECT]: [reply] } });
+      try {
+        assertEquals(
+          await runLink(
+            { server: SERVER, code: "EEEE-FFFF", root: h.root },
+            other.io,
+          ),
+          2,
+        );
+        assert(!other.text().includes("already linked"), other.text());
+        assertEquals(other.events, []);
+      } finally {
+        await other.close();
+      }
+    }
+  } finally {
+    await h.close();
+  }
+});
+
 Deno.test("rerunning the used command on a linked computer says it is linked", async () => {
   const h = await harness({
     routes: {

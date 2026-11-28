@@ -350,7 +350,9 @@ async function linkWithCode(
       await post(io, origin, "/v1/worker/link-code-inspection", report),
     );
   } catch (error) {
-    if (error instanceof Refused && existing !== null) {
+    if (
+      error instanceof Refused && error.reason === "used" && existing !== null
+    ) {
       io.write(alreadyLinked(existing));
       return 0;
     }
