@@ -2527,7 +2527,6 @@
   "machines.about.slots": "⟪Tasks at once⟫",
   "machines.checks.failed": "⟪Failed⟫",
   "machines.repair.title": "⟪Set up {name} again⟫",
-  "machines.repair.leave": "⟪If you leave this page the setup code is lost. Select Set up again to get a new one.⟫",
   "machines.repair.failed": "⟪Bakery could not start the setup. Try again.⟫",
   "machines.retire.dialogAgain": "⟪The machine can be set up again later.⟫",
   "machines.pagination.truncated.machines": "⟪Showing the first {count} machines. More are available.⟫",
@@ -7944,7 +7943,8 @@
   "machines.checks.outOfDate": "⟪Out of date⟫",
   "machines.checks.outOfDateAdvice": "⟪This result is out of date. It is checked again when the machine is back.⟫",
   "machines.tabs.checksUnchecked": "⟪{count} not checked⟫",
+  "machines.repair.byHand": "⟪Set up by hand instead⟫",
+  "library.skill.files.cannotShow": "⟪This file cannot be shown here.⟫",
   "library.skill.files.fileError": "⟪This file did not load.⟫",
-  "library.skill.files.contents": "⟪File contents⟫",
-  "library.skill.files.cannotShow": "⟪This file cannot be shown here.⟫"
+  "library.skill.files.contents": "⟪File contents⟫"
 }

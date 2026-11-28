@@ -41,6 +41,8 @@ type Fixture = {
   repairs: Request[];
   /** What a read of the re-pair setup says. */
   repairState: "pending" | "consumed" | "expired";
+  pendingRepair: boolean;
+  cancels: number;
   /** The next update is refused with this status. */
   refuseWith: number | null;
   /** The machine's system and processor. */
@@ -72,6 +74,8 @@ function fixture(
     revokes: [],
     repairs: [],
     repairState: "pending",
+    pendingRepair: false,
+    cancels: 0,
     refuseWith: null,
     // The server stores x86_64 as x64: that is what a real machine carries.
     system: { os: "linux", architecture: "x64" },
@@ -129,6 +133,22 @@ async function open(
     (url) => url.pathname === `/v1/workers/${MACHINE_ID}/enrollments`,
     (route) => {
       f.repairs.push(route.request());
+      if (f.pendingRepair) {
+        return route.fulfill({
+          status: 409,
+          contentType: "application/problem+json",
+          body: JSON.stringify({
+            type: "https://bakery.example/problems/x",
+            title: "x",
+            status: 409,
+            code: "STATE_CONFLICT",
+            retryable: false,
+            detail: "A repair code is already pending.",
+            requestId: "00000000-0000-4000-8000-00000000f002",
+            traceId: "00000000000000000000000000000002",
+          }),
+        });
+      }
       return route.fulfill(json({
         enrollmentId: REPAIR_ID,
         enrollmentToken: REPAIR_CODE,
@@ -140,9 +160,48 @@ async function open(
     },
   );
   await page.route(
-    (url) => url.pathname === `/v1/worker-enrollments/${REPAIR_ID}`,
+    (url) => url.pathname === "/v1/worker-enrollments",
     (route) =>
       route.fulfill(json({
+        items: f.pendingRepair
+          ? [{
+            enrollmentId: REPAIR_ID,
+            state: "pending",
+            name: "fixture-host",
+            os: "linux",
+            architecture: "x64",
+            capabilities: ["git", "claude"],
+            slots: 2,
+            expiresAt: new Date(Date.now() + 10 * 60_000).toISOString(),
+            consumedAt: null,
+            canceledAt: null,
+            workerHostId: null,
+            replacementOfId: null,
+            targetWorkerHostId: MACHINE_ID,
+            version: 1,
+          }]
+          : [],
+        nextCursor: null,
+      })),
+  );
+  await page.route(
+    (url) => url.pathname === `/v1/worker-enrollments/${REPAIR_ID}`,
+    (route) => {
+      if (route.request().method() === "PATCH") {
+        f.pendingRepair = false;
+        f.cancels += 1;
+        return route.fulfill(json({
+          enrollmentId: REPAIR_ID,
+          organizationId: MOCK_ORGANIZATION_ID,
+          state: "canceled",
+          expiresAt: new Date(Date.now() + 10 * 60_000).toISOString(),
+          workerHostId: null,
+          worker: null,
+          version: 2,
+          snapshotCursor: null,
+        }));
+      }
+      return route.fulfill(json({
         enrollmentId: REPAIR_ID,
         organizationId: MOCK_ORGANIZATION_ID,
         state: f.repairState,
@@ -151,7 +210,8 @@ async function open(
         worker: null,
         version: 1,
         snapshotCursor: null,
-      })),
+      }));
+    },
   );
   await page.route(
     (url) => url.pathname === `/v1/workers/${MACHINE_ID}/revocations`,
@@ -917,40 +977,89 @@ test.describe("machine page: mode and Retire", () => {
       setup.getByRole("heading", { name: "Set up fixture-host again" }),
     )
       .toBeVisible();
-    await expect(setup.getByText(REPAIR_CODE)).toBeVisible();
-    // Linux on x86_64 is a supported system, so its steps carry no warning.
-    await expect(setup.getByText("is not a supported system yet"))
+    await expect(setup.locator("[data-ui-component=codeBlock]")).toContainText(
+      "link --server http://127.0.0.1 --code REPA-IR01",
+    );
+    await expect(setup).toContainText("Paste it in a terminal on the machine.");
+    await expect(setup).toContainText("Works once, for 10 minutes");
+    await expect(setup.getByTestId("machine-add-status")).toHaveText(
+      "Waiting for the machine · this page updates by itself",
+    );
+    await expect(setup.getByText(REPAIR_CODE)).toHaveCount(0);
+    await expect(banner(page).getByRole("button", { name: "Set up again" }))
       .toHaveCount(0);
-    await expect(
-      setup.getByText(
-        "The Bakery worker is the program that runs agents on this machine.",
-      ),
-    ).toBeVisible();
-    await expect(setup).toContainText("BAKERY_WORKER_NAME=fixture-host");
-    await expect(setup).toContainText("BAKERY_CLAUDE_HARNESS=1");
-    await expect(
-      setup.getByRole("status").filter({
-        hasText: "Waiting for the machine to connect…",
-      }),
-    ).toBeVisible();
-    // The old panel's words are gone.
     await expect(page.getByText(/setup key|worker host|Run the worker/i))
       .toHaveCount(0);
-    // The banner that started it stays above the instructions.
     const bannerBox = await banner(page).boundingBox();
     const setupBox = await setup.boundingBox();
     expect(bannerBox!.y).toBeLessThan(setupBox!.y);
     await shot(page, "machine-page-set-up-again");
-    // It connects: the page says so.
+    await page.clock.fastForward(2 * 60_000 + 1_000);
+    await expect(setup.getByTestId("machine-add-status")).toHaveText(
+      "Still waiting. If the terminal shows an error, it says what to do.",
+    );
+    await setup.getByRole("button", { name: "Set up by hand instead" }).click();
+    await expect(setup.getByText(REPAIR_CODE)).toBeVisible();
+    await expect(setup.locator("[data-ui-component=codeBlock]").first())
+      .not.toContainText("link --server");
+    await expect(setup).toContainText("BAKERY_WORKER_NAME=fixture-host");
+    await expect(setup).toContainText("BAKERY_CLAUDE_HARNESS=1");
+    await expect(setup.getByText("Waiting for the machine to connect…"))
+      .toHaveCount(0);
+    await expect(setup.getByText("is not a supported system yet"))
+      .toHaveCount(0);
+    expect(f.repairs).toHaveLength(1);
+    await shot(page, "machine-page-set-up-by-hand");
     f.repairState = "consumed";
-    // The page asks again on a timer that backs off from 5 to 30 seconds, so
-    // move its clock until it has asked, instead of waiting a wall-clock budget.
     await expect(async () => {
       await page.clock.fastForward(30_000);
-      await expect(page.getByText("fixture-host is connected.")).toBeVisible({
+      await expect(page.getByTestId("machine-repair")).toHaveCount(0, {
         timeout: 2_000,
       });
     }).toPass();
+  });
+
+  test("Set up again with a code still pending replaces it with a new command", async ({ page }) => {
+    const f = fixture({ status: "revoked", desiredMode: "revoked" }, {
+      pendingRepair: true,
+    });
+    await open(page, f);
+    await banner(page).getByRole("button", { name: "Set up again" }).click();
+    await expect(
+      page.getByTestId("machine-repair").locator(
+        "[data-ui-component=codeBlock]",
+      ),
+    ).toBeVisible();
+    expect(f.cancels).toBe(1);
+    expect(f.repairs).toHaveLength(2);
+    await expect(page.getByText("Bakery could not start the setup."))
+      .toHaveCount(0);
+  });
+
+  test("a command that expired unused is taken away and offers a new one", async ({ page, context }) => {
+    const f = fixture({ status: "revoked", desiredMode: "revoked" });
+    await page.clock.install();
+    await open(page, f);
+    await banner(page).getByRole("button", { name: "Set up again" }).click();
+    const setup = page.getByTestId("machine-repair");
+    await expect(setup.locator("[data-ui-component=codeBlock]")).toBeVisible();
+    f.repairState = "expired";
+    await expect(async () => {
+      await page.clock.fastForward(30_000);
+      await expect(setup).toContainText(
+        "This command expired before it was used.",
+        { timeout: 2_000 },
+      );
+    }).toPass();
+    await expect(setup.locator("[data-ui-component=codeBlock]")).toHaveCount(0);
+    await shot(page, "machine-page-set-up-expired");
+    f.repairState = "pending";
+    await context.setOffline(true);
+    await expect(setup.getByRole("button", { name: "Get a new command" }))
+      .toBeDisabled();
+    await context.setOffline(false);
+    await setup.getByRole("button", { name: "Get a new command" }).click();
+    await expect.poll(() => f.repairs.length).toBe(2);
   });
 
   test("a machine with a banner keeps its status word in the header", async ({ page }) => {
@@ -1081,8 +1190,9 @@ test.describe("machine page: mode and Retire", () => {
     await open(page, f);
     await banner(page).getByRole("button", { name: "Set up again" }).click();
     const setup = page.getByTestId("machine-repair");
-    await expect(setup.getByText(REPAIR_CODE)).toBeVisible();
-    await expect(setup).toContainText("BAKERY_WORKER_NAME=fixture-host");
+    await expect(setup.locator("[data-ui-component=codeBlock]")).toContainText(
+      "link --server",
+    );
     await expect(setup.getByText("is not a supported system yet"))
       .toHaveCount(0);
   });

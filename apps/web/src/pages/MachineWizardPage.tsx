@@ -503,6 +503,9 @@ function InstallStep(
         serverUrl={serverUrl}
         translate={translate}
       />
+      <UI.AlertBanner tone="information" role="status" aria-live="polite">
+        {translate("machines.wizard.install.waiting" as never)}
+      </UI.AlertBanner>
       <UI.Text variant="muted">
         {translate("machines.wizard.install.leave" as never)}
       </UI.Text>

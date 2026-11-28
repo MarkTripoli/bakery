@@ -2530,7 +2530,6 @@
   "machines.about.slots": "⟦Ŧàšķš àŧ ôñçë ŧë⟧",
   "machines.checks.failed": "⟦Ƒàïļëð…⟧",
   "machines.repair.title": "⟦Šëŧ ûþ {name} àĝàïñ ŧëšŧ⟧",
-  "machines.repair.leave": "⟦Ïƒ ÿôû ļëàṽë ŧĥïš þàĝë ŧĥë šëŧûþ çôðë ïš ļôšŧ. Šëļëçŧ Šëŧ ûþ àĝàïñ ŧô ĝëŧ à ñëŵ ôñë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧",
   "machines.repair.failed": "⟦Ɓàķëŕÿ çôûļð ñôŧ šŧàŕŧ ŧĥë šëŧûþ. Ŧŕÿ àĝàïñ. ŧëšŧ çôþÿ ŧëš⟧",
   "machines.retire.dialogAgain": "⟦Ŧĥë ɱàçĥïñë çàñ ƀë šëŧ ûþ àĝàïñ ļàŧëŕ. ŧëšŧ çôþÿ ŧ⟧",
   "machines.pagination.truncated.machines": "⟦Šĥôŵïñĝ ŧĥë ƒïŕšŧ {count} ɱàçĥïñëš. Ṁôŕë àŕë àṽàïļàƀļë. ŧëšŧ çôþÿ ŧëšŧ çô⟧",
@@ -7944,7 +7943,8 @@
   "machines.checks.outOfDate": "⟦Ôûŧ ôƒ ðàŧë ŧ⟧",
   "machines.checks.outOfDateAdvice": "⟦Ŧĥïš ŕëšûļŧ ïš ôûŧ ôƒ ðàŧë. Ïŧ ïš çĥëçķëð àĝàïñ ŵĥëñ ŧĥë ɱàçĥïñë ïš ƀàçķ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
   "machines.tabs.checksUnchecked": "⟦{count} ñôŧ çĥëçķëð ŧëšŧ⟧",
+  "machines.repair.byHand": "⟦Šëŧ ûþ ƀÿ ĥàñð ïñšŧëàð ŧëšŧŧ⟧",
+  "library.skill.files.cannotShow": "⟦Ŧĥïš ƒïļë çàññôŧ ƀë šĥôŵñ ĥëŕë. ŧëšŧ çôþ⟧",
   "library.skill.files.fileError": "⟦Ŧĥïš ƒïļë ðïð ñôŧ ļôàð. ŧëšŧ ç⟧",
-  "library.skill.files.contents": "⟦Ƒïļë çôñŧëñŧš ŧë⟧",
-  "library.skill.files.cannotShow": "⟦Ŧĥïš ƒïļë çàññôŧ ƀë šĥôŵñ ĥëŕë. ŧëšŧ çôþ⟧"
+  "library.skill.files.contents": "⟦Ƒïļë çôñŧëñŧš ŧë⟧"
 }
