@@ -196,6 +196,7 @@ async function open(
           workerHostId: null,
           worker: null,
           version: 2,
+          snapshotCursor: null,
         }));
       }
       return route.fulfill(json({
