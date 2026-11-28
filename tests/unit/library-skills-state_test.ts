@@ -12,6 +12,8 @@ import {
   scopeWords,
   serverScope,
   skillBadges,
+  skillFileShown,
+  skillFileWords,
   skillFilter,
   skillOrigin,
   skillSearch,
@@ -19,6 +21,7 @@ import {
   usedByGroups,
   versionInUseWords,
   versionStatusWords,
+  withoutFrontMatter,
 } from "../../apps/web/src/pages/library/skills-state.ts";
 import { libraryTab } from "../../apps/web/src/pages/library/library-state.ts";
 
@@ -276,4 +279,34 @@ Deno.test("a usage row names the versions of the skill it pins, once each, in or
     [3],
   );
   assertEquals(pinnedRevisions({ skillVersionIds: [] }, versions), []);
+});
+
+Deno.test("only small text files are shown, and only as text", () => {
+  const file = (mediaType: string, sizeBytes: number, path = "a.md") => ({
+    path,
+    mediaType,
+    sizeBytes,
+  });
+  assertEquals(skillFileShown(file("text/markdown", 10)), true);
+  assertEquals(skillFileShown(file("", 10, "notes.txt")), true);
+  assertEquals(skillFileShown(file("image/png", 10)), false);
+  assertEquals(skillFileShown(file("text/markdown", 2_000_000)), false);
+  assertEquals(skillFileWords(new TextEncoder().encode("é ok")), "é ok");
+  assertEquals(skillFileWords(new Uint8Array([104, 0, 105])), null);
+  assertEquals(skillFileWords(new Uint8Array([0xff, 0xfe, 0xfd])), null);
+});
+
+Deno.test("a leading YAML header is not part of the instructions", () => {
+  assertEquals(
+    withoutFrontMatter("---\nname: x\n---\n\n# Title\n"),
+    "# Title\n",
+  );
+  assertEquals(
+    withoutFrontMatter("---\r\nname: x\r\n---\r\nBody"),
+    "Body",
+  );
+  assertEquals(
+    withoutFrontMatter("# Title\n---\nmore\n"),
+    "# Title\n---\nmore\n",
+  );
 });

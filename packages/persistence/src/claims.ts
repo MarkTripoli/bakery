@@ -42,6 +42,11 @@ import {
   rebindPreparedIdentityOperation as rebindPreparedIdentityOperationInternal,
 } from "./secret-identity.ts";
 import type { SealedCredentialOperation } from "@bakery/contracts/secret-identity";
+import {
+  coveringModelKey,
+  hostHoldsModelKey,
+  readJobKeyScope,
+} from "./model-key-coverage.ts";
 
 /**
  * The agent session a claim hands an attempt of a job (the `agentSessionId`
@@ -168,6 +173,7 @@ export type ClaimLease =
 export type ClaimsRepository = {
   acquireClaimLock(workerHostId: string, claimKey: string): Promise<void>;
   readinessGate(): Promise<DispatchGate>;
+  holdsModelKey(): Promise<boolean>;
   loadReplay(
     workerHostId: string,
     claimKey: string,
@@ -189,6 +195,7 @@ export type ClaimsRepository = {
     supportedActions: readonly string[] | undefined;
     metadata: RequestMetadata;
     principalId: string | null;
+    meteredModelOnly?: boolean;
   }): Promise<ClaimableJob | null>;
   nextAttemptNumber(jobId: string): Promise<number | undefined>;
   createLeasedAttempt(options: {
@@ -256,6 +263,15 @@ function claimHostFromRow(host: WorkerIdentity["host"]): ClaimHost {
   };
 }
 
+function requiresModel(requirements: unknown): boolean {
+  const capabilities = Array.isArray(requirements)
+    ? requirements
+    : requirements !== null && typeof requirements === "object"
+    ? (requirements as { capabilities?: unknown }).capabilities
+    : [];
+  return Array.isArray(capabilities) && capabilities.includes("model");
+}
+
 export function createClaimsRepository(
   transaction: PgTransactionClient,
   identity: WorkerIdentity,
@@ -313,6 +329,13 @@ export function createClaimsRepository(
         return { ...gate, allBlocked: true };
       }
       return gate;
+    },
+    async holdsModelKey() {
+      return await hostHoldsModelKey(
+        transaction,
+        identity.host.organizationId,
+        identity.host.id,
+      );
     },
     async acquireClaimLock(workerHostId, claimKey) {
       await transaction.query(
@@ -388,6 +411,7 @@ export function createClaimsRepository(
       supportedActions,
       metadata,
       principalId,
+      meteredModelOnly,
     }) {
       const enrolled = hostAllowedCapabilities(
         Array.isArray(identity.host.capabilities)
@@ -553,6 +577,19 @@ export function createClaimsRepository(
           await transaction.query("rollback to savepoint claim_candidate");
           await transaction.query("release savepoint claim_candidate");
           break;
+        }
+        if (
+          meteredModelOnly && requiresModel(row.requirements) &&
+          !(await coveringModelKey(
+            transaction,
+            organizationId,
+            identity.host.id,
+            await readJobKeyScope(transaction, organizationId, row.id),
+          )).ok
+        ) {
+          await transaction.query("rollback to savepoint claim_candidate");
+          await transaction.query("release savepoint claim_candidate");
+          continue;
         }
         if (row.action !== "repository.inspect") {
           try {

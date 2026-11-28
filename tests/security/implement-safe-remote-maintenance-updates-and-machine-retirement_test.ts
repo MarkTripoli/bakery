@@ -95,7 +95,7 @@ Deno.test("an operation ID is only visible under its own machine", () =>
       fixture,
       `/v1/workers/not-a-uuid/maintenance/${operation.id}`,
     );
-    assertEquals(malformed.status, 404);
+    assertEquals(malformed.status, 400);
     await malformed.body?.cancel();
   }));
 

@@ -6,6 +6,7 @@ import type {
   SkillUsage,
   SkillVersionResponse,
 } from "../../api/client.ts";
+import { isTextMedia, mediaTypeOf } from "./skill-draft-state.ts";
 
 /** Words for the translator: a key and the values it needs. */
 export type Words = {
@@ -322,4 +323,40 @@ export function copiedWords(
 /** A source's kind in words. */
 export function sourceKindWords(type: SkillSource["sourceType"]): Words {
   return { key: `library.skill.origin.kind.${type}` as const };
+}
+
+const SHOWN_FILE_BYTES = 1_000_000;
+
+export function skillFileShown(
+  file: { path: string; mediaType: string; sizeBytes: number },
+): boolean {
+  return file.sizeBytes <= SHOWN_FILE_BYTES &&
+    isTextMedia(file.mediaType || mediaTypeOf(file.path));
+}
+
+export function skillFileWords(bytes: Uint8Array): string | null {
+  if (bytes.includes(0)) return null;
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    return null;
+  }
+}
+
+export function middleTruncated(path: string, longest = 34): string {
+  if (path.length <= longest) return path;
+  const keep = longest - 1;
+  const head = Math.ceil(keep / 2);
+  return `${path.slice(0, head)}…${path.slice(path.length - (keep - head))}`;
+}
+
+export function withoutFrontMatter(words: string): string {
+  return words.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n(?:\r?\n)?/, "");
+}
+
+export function isMarkdownFile(
+  file: { path: string; mediaType: string },
+): boolean {
+  return file.mediaType.startsWith("text/markdown") ||
+    mediaTypeOf(file.path) === "text/markdown";
 }

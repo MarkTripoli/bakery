@@ -10,6 +10,7 @@ import {
 } from "../helpers/worker-execution.ts";
 import type { WorkerAssignment } from "../helpers/worker-execution/scenarios.ts";
 import { seedEligibleNonmodelJob } from "../helpers/worker-execution/nonmodel-job.ts";
+import { seedFundedModelJob } from "../helpers/funded-model-job.ts";
 
 type SecretsFixture = Awaited<ReturnType<typeof openSecretsFixture>>;
 type Worker = Awaited<ReturnType<typeof registeredWorker>>;
@@ -35,7 +36,11 @@ function asWorkerFixture(f: SecretsFixture): WorkerFixture {
 
 const HARNESS_COMPONENTS = ["harness.claude", "harness.codex", "harness.pi"];
 
-async function reportHarnesses(fixture: WorkerFixture, worker: Worker) {
+async function reportHarnesses(
+  fixture: WorkerFixture,
+  worker: Worker,
+  checks: readonly Record<string, unknown>[] = [],
+) {
   const response = await workerRequest(
     fixture,
     worker.credential,
@@ -51,10 +56,10 @@ async function reportHarnesses(fixture: WorkerFixture, worker: Worker) {
         installOwner: "external",
         adapterVersion: "1.0",
         observedAt: OBSERVED,
-        capabilities: ["git", "shell"],
+        capabilities: workerFixtureCapabilities,
         maintenanceSupport: { remoteLogin: "none" },
       })),
-      checks: [],
+      checks,
     },
     {
       headers: { "X-Bakery-Worker-Protocol-Version": "2" },
@@ -530,6 +535,175 @@ Deno.test("a policy update cannot give a key the other kind of secret's action",
       [modelKey],
     );
     assertEquals(kept.rows[0]?.allowed_actions, ["model.inference"]);
+  } finally {
+    await f.cleanup();
+  }
+});
+
+const MODEL_CHECK_FAILS = [{
+  checkId: "capability:model",
+  checkVersion: "claude-auth-1",
+  status: "fail",
+  reason: "claude_auth_unavailable",
+  observedAt: OBSERVED,
+}];
+
+async function keyOnlyMachine(
+  f: SecretsFixture,
+  fixture: WorkerFixture,
+  name: string,
+  policy?: { principals?: string[]; actions?: string[] },
+  bind = true,
+) {
+  const worker = await registeredWorker(fixture, { name });
+  await reportHarnesses(fixture, worker, MODEL_CHECK_FAILS);
+  const job = await seedFundedModelJob(
+    fixture.pgDatabase,
+    fixture.organizationId,
+    fixture.principalId,
+  );
+  if (bind) {
+    const secretId = await saveKey(
+      f,
+      job.applicationId,
+      "openai",
+      `sk-${crypto.randomUUID()}`,
+      policy,
+    );
+    const bound = await bindKey(
+      fixture,
+      worker,
+      secretId,
+      "openai",
+      "harness.pi",
+    );
+    assertEquals(bound.status, 201, await bound.clone().text());
+    await bound.body?.cancel();
+  }
+  return { worker, jobId: job.jobId };
+}
+
+const CAPABILITIES_WITHOUT_MODEL = workerFixtureCapabilities.filter((
+  capability,
+) => capability !== "model");
+
+async function claimStatus(fixture: WorkerFixture, worker: Worker) {
+  const claimKey = crypto.randomUUID();
+  const response = await workerRequest(
+    fixture,
+    worker.credential,
+    "/v1/worker/claims",
+    {
+      claimKey,
+      workerHostId: worker.registration.workerHostId,
+      capabilities: CAPABILITIES_WITHOUT_MODEL,
+    },
+    { idempotencyKey: claimKey },
+  );
+  const body = response.status === 200
+    ? await response.json() as { jobId: string }
+    : (await response.body?.cancel(), null);
+  return { status: response.status, jobId: body?.jobId ?? null };
+}
+
+async function meteredModelReady(fixture: WorkerFixture, worker: Worker) {
+  const response = await adminRequest(
+    fixture,
+    `/v1/workers/${worker.registration.workerHostId}/dispatch-blockers`,
+    undefined,
+    { method: "GET" },
+  );
+  assertEquals(response.status, 200, await response.clone().text());
+  return (await response.json() as { meteredModelReady: boolean })
+    .meteredModelReady;
+}
+
+Deno.test("a machine with no model login but a bound key takes the api-paid job", async () => {
+  const f = await openSecretsFixture();
+  try {
+    const fixture = asWorkerFixture(f);
+    const { worker, jobId } = await keyOnlyMachine(
+      f,
+      fixture,
+      "issue70-key-only",
+    );
+    assertEquals(await meteredModelReady(fixture, worker), true);
+    assertEquals(await claimStatus(fixture, worker), { status: 200, jobId });
+  } finally {
+    await f.cleanup();
+  }
+});
+
+Deno.test("a machine with no model login gets nothing without a usable key", async () => {
+  const f = await openSecretsFixture();
+  try {
+    const fixture = asWorkerFixture(f);
+    const unbound = await keyOnlyMachine(
+      f,
+      fixture,
+      "issue70-no-key",
+      undefined,
+      false,
+    );
+    assertEquals(await meteredModelReady(fixture, unbound.worker), false);
+    assertEquals((await claimStatus(fixture, unbound.worker)).status, 204);
+    await fixture.pgDatabase.query(
+      `update bakery.jobs set status = 'canceled' where id = $1`,
+      [unbound.jobId],
+    );
+    const disallowed = await keyOnlyMachine(f, fixture, "issue70-not-allowed", {
+      principals: [],
+    });
+    assertEquals(await meteredModelReady(fixture, disallowed.worker), true);
+    assertEquals((await claimStatus(fixture, disallowed.worker)).status, 204);
+  } finally {
+    await f.cleanup();
+  }
+});
+
+Deno.test("a bound key never holds back work that needs no model", async () => {
+  const f = await openSecretsFixture();
+  try {
+    const fixture = asWorkerFixture(f);
+    const { worker, jobId } = await keyOnlyMachine(
+      f,
+      fixture,
+      "issue70-nonmodel",
+    );
+    await fixture.pgDatabase.query(
+      `update bakery.jobs set status = 'canceled' where id = $1`,
+      [jobId],
+    );
+    const check = await seedEligibleNonmodelJob(
+      fixture.pgDatabase,
+      fixture.organizationId,
+      fixture.principalId,
+    );
+    assertEquals(await claimStatus(fixture, worker), {
+      status: 200,
+      jobId: check.jobId,
+    });
+  } finally {
+    await f.cleanup();
+  }
+});
+
+Deno.test("a machine whose only key version has expired is not ready for api-paid work", async () => {
+  const f = await openSecretsFixture();
+  try {
+    const fixture = asWorkerFixture(f);
+    const { worker } = await keyOnlyMachine(f, fixture, "issue70-expired");
+    assertEquals(await meteredModelReady(fixture, worker), true);
+    await fixture.pgDatabase.query(
+      `update bakery.secret_versions as version
+          set expires_at = clock_timestamp() - interval '1 minute'
+         from bakery.worker_provider_bindings as binding
+        where binding.worker_host_id = $1
+          and version.secret_id = binding.secret_id`,
+      [worker.registration.workerHostId],
+    );
+    assertEquals(await meteredModelReady(fixture, worker), false);
+    assertEquals((await claimStatus(fixture, worker)).status, 204);
   } finally {
     await f.cleanup();
   }

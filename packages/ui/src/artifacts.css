@@ -192,6 +192,29 @@
 .ui-artifact-viewer__markdown a {
   color: var(--color-selection);
 }
+.ui-artifact-viewer__markdown hr {
+  inline-size: 100%;
+  margin: 0;
+  border-width: var(--space-0);
+  border-block-start: var(--border-default) solid var(--color-border);
+}
+.ui-artifact-viewer__table {
+  inline-size: var(--space-0);
+  min-inline-size: 100%;
+  overflow-x: auto;
+}
+.ui-artifact-viewer__markdown table {
+  border-collapse: collapse;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+.ui-artifact-viewer__markdown th,
+.ui-artifact-viewer__markdown td {
+  border: var(--border-default) solid var(--color-border);
+  padding: var(--space-1) var(--space-2);
+  text-align: start;
+  vertical-align: top;
+}
 @media (pointer: coarse) {
   .ui-artifact-viewer__markdown a {
     display: inline-flex;

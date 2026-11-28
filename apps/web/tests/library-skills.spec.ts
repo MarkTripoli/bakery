@@ -304,6 +304,146 @@ for (
       expectReadsOnly(seen);
     });
 
+    test("a skill's instructions and other files can be read on its page", async ({ page }) => {
+      await skillsFixture(page);
+      await page.goto(skillPage(IDS.houseStyle));
+      const files = page.getByTestId("skill-files");
+      await expect(files.getByRole("heading", { name: "How we write" }))
+        .toBeVisible();
+      await expect(files.getByText("Short sentences")).toBeVisible();
+      await expect(files).not.toContainText("name: house-style");
+      const example = files.getByRole("button", {
+        name: "examples/good-answer.md",
+      });
+      await example.click();
+      await expect(example).toHaveAttribute("aria-expanded", "true");
+      await expect(files.getByText("It says one thing first.")).toBeVisible();
+      await files.scrollIntoViewIfNeeded();
+      await still(page, "skill-files");
+      await example.click();
+      await expect(files.getByText("It says one thing first.")).toHaveCount(0);
+      await files.getByRole("button", { name: "scripts/check.sh" }).click();
+      await expect(files).toContainText(
+        "This file cannot be shown here.",
+      );
+      await still(page, "skill-file-cannot-show");
+    });
+
+    test("a huge table is cut off and an address with brackets links", async ({ page }) => {
+      const address = "https://api.test/items?page[size]=2";
+      await skillsFixture(page, {
+        extraFiles: [{
+          path: "huge.md",
+          mediaType: "text/markdown",
+          words: `[docs](${address})\n\n${"a|".repeat(40)}\n${
+            "-|".repeat(40)
+          }\n${"|\n".repeat(400)}`,
+        }],
+      });
+      await page.goto(skillPage(IDS.houseStyle));
+      const files = page.getByTestId("skill-files");
+      await files.getByRole("button", { name: "huge.md" }).click();
+      await expect(files.getByRole("link", { name: "docs" })).toHaveAttribute(
+        "href",
+        address,
+      );
+      await expect(files.getByRole("columnheader")).toHaveCount(40);
+      await expect(files.getByRole("cell")).toHaveCount(4_960);
+      await expect(files.locator("pre").last()).toContainText("|");
+    });
+
+    test("awkward files stay inside the page and lose nothing", async ({ page }) => {
+      const longName =
+        "references/a-very-long-reference-file-name-for-the-team.md";
+      await skillsFixture(page, {
+        extraFiles: [
+          {
+            path: "long.sh",
+            mediaType: "text/x-shellscript",
+            words: `#!/bin/sh\necho ${"x".repeat(600)}\n`,
+          },
+          {
+            path: "rules.md",
+            mediaType: "text/markdown",
+            words:
+              "---\n\nNever publish without approval.\n\n---\n\n| Rule | Why |\n| --- | --- |\n| Ask first | Mistakes |\n",
+          },
+          { path: "empty.txt", mediaType: "text/plain", words: "" },
+          {
+            path: "wide.md",
+            mediaType: "text/markdown",
+            words: `| ${
+              Array.from({ length: 12 }, (_, i) => `Column ${i + 1}`).join(
+                " | ",
+              )
+            } |\n|${" --- |".repeat(12)}\n| ${
+              Array.from({ length: 12 }, () => "measurement").join(" | ")
+            } |\n`,
+          },
+          { path: longName, mediaType: "text/markdown", words: "Short." },
+        ],
+      });
+      await page.goto(skillPage(IDS.houseStyle));
+      const files = page.getByTestId("skill-files");
+      await files.getByRole("button", { name: "long.sh" }).click();
+      await expect(files).toContainText("xxxxxxxxxx");
+      expect(
+        await page.evaluate(() =>
+          document.documentElement.scrollWidth - globalThis.innerWidth
+        ),
+      ).toBeLessThanOrEqual(0);
+      await files.scrollIntoViewIfNeeded();
+      await still(page, "skill-files-long-line");
+      await files.getByRole("button", { name: "rules.md" }).click();
+      await expect(files).toContainText("Never publish without approval.");
+      await expect(files.getByRole("separator")).toHaveCount(2);
+      await expect(files.getByRole("columnheader", { name: "Rule" }))
+        .toBeVisible();
+      await expect(files.getByRole("cell", { name: "Ask first" }))
+        .toBeVisible();
+      await still(page, "skill-files-table");
+      await files.getByRole("button", { name: "wide.md" }).click();
+      const wide = files.getByRole("group", { name: /^Column 1, / });
+      await expect(wide).toBeVisible();
+      expect(
+        await page.evaluate(() =>
+          document.documentElement.scrollWidth - globalThis.innerWidth
+        ),
+      ).toBeLessThanOrEqual(0);
+      expect(
+        await files.getByRole("cell", { name: "measurement" }).first()
+          .evaluate((cell) => cell.getBoundingClientRect().width),
+      ).toBeGreaterThan(60);
+      if (test.info().project.name === "mobile") {
+        expect(
+          await wide.evaluate((box) => box.scrollWidth > box.clientWidth),
+        ).toBe(true);
+      }
+      await still(page, "skill-files-wide-table");
+      await files.getByRole("button", { name: "empty.txt" }).click();
+      await expect(files).toContainText("This file is empty.");
+      const long = files.getByRole("button", { name: longName });
+      await expect(long).toContainText("…");
+      await expect(long).toHaveAttribute("title", longName);
+      await files.scrollIntoViewIfNeeded();
+      await still(page, "skill-files-awkward");
+    });
+
+    test("a file that does not load says so and can be tried again", async ({ page }) => {
+      await skillsFixture(page);
+      let fail = true;
+      await page.route(
+        (url) => url.pathname.endsWith("/files/SKILL.md"),
+        (route) => fail ? route.fulfill({ status: 500 }) : route.fallback(),
+      );
+      await page.goto(skillPage(IDS.houseStyle));
+      const files = page.getByTestId("skill-files");
+      await expect(files.getByText("This file did not load.")).toBeVisible();
+      fail = false;
+      await files.getByRole("button", { name: "Try again" }).click();
+      await expect(files.getByText("Write plainly.")).toBeVisible();
+    });
+
     test("an organization skill: its description, what uses it in two groups, written here", async ({ page }) => {
       const { seen } = await skillsFixture(page);
       await page.goto(skillPage(IDS.releaseNotes));
