@@ -91,10 +91,17 @@ const skill = (
   ...extra,
 });
 
+type ExtraFile = {
+  readonly path: string;
+  readonly mediaType: string;
+  readonly words: string;
+};
+
 function versionsOf(
   entry: Skill,
   count: number,
   licenses: Readonly<Record<string, string>>,
+  extra: readonly ExtraFile[] = [],
 ) {
   return Array.from({ length: count }, (_, index) => {
     const revision = index + 1;
@@ -112,6 +119,13 @@ function versionsOf(
           ? {}
           : { license: licenses[entry.id] }),
         files: [
+          ...extra.map((file) => ({
+            path: file.path,
+            mediaType: file.mediaType,
+            sizeBytes: Buffer.byteLength(file.words),
+            sha256: "d".repeat(64),
+            isExecutable: false,
+          })),
           {
             path: "SKILL.md",
             mediaType: "text/markdown",
@@ -162,6 +176,7 @@ function versionsOf(
 }
 
 export type SkillsOptions = {
+  readonly extraFiles?: readonly ExtraFile[];
   /** No skill at all. */
   readonly empty?: boolean;
   /** Scopes that have no skills. */
@@ -190,6 +205,12 @@ export type Seen = {
   readonly search: string;
   readonly ifMatch?: string | null;
   readonly body?: Record<string, unknown> | null;
+};
+
+const SKILL_FILE_WORDS: Readonly<Record<string, string>> = {
+  "SKILL.md":
+    "---\nname: house-style\ndescription: How we write.\n---\n\n# How we write\n\nWrite plainly.\n\n- Short sentences\n- No jargon\n",
+  "examples/good-answer.md": "## A good answer\n\nIt says one thing first.\n",
 };
 
 export async function skillsFixture(page: Page, options: SkillsOptions = {}) {
@@ -471,7 +492,15 @@ export async function skillsFixture(page: Page, options: SkillsOptions = {}) {
         case "versions":
           return json(
             route,
-            pageOf(versionsOf(entry, versionCount(entry), licenses), url),
+            pageOf(
+              versionsOf(
+                entry,
+                versionCount(entry),
+                licenses,
+                options.extraFiles,
+              ),
+              url,
+            ),
           );
         case "used-by": {
           if (options.usedByStatus !== undefined) {
@@ -551,6 +580,26 @@ export async function skillsFixture(page: Page, options: SkillsOptions = {}) {
         default:
           return problem(route, 404, "RESOURCE_NOT_FOUND");
       }
+    },
+  );
+  await page.route(
+    (url) => /^\/v1\/skill-versions\/[^/]+\/files\//.test(url.pathname),
+    (route) => {
+      const path = decodeURIComponent(
+        new URL(route.request().url()).pathname.split("/files/")[1]!,
+      );
+      const body = SKILL_FILE_WORDS[path] ??
+        options.extraFiles?.find((file) => file.path === path)?.words;
+      if (body === undefined) return route.fulfill({ status: 500 });
+      return route.fulfill({
+        status: 200,
+        headers: {
+          "Content-Type": "text/markdown",
+          "Content-Length": String(Buffer.byteLength(body)),
+          "ETag": `"${"a".repeat(64)}"`,
+        },
+        body,
+      });
     },
   );
   return { seen };

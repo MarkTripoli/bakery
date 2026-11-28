@@ -335,6 +335,7 @@ export type WorkerProviderBindingCreate =
   ClientInputMap["WorkerProviderBindingCreate"];
 export type ModelProviderAccountListResponse =
   ClientOutputMap["Page<ModelProviderAccount>"];
+export type SkillFileBytes = ClientOutputMap["BinarySkillFile"];
 export type ProviderRouteListResponse = ClientOutputMap["Page<ProviderRoute>"];
 export type ProviderRouteResponse = ClientOutputMap["ProviderRoute"];
 export type RouteHealthResponse = ClientOutputMap["RouteHealth"];
@@ -2298,6 +2299,12 @@ export type BakeryApiClient = {
     readonly limit?: number;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<SkillVersionListResponse>>;
+  readonly readSkillFile: (options: {
+    readonly organizationId: string;
+    readonly versionId: string;
+    readonly path: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<SkillFileBytes>>;
   /** The agent and workflow versions that use one skill, one page of a cursor list. */
   readonly listSkillUsedBy: (options: {
     readonly organizationId: string;
@@ -7568,6 +7575,21 @@ export function createBakeryApiClient({
             ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
             ...(options.limit === undefined ? {} : { limit: options.limit }),
           },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async readSkillFile(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["skillFiles.get"](
+          { id: options.versionId, path: options.path },
           { signal: options.signal },
         );
         return { ok: true, data };
