@@ -1,5 +1,6 @@
 import { BootstrapError } from "./errors.ts";
 import {
+  forgetLink,
   hasUnsafeCharacter,
   hasVisibleCharacter,
   normalizeServerOrigin,
@@ -368,7 +369,12 @@ async function linkWithCode(
       capabilities: inspection.capabilities,
       boundAt: io.now().toISOString(),
     }, code);
-    await io.startService(binding, command.root);
+    try {
+      await io.startService(binding, command.root);
+    } catch (error) {
+      await forgetLink(command.root);
+      throw error;
+    }
     io.write("✓ Service started\n");
   } catch (error) {
     if (error instanceof LinkStepFailed) {

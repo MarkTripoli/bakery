@@ -95,13 +95,9 @@ Deno.test("the Linux service is one sudo script: account, root, worker, settings
   );
 });
 
-Deno.test("a repaired machine's old registration is dropped from the service root too", () => {
+Deno.test("rerunning the script keeps the worker's registration", () => {
   const script = linuxLinkScript(BINDING, SOURCE);
-  assert(
-    script.includes(
-      `if [ ! -e '${SOURCE}/state/registration.json' ]; then rm -f '/var/lib/bakery-worker/state/registration.json'; fi`,
-    ),
-  );
+  assert(!script.includes("registration.json"));
 });
 
 Deno.test("a path with a quote stays one shell word", () => {

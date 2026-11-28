@@ -98,7 +98,6 @@ export function linuxLinkScript(
   const spec = linkServiceSpec(binding, root, account);
   const source = quoted(sourceRoot);
   const target = quoted(root);
-  const registration = quoted(join(root, "state", "registration.json"));
   return [
     "set -eu",
     `id -u ${account} >/dev/null 2>&1 || useradd --system --user-group --home-dir ${target} --shell /usr/sbin/nologin ${account}`,
@@ -108,9 +107,6 @@ export function linuxLinkScript(
     `cp -a ${source}/releases ${source}/current ${
       quoted(join(sourceRoot, PAIRING_FILE))
     } ${quoted(join(sourceRoot, TOKEN_FILE))} ${target}/`,
-    `if [ ! -e ${
-      quoted(join(sourceRoot, "state", "registration.json"))
-    } ]; then rm -f ${registration}; fi`,
     `chown -R ${account}:${account} ${target}`,
     fileFrom(
       environmentFileText(spec),
