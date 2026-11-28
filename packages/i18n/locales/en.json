@@ -4080,6 +4080,7 @@
   "machines.forbidden.description": "Only organization members can see machines.",
   "machines.offline.title": "Machines are offline",
   "machines.offline.lastUpdated": "You are offline. Last updated {time}.",
+  "machines.offline.now": "You are offline.",
   "machines.agents.signedInAs": "Signed in as {account}.",
   "machines.checks.showMore": "Show more",
   "machines.checks.showLess": "Show less",

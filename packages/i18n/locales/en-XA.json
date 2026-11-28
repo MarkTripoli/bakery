@@ -2531,6 +2531,7 @@
   "machines.about.slots": "⟦Ŧàšķš àŧ ôñçë ŧë⟧",
   "machines.checks.failed": "⟦Ƒàïļëð…⟧",
   "machines.repair.title": "⟦Šëŧ ûþ {name} àĝàïñ ŧëšŧ⟧",
+  "machines.repair.leave": "⟦Ïƒ ÿôû ļëàṽë ŧĥïš þàĝë ŧĥë šëŧûþ çôðë ïš ļôšŧ. Šëļëçŧ Šëŧ ûþ àĝàïñ ŧô ĝëŧ à ñëŵ ôñë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧",
   "machines.repair.failed": "⟦Ɓàķëŕÿ çôûļð ñôŧ šŧàŕŧ ŧĥë šëŧûþ. Ŧŕÿ àĝàïñ. ŧëšŧ çôþÿ ŧëš⟧",
   "machines.retire.dialogAgain": "⟦Ŧĥë ɱàçĥïñë çàñ ƀë šëŧ ûþ àĝàïñ ļàŧëŕ. ŧëšŧ çôþÿ ŧ⟧",
   "machines.pagination.truncated.machines": "⟦Šĥôŵïñĝ ŧĥë ƒïŕšŧ {count} ɱàçĥïñëš. Ṁôŕë àŕë àṽàïļàƀļë. ŧëšŧ çôþÿ ŧëšŧ çô⟧",
@@ -7926,5 +7927,6 @@
   "machines.agents.signedInAs": "⟦Šïĝñëð ïñ àš {account}. ŧëšŧ ç⟧",
   "machines.checks.showMore": "⟦Šĥôŵ ɱôŕë ŧ⟧",
   "machines.checks.showLess": "⟦Šĥôŵ ļëšš ŧ⟧",
+  "machines.offline.now": "⟦Ÿôû àŕë ôƒƒļïñë. ŧëš⟧",
   "machines.repair.byHand": "⟦Šëŧ ûþ ƀÿ ĥàñð ïñšŧëàð ŧëšŧŧ⟧"
 }

@@ -355,6 +355,13 @@ export function useAgentSignIn(options: {
         data-testid="agent-sign-in"
       >
         <UI.Stack gap="standard">
+          {offline
+            ? (
+              <UI.AlertBanner tone="warning" role="status">
+                {message(translate, "machines.offline.now")}
+              </UI.AlertBanner>
+            )
+            : null}
           {paidPerUse(session.row)
             ? (
               <UI.Text>
