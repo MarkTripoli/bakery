@@ -16189,6 +16189,17 @@
           "description": "What changed on the issue, when pausedBy is bakery, in the words the issue page uses for a paused request; null otherwise, and when the change is none of those four."
         }
       ]
+    },
+    "StepGivenQuery": {
+      "fields": [
+        {
+          "name": "runStepId",
+          "type": "uuid",
+          "required": false,
+          "description": "Identifier of one pass of the step, from the run's step list. When given, the answer is what that pass was given; when left out, it is the latest pass. A pass of another step or run is not found."
+        }
+      ],
+      "description": "Chooses which pass of a workflow step to describe; a step that repeats has one pass per iteration, each with its own start time, remembered facts and session."
     }
   },
   "projections": {

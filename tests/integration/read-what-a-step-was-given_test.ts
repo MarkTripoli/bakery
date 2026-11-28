@@ -260,7 +260,7 @@ Deno.test(
       const read = (stepKey: string, capabilities: readonly string[]) =>
         operation.handler(
           context(stepKey, capabilities),
-          contractSchemas.IdPath.parse({ id: seeded.runId }),
+          contractSchemas.StepGivenQuery.parse({}),
         );
 
       const withRead = contractSchemas.StepGiven.parse(
@@ -289,6 +289,61 @@ Deno.test(
         StandardError,
       ) as StandardError;
       assertEquals(refused.code, "RESOURCE_NOT_FOUND");
+    }),
+);
+
+Deno.test(
+  "a repeated step answers for the pass the reader names, and for its latest pass by default",
+  () =>
+    withWorkerFixture(async (fixture) => {
+      const seeded = await seedStep(fixture);
+      const firstPass = (await fixture.pgDatabase.query<{ id: string }>(
+        `update bakery.run_steps
+            set started_at = '2026-11-20T09:00:00Z',
+                dispatch = '{"facts":{"facts":[],"omitted":1}}'::jsonb
+          where organization_id = $1 and run_id = $2 and step_key = $3
+          returning id`,
+        [fixture.organizationId, seeded.runId, seeded.stepKey],
+      )).rows[0].id;
+      const secondPass = (await fixture.pgDatabase.query<{ id: string }>(
+        `insert into bakery.run_steps
+         select (json_populate_record(
+                   null::bakery.run_steps,
+                   (to_jsonb(step) || jsonb_build_object(
+                     'id', gen_random_uuid(),
+                     'iteration', step.iteration + 1,
+                     'started_at', '2026-11-21T09:00:00Z',
+                     'dispatch', '{"facts":{"facts":[],"omitted":2}}'::jsonb
+                   ))::json)).*
+           from bakery.run_steps step
+          where step.organization_id = $1 and step.id = $2
+         returning id`,
+        [fixture.organizationId, firstPass],
+      )).rows[0].id;
+
+      const read = (runStepId?: string) =>
+        readStepGiven(fixture.pgDatabase, {
+          organizationId: fixture.organizationId,
+          runId: seeded.runId,
+          stepKey: seeded.stepKey,
+          ...(runStepId === undefined ? {} : { runStepId }),
+          readerMayRead: true,
+        });
+
+      const latest = await read();
+      assertEquals(latest?.startedAt, "2026-11-21T09:00:00.000Z");
+      assertEquals(latest?.factsOmitted, 2);
+      assertEquals(latest?.ranAnAgent, false);
+
+      const named = await read(secondPass);
+      assertEquals(named?.factsOmitted, 2);
+
+      const earlier = await read(firstPass);
+      assertEquals(earlier?.startedAt, "2026-11-20T09:00:00.000Z");
+      assertEquals(earlier?.factsOmitted, 1);
+      assertEquals(earlier?.ranAnAgent, true);
+
+      assertEquals(await read(crypto.randomUUID()), null);
     }),
 );
 

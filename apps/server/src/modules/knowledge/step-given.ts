@@ -82,34 +82,35 @@ export async function readStepGiven(
     organizationId: string;
     runId: string;
     stepKey: string;
+    runStepId?: string;
     readerMayRead: boolean;
   }>,
 ): Promise<StepGiven | null> {
   const step = (await transaction.query<{
+    id: string;
     stepKey: string;
     startedAt: Date | string | null;
     recorded: StepFactsRecord | null;
   }>(
-    `select step_key as "stepKey",
+    `select id,
+            step_key as "stepKey",
             started_at as "startedAt",
             dispatch -> 'facts' as recorded
        from bakery.run_steps
       where organization_id = $1 and run_id = $2 and step_key = $3
+        and ($4::uuid is null or id = $4::uuid)
       order by iteration desc
       limit 1`,
-    [input.organizationId, input.runId, input.stepKey],
+    [input.organizationId, input.runId, input.stepKey, input.runStepId ?? null],
   )).rows[0];
   if (step === undefined) return null;
 
   const ranAnAgent = (await transaction.query<{ ran: boolean }>(
     `select exists (
        select 1 from bakery.agent_sessions
-        where organization_id = $1 and run_step_id = (
-          select id from bakery.run_steps
-           where organization_id = $1 and run_id = $2 and step_key = $3
-           order by iteration desc limit 1))
+        where organization_id = $1 and run_step_id = $2)
        as ran`,
-    [input.organizationId, input.runId, input.stepKey],
+    [input.organizationId, step.id],
   )).rows[0].ran;
 
   const recorded = step.recorded?.facts ?? [];
