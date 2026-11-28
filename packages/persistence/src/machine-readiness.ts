@@ -1197,6 +1197,15 @@ export function createMachineReadinessWorkflows(
       // A still-unconsumed repair enrollment for this host under a different
       // idempotency key owns the host's single pending-repair slot (partial
       // unique index); conflict instead of a raw unique violation.
+      await transaction.query(
+        `update bakery.worker_enrollments
+            set canceled_at = clock_timestamp(),
+                updated_at = clock_timestamp(), version = version + 1
+          where organization_id = $1 and target_worker_host_id = $2
+            and consumed_at is null and canceled_at is null
+            and expires_at <= clock_timestamp()`,
+        [organizationId, workerHostId],
+      );
       const pendingRepair = await transaction.query<{ id: string }>(
         `select id from bakery.worker_enrollments
          where organization_id = $1 and target_worker_host_id = $2

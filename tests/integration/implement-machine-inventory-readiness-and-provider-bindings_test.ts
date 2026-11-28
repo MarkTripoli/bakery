@@ -672,3 +672,46 @@ Deno.test("a machine read lists every check with its result and when, and who re
     assertEquals(retired.retirement?.name, person.rows[0]!.display_name);
     assert(retired.retirement?.at);
   }));
+
+Deno.test("an expired repair code no longer blocks Set up again", () =>
+  withWorkerFixture(async (fixture) => {
+    const worker = await registeredWorker(fixture, {
+      name: "issue70-expired-repair",
+    });
+    const hostId = worker.registration.workerHostId;
+    const revoked = await adminRequest(
+      fixture,
+      `/v1/workers/${hostId}/revocations`,
+      {},
+      { method: "POST", idempotencyKey: crypto.randomUUID() },
+    );
+    assertEquals(revoked.status, 200);
+    const repair = () =>
+      adminRequest(
+        fixture,
+        `/v1/workers/${hostId}/enrollments`,
+        {},
+        { method: "POST", idempotencyKey: crypto.randomUUID() },
+      );
+    const first = await repair();
+    assertEquals(first.status, 201, await first.clone().text());
+    const firstId = (await first.json() as { enrollmentId: string })
+      .enrollmentId;
+    const blocked = await repair();
+    assertEquals(
+      blocked.status,
+      409,
+      "a live repair code still holds the slot",
+    );
+    await blocked.body?.cancel();
+    await fixture.pgDatabase.query(
+      `update bakery.worker_enrollments set expires_at = now() - interval '1 second'
+        where id = $1`,
+      [firstId],
+    );
+    const second = await repair();
+    assertEquals(second.status, 201, await second.clone().text());
+    const secondId = (await second.json() as { enrollmentId: string })
+      .enrollmentId;
+    assert(secondId !== firstId);
+  }));
