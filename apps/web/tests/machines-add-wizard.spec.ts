@@ -445,7 +445,7 @@ test.describe("add a machine wizard", () => {
     expect(setup.creates[0]!.postDataJSON()).toMatchObject({
       os: "linux",
       architecture: "x64",
-      capabilities: ["git", "shell", "web", "model", "claude"],
+      capabilities: ["git", "shell", "web", "model", "claude", "tool-gateway"],
     });
     // The machine is supported, so its steps carry no warning.
     await expect(page.getByText("is not a supported system yet")).toHaveCount(
@@ -502,7 +502,7 @@ test.describe("add a machine wizard", () => {
       os: "linux",
       architecture: "arm64",
       slots: 1,
-      capabilities: ["git", "shell", "web", "model", "claude"],
+      capabilities: ["git", "shell", "web", "model", "claude", "tool-gateway"],
     });
     await expect(
       page.locator("[data-ui-component=codeBlock]").filter({

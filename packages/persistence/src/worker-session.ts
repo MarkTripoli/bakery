@@ -1,3 +1,4 @@
+import { hostAllowedCapabilities } from "@bakery/contracts/workflow-action-registry";
 import { StandardError } from "@bakery/contracts/http";
 import type { PgTransactionClient } from "./postgres.ts";
 import {
@@ -406,7 +407,9 @@ export function createWorkerSessionWorkflows(
       if (
         !isSubset(
           options.capabilities,
-          normalized(enrollmentRow.allowed_capabilities),
+          hostAllowedCapabilities(
+            normalized(enrollmentRow.allowed_capabilities),
+          ),
         )
       ) {
         throw new StandardError({
@@ -475,7 +478,12 @@ export function createWorkerSessionWorkflows(
             params: { field: "slots" },
           });
         }
-        if (!isSubset(options.capabilities, normalized(host.capabilities))) {
+        if (
+          !isSubset(
+            options.capabilities,
+            hostAllowedCapabilities(normalized(host.capabilities)),
+          )
+        ) {
           throw new StandardError({
             code: "UNPROCESSABLE",
             params: { field: "capabilities" },

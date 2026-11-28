@@ -1,8 +1,11 @@
 import { type CodingAgent, machineBadge } from "./machine-state.ts";
-import { installState, parsedSlots } from "./machine-wizard.ts";
+import {
+  enrollmentCapabilities,
+  installState,
+  parsedSlots,
+} from "./machine-wizard.ts";
 
 export const STILL_WAITING_AFTER_MS = 120_000;
-export const COMMAND_CAPABILITIES = ["git", "shell", "web", "model"] as const;
 
 export type AddAnswers = Readonly<{
   name: string;
@@ -40,7 +43,7 @@ export function commandInput(answers: AddAnswers): CommandInput | null {
   const name = answers.name.trim();
   return {
     ...(name.length > 0 ? { name } : {}),
-    capabilities: [...COMMAND_CAPABILITIES, answers.agent as CodingAgent],
+    capabilities: enrollmentCapabilities(answers.agent as CodingAgent),
     slots,
   };
 }

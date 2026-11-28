@@ -467,6 +467,22 @@ export const HOST_CAPABILITY_SUBSTITUTES: Readonly<
 /** The worker host capability a Claude harness worker advertises (#436). */
 export const TOOL_GATEWAY_CAPABILITY = "tool-gateway" as const;
 
+const CLAUDE_HOST_CAPABILITIES: ReadonlySet<string> = new Set([
+  "claude",
+  "claude-code",
+]);
+
+export function hostAllowedCapabilities(
+  allowed: readonly string[],
+): readonly string[] {
+  return allowed.some((capability) =>
+      CLAUDE_HOST_CAPABILITIES.has(capability)
+    ) &&
+      !allowed.includes(TOOL_GATEWAY_CAPABILITY)
+    ? [...allowed, TOOL_GATEWAY_CAPABILITY]
+    : allowed;
+}
+
 /**
  * A host's capabilities with every action capability its substitutes meet
  * added, so the one subset rule (job requirements within host capabilities)

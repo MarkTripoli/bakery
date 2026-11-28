@@ -26175,6 +26175,8 @@ const transportSchemas = {
         "lastHeartbeatAt",
         "credentialGeneration",
         "archivedAt",
+        "checks",
+        "retirement",
         "cleanup",
         "createdAt",
         "updatedAt",
@@ -26200,6 +26202,8 @@ const transportSchemas = {
         "lastHeartbeatAt": "timestamp|null",
         "credentialGeneration": "integer",
         "archivedAt": "timestamp|null",
+        "checks": "WorkerCheckResult[]",
+        "retirement": "WorkerRetirement|null",
         "cleanup": "WorkerHostCleanup",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
@@ -26208,7 +26212,8 @@ const transportSchemas = {
       "nullableFields": [
         "lastHeartbeatAt",
         "readinessReason",
-        "archivedAt"
+        "archivedAt",
+        "retirement"
       ],
       "description": "A registered worker machine's identity, derived operating state and declared capacity: OS/architecture, advertised capabilities and toolchain versions, concurrent execution slots, lifecycle status, and the server-derived desired mode, connectivity and readiness dimensions. desiredMode is Admin intent (accepting, paused, draining, revoked); connectivity derives only from authenticated heartbeat receipt times (stale after 30 seconds, offline after 60); readiness derives from current-generation checks, protocol compatibility, credential state and scheduling policy — never from a client-writable flag. Old inventory/check generations, unsafe secret isolation or offline capability cannot advertise usable capacity: readinessReason explains a needs_attention state. credentialGeneration increments on rotation or revocation, invalidating any bearer credential from an earlier generation; the credential itself is never returned in a response. Revocation stops authority immediately but deleting or archiving the cloud record never claims the host was erased: cleanup stays unconfirmed until the host itself reports the Bakery-owned files it removed. archivedAt marks a revoked host hidden from the default machine list.",
       "fieldDescriptions": {
@@ -26231,6 +26236,8 @@ const transportSchemas = {
         "lastHeartbeatAt": "UTC timestamp when the worker last reported health.",
         "credentialGeneration": "Credential generation loaded by the worker host.",
         "archivedAt": "UTC timestamp when an Admin archived this revoked host; null while it is listed by default. Archived hosts keep every historical reference and stay readable by ID.",
+        "checks": "Every readiness check the machine last reported, passed or not, with its result and when it was observed.",
+        "retirement": "Who retired the machine and when; null unless the machine is retired.",
         "cleanup": "What Bakery knows about removal of its own files and service from the host after revocation; never claims confirmed without host evidence.",
         "createdAt": "UTC timestamp when the record was created.",
         "updatedAt": "UTC timestamp when the record was last updated.",
@@ -26242,7 +26249,9 @@ const transportSchemas = {
         "readiness",
         "readinessReason",
         "failedCheckIds",
-        "unsettledAttemptCount"
+        "unsettledAttemptCount",
+        "checks",
+        "retirement"
       ]
     },
     "Preview": {
@@ -40278,6 +40287,56 @@ const transportSchemas = {
       "fieldDescriptions": {
         "authorizationUrl": "Slack's OpenID Connect sign-in address, built from the organization's Slack app client id, Bakery's fixed identity callback and the connected workspace, carrying the single-use state and nonce; shown only in this response.",
         "expiresAt": "UTC timestamp fifteen minutes after the attempt was created, after which the state is refused."
+      }
+    },
+    "WorkerCheckResult": {
+      "fields": [
+        "checkId",
+        "componentKey",
+        "result",
+        "reason",
+        "observedAt"
+      ],
+      "fieldTypes": {
+        "checkId": "string",
+        "componentKey": "string|null",
+        "result": "enum(pass|fail|unknown|not_applicable)",
+        "reason": "string<=8192bytes|null",
+        "observedAt": "timestamp"
+      },
+      "nullableFields": [
+        "componentKey",
+        "reason"
+      ],
+      "description": "One readiness check the machine last reported, as the machine page's Checks table shows it. A result that no longer applies to the machine's current sign-in, inventory or time window reads unknown (Could not be checked).",
+      "fieldDescriptions": {
+        "checkId": "Stable readiness check identifier, including capability:<capability> checks.",
+        "componentKey": "The software component the check is about, or null for a machine-wide check.",
+        "result": "pass, fail, unknown (could not be checked, or the result is out of date) or not_applicable (does not apply to this machine).",
+        "reason": "Bounded safe explanation recorded with the check, or null when it gave none.",
+        "observedAt": "UTC time the machine observed this result (the Checked column)."
+      }
+    },
+    "WorkerRetirement": {
+      "fields": [
+        "principalId",
+        "name",
+        "at"
+      ],
+      "fieldTypes": {
+        "principalId": "uuid|null",
+        "name": "string|null",
+        "at": "timestamp"
+      },
+      "nullableFields": [
+        "principalId",
+        "name"
+      ],
+      "description": "Who retired a machine and when, from the audit record of the retirement.",
+      "fieldDescriptions": {
+        "principalId": "The person who retired the machine, or null when the record names nobody.",
+        "name": "Their display name, or null when it is not known.",
+        "at": "UTC time the machine was retired."
       }
     }
   },

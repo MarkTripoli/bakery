@@ -8,6 +8,7 @@ import {
   derivedEnrollmentState,
   dispatchGate,
   evaluateReadiness,
+  isFreshCheck,
 } from "@bakery/persistence/machine-readiness";
 import { IDEMPOTENCY_REPLAY_TTL_SECONDS } from "@bakery/persistence";
 import { appendDomainEvent } from "@bakery/persistence/event-audit";
@@ -202,16 +203,39 @@ async function safeWorkerProjection(
   if (!host) return null;
   const checks = await transaction.query<{
     check_id: string;
+    component_key: string | null;
     status: string;
+    reason: string | null;
     host_generation: number;
     inventory_revision: number;
     expires_at: Date;
+    observed_at: Date;
   }>(
-    `select check_id, status, host_generation, inventory_revision, expires_at
+    `select check_id, component_key, status, reason, host_generation,
+            inventory_revision, expires_at, observed_at
      from bakery.worker_checks
-     where worker_host_id = $1`,
+     where worker_host_id = $1
+     order by check_id asc, component_key asc nulls first, id asc`,
     [host.id],
   );
+  const retirement = host.status === "revoked"
+    ? (await transaction.query<{
+      principal_id: string | null;
+      name: string | null;
+      created_at: Date;
+    }>(
+      `select audit.principal_id, principal.display_name as name,
+              audit.created_at
+         from bakery.audit_events audit
+         left join bakery.principals principal on principal.id = audit.principal_id
+        where audit.organization_id = $1 and audit.resource_type = 'worker_host'
+          and audit.resource_id = $2::text and audit.outcome = 'succeeded'
+          and audit.operation = 'workers.revoke'
+        order by audit.created_at desc, audit.id desc
+        limit 1`,
+      [host.organization_id, host.id],
+    )).rows[0] ?? null
+    : null;
   // Work this machine has not finished with: running, being stopped, or of
   // unknown outcome. A machine finishing its work is done when this is zero.
   const unsettled = await transaction.query<{ count: number }>(
@@ -261,6 +285,31 @@ async function safeWorkerProjection(
       : null,
     credentialGeneration: host.credential_generation,
     archivedAt: host.archived_at ? iso(host.archived_at) : null,
+    checks: checks.rows.map((row) => ({
+      checkId: row.check_id,
+      componentKey: row.component_key,
+      result: isFreshCheck({
+          checkId: row.check_id,
+          componentKey: row.component_key,
+          status: row.status,
+          hostGeneration: row.host_generation,
+          inventoryRevision: row.inventory_revision,
+          expiresAt: row.expires_at,
+        }, {
+          now,
+          credentialGeneration: host.credential_generation,
+          inventoryRevision: host.inventory_revision,
+        })
+        ? row.status
+        : "unknown",
+      reason: row.reason,
+      observedAt: iso(row.observed_at),
+    })),
+    retirement: retirement === null ? null : {
+      principalId: retirement.principal_id,
+      name: retirement.name,
+      at: iso(retirement.created_at),
+    },
     cleanup: {
       state: host.cleanup_state,
       requestedAt: host.cleanup_requested_at
