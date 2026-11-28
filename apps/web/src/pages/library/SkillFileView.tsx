@@ -5,11 +5,11 @@ import { skillFileQueryOptions } from "../../api/query.ts";
 import { useProtectedScope } from "../../app/query-scope-context.tsx";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
 import {
-  fileSize,
   isMarkdownFile,
   type ManifestFile,
   skillFileShown,
   skillFileWords,
+  withoutFrontMatter,
 } from "./skills-state.ts";
 
 export function SkillFileView(
@@ -18,7 +18,7 @@ export function SkillFileView(
     readonly file: ManifestFile;
   },
 ) {
-  const { translate, locale } = useI18n();
+  const { translate } = useI18n();
   const api = useBakeryApi();
   const scope = useProtectedScope();
   const shown = skillFileShown(file);
@@ -26,9 +26,7 @@ export function SkillFileView(
   const bytes = useQuery({ ...options, enabled: shown && options.enabled });
   const cannot = (
     <UI.Text variant="muted">
-      {translate("library.skill.files.cannotShow", {
-        size: fileSize(file.sizeBytes, locale),
-      })}
+      {translate("library.skill.files.cannotShow")}
     </UI.Text>
   );
   if (!shown) return cannot;
@@ -57,7 +55,7 @@ export function SkillFileView(
       <UI.ArtifactViewer
         label={translate("library.skill.files.contents")}
         size="full"
-        content={{ kind: "markdown", text: words }}
+        content={{ kind: "markdown", text: withoutFrontMatter(words) }}
       />
     )
     : <UI.CodeBlock aria-label={file.path} code={words} />;

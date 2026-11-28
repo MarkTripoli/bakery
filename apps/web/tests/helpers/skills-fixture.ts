@@ -194,7 +194,7 @@ export type Seen = {
 
 const SKILL_FILE_WORDS: Readonly<Record<string, string>> = {
   "SKILL.md":
-    "# How we write\n\nWrite plainly.\n\n- Short sentences\n- No jargon\n",
+    "---\nname: house-style\ndescription: How we write.\n---\n\n# How we write\n\nWrite plainly.\n\n- Short sentences\n- No jargon\n",
   "examples/good-answer.md": "## A good answer\n\nIt says one thing first.\n",
 };
 

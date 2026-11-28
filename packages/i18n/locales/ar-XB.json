@@ -7944,7 +7944,7 @@
   "machines.checks.outOfDate": "⟪Out of date⟫",
   "machines.checks.outOfDateAdvice": "⟪This result is out of date. It is checked again when the machine is back.⟫",
   "machines.tabs.checksUnchecked": "⟪{count} not checked⟫",
-  "library.skill.files.cannotShow": "⟪This file cannot be shown here. It is {size}.⟫",
   "library.skill.files.fileError": "⟪This file did not load.⟫",
-  "library.skill.files.contents": "⟪File contents⟫"
+  "library.skill.files.contents": "⟪File contents⟫",
+  "library.skill.files.cannotShow": "⟪This file cannot be shown here.⟫"
 }

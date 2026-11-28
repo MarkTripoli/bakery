@@ -311,6 +311,7 @@ for (
       await expect(files.getByRole("heading", { name: "How we write" }))
         .toBeVisible();
       await expect(files.getByText("Short sentences")).toBeVisible();
+      await expect(files).not.toContainText("name: house-style");
       const example = files.getByRole("button", {
         name: "examples/good-answer.md",
       });
@@ -323,7 +324,7 @@ for (
       await expect(files.getByText("It says one thing first.")).toHaveCount(0);
       await files.getByRole("button", { name: "scripts/check.sh" }).click();
       await expect(files).toContainText(
-        "This file cannot be shown here. It is 1.3 MB.",
+        "This file cannot be shown here.",
       );
       await still(page, "skill-file-cannot-show");
     });

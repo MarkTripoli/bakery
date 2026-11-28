@@ -343,6 +343,10 @@ export function skillFileWords(bytes: Uint8Array): string | null {
   }
 }
 
+export function withoutFrontMatter(words: string): string {
+  return words.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n(?:\r?\n)?/, "");
+}
+
 export function isMarkdownFile(
   file: { path: string; mediaType: string },
 ): boolean {
