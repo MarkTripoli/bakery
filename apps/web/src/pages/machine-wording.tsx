@@ -34,8 +34,9 @@ export function bannerBodyKey(
 }
 
 export function RetireWarning(
-  { unfinished, translate }: {
+  { unfinished, finishing, translate }: {
     unfinished: number | undefined;
+    finishing: boolean;
     translate: Translator;
   },
 ) {
@@ -49,7 +50,11 @@ export function RetireWarning(
             count: unfinished,
           })}
       </UI.Text>
-      <UI.Text>{translate("machines.retire.finishFirst" as never)}</UI.Text>
+      {finishing ? null : (
+        <UI.Text>
+          {translate("machines.retire.finishFirst" as never)}
+        </UI.Text>
+      )}
     </>
   );
 }

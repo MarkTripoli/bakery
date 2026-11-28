@@ -735,6 +735,31 @@ test.describe("machine page: mode and Retire", () => {
     });
   }
 
+  for (const unsettled of [0, 2]) {
+    test(`retiring a finishing machine with ${unsettled} tasks does not offer to finish`, async ({ page }) => {
+      await open(
+        page,
+        fixture({
+          desiredMode: "draining",
+          status: "draining",
+          unsettledAttemptCount: unsettled,
+        }),
+      );
+      await page.getByRole("button", { name: "Retire this machine" }).first()
+        .click();
+      const dialog = page.getByRole("alertdialog");
+      await expect(dialog).toContainText("Retire fixture-host?");
+      await expect(dialog).not.toContainText("choose Finish and stop");
+      await expect(dialog.getByRole("button")).toHaveText([
+        "Cancel",
+        "Retire now",
+      ]);
+      await shot(page, `machine-page-retire-finishing-${unsettled}`, [], {
+        windowOnly: true,
+      });
+    });
+  }
+
   test("retiring a machine with unfinished tasks says they are cut off", async ({ page }) => {
     await open(page, fixture({ unsettledAttemptCount: 2 }));
     await page.getByRole("button", { name: "Retire this machine" }).first()

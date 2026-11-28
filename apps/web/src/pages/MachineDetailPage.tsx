@@ -974,7 +974,9 @@ export function MachineDetailPage(
                                 <UI.Text variant="muted">
                                   {message(
                                     translate,
-                                    "machines.retire.description",
+                                    canSetUpAgain
+                                      ? "machines.retire.description"
+                                      : "machines.retire.descriptionNoAgain",
                                   )}
                                 </UI.Text>
                                 <UI.Inline gap="compact">
@@ -1012,16 +1014,20 @@ export function MachineDetailPage(
                                           "machines.retire.cancel",
                                         )}
                                       </UI.Button>
-                                      <UI.Button
-                                        variant="secondary"
-                                        loading={modeBusy}
-                                        onClick={() => void finishInstead()}
-                                      >
-                                        {message(
-                                          translate,
-                                          "machines.retire.finishInstead",
+                                      {requestedMode(workerData) === "draining"
+                                        ? null
+                                        : (
+                                          <UI.Button
+                                            variant="secondary"
+                                            loading={modeBusy}
+                                            onClick={() => void finishInstead()}
+                                          >
+                                            {message(
+                                              translate,
+                                              "machines.retire.finishInstead",
+                                            )}
+                                          </UI.Button>
                                         )}
-                                      </UI.Button>
                                     </UI.Inline>
                                   }
                                   confirmAction={
@@ -1046,6 +1052,8 @@ export function MachineDetailPage(
                                     <RetireWarning
                                       unfinished={workerData
                                         .unsettledAttemptCount}
+                                      finishing={requestedMode(workerData) ===
+                                        "draining"}
                                       translate={translate}
                                     />
                                     <UI.Text>

@@ -2516,7 +2516,6 @@
   "machines.software.title": "⟪Software⟫",
   "machines.software.empty": "⟪No software has been reported.⟫",
   "machines.retire.title": "⟪Retire this machine⟫",
-  "machines.retire.description": "⟪A retired machine takes no work and cannot be used again until it is added again.⟫",
   "machines.retire.button": "⟪Retire this machine⟫",
   "machines.retire.dialogTitle": "⟪Retire {name}?⟫",
   "machines.retire.dialogBody": "⟪It stops taking new work now and its sign-in to Bakery ends.⟫",
@@ -7885,5 +7884,7 @@
   "machines.retire.finishFirst": "⟪To let them finish first, choose Finish and stop.⟫",
   "machines.finishing.expired": "⟪The setup expired.⟫",
   "machines.finishing.continue": "⟪Continue setup⟫",
-  "machines.finishing.continueNamed": "⟪Continue setup of {name}⟫"
+  "machines.finishing.continueNamed": "⟪Continue setup of {name}⟫",
+  "machines.retire.description": "⟪A retired machine takes no work until it is set up again.⟫",
+  "machines.retire.descriptionNoAgain": "⟪A retired machine takes no work and cannot be set up again.⟫"
 }
