@@ -746,7 +746,15 @@ export async function archiveWorker(
   );
 }
 
-const WORKER_NAME_QUERY_MAX = 200;
+const WORKER_NAME_QUERY_MAX_BYTES = 200;
+
+function hasControlCharacter(value: string): boolean {
+  for (const character of value) {
+    const code = character.codePointAt(0)!;
+    if (code < 0x20 || code === 0x7f) return true;
+  }
+  return false;
+}
 
 function parseWorkerListQuery(
   context: Context<{ Variables: AuthVariables }>,
@@ -767,7 +775,11 @@ function parseWorkerListQuery(
   }
   const queries = search.getAll("query");
   const query = queries[0]?.trim() ?? "";
-  if (queries.length > 1 || query.length > WORKER_NAME_QUERY_MAX) {
+  if (
+    queries.length > 1 ||
+    new TextEncoder().encode(query).byteLength > WORKER_NAME_QUERY_MAX_BYTES ||
+    hasControlCharacter(query)
+  ) {
     throw new StandardError({ code: "MALFORMED_REQUEST" });
   }
   const cursor = search.get("cursor") ?? undefined;

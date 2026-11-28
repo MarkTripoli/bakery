@@ -996,4 +996,23 @@ Deno.test("the machine list finds machines by name, and a cursor keeps its searc
     );
     assertEquals(tooLong.status, 400);
     await tooLong.body?.cancel();
+    const wideButShort = await readMaintenance(
+      fixture,
+      `/v1/workers?query=${encodeURIComponent("é".repeat(101))}`,
+    );
+    assertEquals(
+      wideButShort.status,
+      400,
+      "the bound is 200 bytes, not characters",
+    );
+    await wideButShort.body?.cancel();
+    const wideWithin = await readMaintenance(
+      fixture,
+      `/v1/workers?query=${encodeURIComponent("é".repeat(100))}`,
+    );
+    assertEquals(wideWithin.status, 200);
+    await wideWithin.body?.cancel();
+    const nul = await readMaintenance(fixture, "/v1/workers?query=a%00b");
+    assertEquals(nul.status, 400, "a control character is refused, not a 500");
+    await nul.body?.cancel();
   }));
