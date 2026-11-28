@@ -231,12 +231,12 @@ test.describe("machines list layout", () => {
       );
       await expect(expired).toContainText(EXPIRED_NAME);
       await expect(expired).toContainText("Expired");
-      await expect(expired).toContainText("The settings expired.");
+      await expect(expired).toContainText("The setup expired.");
       // Either can be given new settings or canceled.
       await expect(expired.getByRole("button")).toHaveCount(2);
       await expect(pending.getByRole("button")).toHaveCount(2);
 
-      for (const label of ["Get new settings", "Cancel setup"]) {
+      for (const label of ["Continue setup", "Cancel setup"]) {
         const button = pending.getByRole("button", { name: label });
         await expect(button).toBeVisible();
         const box = await button.boundingBox();

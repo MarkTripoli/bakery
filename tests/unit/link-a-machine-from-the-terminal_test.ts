@@ -1,7 +1,7 @@
 // The `link` command (#70) against a fake Bakery and a fake terminal: the
 // design's terminal text verbatim, both paths (a code in the command, and a
 // code an Admin approves), and every case where it stops.
-import { assert, assertEquals } from "@std/assert";
+import { assert, assertEquals, assertRejects } from "@std/assert";
 import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -276,6 +276,44 @@ Deno.test("a computer already linked is not changed", async () => {
     } finally {
       await second.close();
     }
+  } finally {
+    await h.close();
+  }
+});
+
+Deno.test("after a failed service step, running the same command again adds the service", async () => {
+  let failures = 1;
+  const h = await harness({
+    routes: {
+      [INSPECT]: [
+        { status: 200, body: preview() },
+        { status: 200, body: preview() },
+        { status: 200, body: preview() },
+        { status: 409, body: { reason: "used" } },
+      ],
+    },
+    startService: () => {
+      if (failures > 0) {
+        failures -= 1;
+        return Promise.reject(
+          new LinkStepFailed(
+            "The service could not be added.",
+            "/tmp/service.log",
+          ),
+        );
+      }
+      h.events.push("service");
+      return Promise.resolve();
+    },
+  });
+  try {
+    assertEquals(await h.run(), 2);
+    assert(h.text().includes("Fix it, then run the same command again."));
+    await assertRejects(() => stat(join(h.root, "pairing.json")));
+    await assertRejects(() => stat(join(h.root, "enrollment-token")));
+    assertEquals(await h.run(), 0, h.text());
+    assert(h.events.includes("service"));
+    assert(!h.text().includes("already linked"));
   } finally {
     await h.close();
   }

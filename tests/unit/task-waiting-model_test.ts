@@ -170,20 +170,18 @@ Deno.test("the second line, with no next check, drops the last sentence", () => 
   );
 });
 
-Deno.test("the card promises no choice, with or without a target", () => {
-  for (
-    const targets of [
-      [],
-      [target({ priced: false })],
-      [target()],
-    ]
-  ) {
-    const copy = cardCopy(offer({ targets, nextCheckAt: null }), t, when, name);
-    assertEquals(
-      copy.second,
-      "Bakery has not moved this work anywhere else. It tries the step again with the same model, and the waiting ends when a try works.",
-    );
-    assert(!copy.second.includes("choose"));
+Deno.test("the second line says there is no other way only when no target can be chosen", () => {
+  const waits =
+    "Bakery has not moved this work anywhere else. It tries the step again with the same model, and the waiting ends when a try works.";
+  const second = (targets: ReturnType<typeof target>[]) =>
+    cardCopy(offer({ targets, nextCheckAt: null }), t, when, name).second;
+  assertEquals(
+    second([]),
+    `${waits} There is no other way to run this step right now.`,
+  );
+  for (const targets of [[target({ priced: false })], [target()]]) {
+    assertEquals(second(targets), waits);
+    assert(!second(targets).includes("choose"));
   }
 });
 

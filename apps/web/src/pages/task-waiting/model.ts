@@ -140,9 +140,6 @@ export function cardCopy(
   const { source } = offer;
   const agent = agentName(t, source.harness);
   const provider = providerName(source.provider);
-  // No way to choose ships yet (the chooser is a later slice), so the second
-  // line promises no choice: only what Bakery has not done and when it tries
-  // the provider again.
   const second = [
     t("tasks.waiting.second"),
     ...(offer.nextCheckAt === null ? [] : [
@@ -151,6 +148,7 @@ export function cardCopy(
         time: when(offer.nextCheckAt),
       }),
     ]),
+    ...(offer.targets.length > 0 ? [] : [t("tasks.waiting.second.noWay")]),
   ].join(" ");
   return {
     badge: t("tasks.waiting.badge"),
