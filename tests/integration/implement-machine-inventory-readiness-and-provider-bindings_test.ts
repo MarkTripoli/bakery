@@ -602,3 +602,43 @@ Deno.test("expired global failures and offline machines stop advertising capacit
     assertEquals(assignment.attemptId.length > 0, true);
     assert(assignment.fence !== undefined);
   }));
+
+Deno.test("a Claude machine enrolled before the tool gateway reports and claims with it", () =>
+  withWorkerFixture(async (fixture) => {
+    const claude = await registeredWorker(fixture, {
+      name: "issue70-claude-pre-gateway",
+      capabilities: ["git", "shell", "claude"],
+    });
+    const report = await reportInventory(
+      fixture,
+      claude.credential,
+      claude.registration.registrationGeneration,
+      1,
+      [
+        { checkId: "capability:git", status: "pass" },
+        { checkId: "capability:tool-gateway", status: "pass" },
+      ],
+    );
+    assertEquals(report.status, 200, await report.clone().text());
+    const claimed = await claimRaw(fixture, claude, [
+      "git",
+      "claude",
+      "tool-gateway",
+    ]);
+    assert(
+      claimed.status === 200 || claimed.status === 204,
+      `a pre-gateway Claude machine claims with tool-gateway: ${claimed.status}`,
+    );
+    await claimed.body?.cancel();
+
+    const codex = await registeredWorker(fixture, {
+      name: "issue70-codex-no-gateway",
+      capabilities: ["git", "shell", "codex"],
+    });
+    const refused = await claimRaw(fixture, codex, [
+      "git",
+      "codex",
+      "tool-gateway",
+    ]);
+    assertEquals(refused.status, 403);
+  }));
