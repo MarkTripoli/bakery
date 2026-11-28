@@ -412,6 +412,7 @@ function fakeApi(
     listSkills: rejecting,
     getSkill: rejecting,
     listSkillVersions: rejecting,
+    readSkillFile: rejecting,
     listSkillUsedBy: rejecting,
     listSkillUseGrants: rejecting,
     getSkillSource: rejecting,

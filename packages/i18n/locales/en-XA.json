@@ -7927,5 +7927,8 @@
   "machines.agents.signedInAs": "⟦Šïĝñëð ïñ àš {account}. ŧëšŧ ç⟧",
   "machines.checks.showMore": "⟦Šĥôŵ ɱôŕë ŧ⟧",
   "machines.checks.showLess": "⟦Šĥôŵ ļëšš ŧ⟧",
-  "machines.offline.now": "⟦Ÿôû àŕë ôƒƒļïñë. ŧëš⟧"
+  "machines.offline.now": "⟦Ÿôû àŕë ôƒƒļïñë. ŧëš⟧",
+  "library.skill.files.cannotShow": "⟦Ŧĥïš ƒïļë çàññôŧ ƀë šĥôŵñ ĥëŕë. Ïŧ ïš {size}. ŧëšŧ çôþÿ ŧëš⟧",
+  "library.skill.files.fileError": "⟦Ŧĥïš ƒïļë ðïð ñôŧ ļôàð. ŧëšŧ ç⟧",
+  "library.skill.files.contents": "⟦Ƒïļë çôñŧëñŧš ŧë⟧"
 }

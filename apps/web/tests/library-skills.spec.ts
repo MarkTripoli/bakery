@@ -304,6 +304,45 @@ for (
       expectReadsOnly(seen);
     });
 
+    test("a skill's instructions and other files can be read on its page", async ({ page }) => {
+      await skillsFixture(page);
+      await page.goto(skillPage(IDS.houseStyle));
+      const files = page.getByTestId("skill-files");
+      await expect(files.getByRole("heading", { name: "How we write" }))
+        .toBeVisible();
+      await expect(files.getByText("Short sentences")).toBeVisible();
+      const example = files.getByRole("button", {
+        name: "examples/good-answer.md",
+      });
+      await example.click();
+      await expect(example).toHaveAttribute("aria-expanded", "true");
+      await expect(files.getByText("It says one thing first.")).toBeVisible();
+      await files.scrollIntoViewIfNeeded();
+      await still(page, "skill-files");
+      await example.click();
+      await expect(files.getByText("It says one thing first.")).toHaveCount(0);
+      await files.getByRole("button", { name: "scripts/check.sh" }).click();
+      await expect(files).toContainText(
+        "This file cannot be shown here. It is 1.3 MB.",
+      );
+      await still(page, "skill-file-cannot-show");
+    });
+
+    test("a file that does not load says so and can be tried again", async ({ page }) => {
+      await skillsFixture(page);
+      let fail = true;
+      await page.route(
+        (url) => url.pathname.endsWith("/files/SKILL.md"),
+        (route) => fail ? route.fulfill({ status: 500 }) : route.fallback(),
+      );
+      await page.goto(skillPage(IDS.houseStyle));
+      const files = page.getByTestId("skill-files");
+      await expect(files.getByText("This file did not load.")).toBeVisible();
+      fail = false;
+      await files.getByRole("button", { name: "Try again" }).click();
+      await expect(files.getByText("Write plainly.")).toBeVisible();
+    });
+
     test("an organization skill: its description, what uses it in two groups, written here", async ({ page }) => {
       const { seen } = await skillsFixture(page);
       await page.goto(skillPage(IDS.releaseNotes));

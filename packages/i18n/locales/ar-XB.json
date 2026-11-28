@@ -7927,5 +7927,8 @@
   "machines.agents.signedInAs": "⟪Signed in as {account}.⟫",
   "machines.checks.showMore": "⟪Show more⟫",
   "machines.checks.showLess": "⟪Show less⟫",
-  "machines.offline.now": "⟪You are offline.⟫"
+  "machines.offline.now": "⟪You are offline.⟫",
+  "library.skill.files.cannotShow": "⟪This file cannot be shown here. It is {size}.⟫",
+  "library.skill.files.fileError": "⟪This file did not load.⟫",
+  "library.skill.files.contents": "⟪File contents⟫"
 }

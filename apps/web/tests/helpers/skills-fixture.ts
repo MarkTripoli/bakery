@@ -192,6 +192,12 @@ export type Seen = {
   readonly body?: Record<string, unknown> | null;
 };
 
+const SKILL_FILE_WORDS: Readonly<Record<string, string>> = {
+  "SKILL.md":
+    "# How we write\n\nWrite plainly.\n\n- Short sentences\n- No jargon\n",
+  "examples/good-answer.md": "## A good answer\n\nIt says one thing first.\n",
+};
+
 export async function skillsFixture(page: Page, options: SkillsOptions = {}) {
   await mockAuthenticatedSession(page);
   await page.clock.setSystemTime(new Date(NOW));
@@ -551,6 +557,25 @@ export async function skillsFixture(page: Page, options: SkillsOptions = {}) {
         default:
           return problem(route, 404, "RESOURCE_NOT_FOUND");
       }
+    },
+  );
+  await page.route(
+    (url) => /^\/v1\/skill-versions\/[^/]+\/files\//.test(url.pathname),
+    (route) => {
+      const path = decodeURIComponent(
+        new URL(route.request().url()).pathname.split("/files/")[1]!,
+      );
+      const body = SKILL_FILE_WORDS[path];
+      if (body === undefined) return route.fulfill({ status: 500 });
+      return route.fulfill({
+        status: 200,
+        headers: {
+          "Content-Type": "text/markdown",
+          "Content-Length": String(Buffer.byteLength(body)),
+          "ETag": `"${"a".repeat(64)}"`,
+        },
+        body,
+      });
     },
   );
   return { seen };
