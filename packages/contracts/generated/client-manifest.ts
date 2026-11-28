@@ -6353,7 +6353,9 @@ export const clientManifest = {
       "idempotency": "Read; opaque cursor pagination",
       "errors": [
         "AUTH_REQUIRED",
-        "AUTH_FORBIDDEN"
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST"
       ],
       "organizationContext": "required_authenticated_context",
       "implemented": true

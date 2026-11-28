@@ -1086,6 +1086,19 @@ export function MachineDetailPage(
                                   }
                                 >
                                   <UI.Stack gap="compact">
+                                    {offline
+                                      ? (
+                                        <UI.AlertBanner
+                                          tone="warning"
+                                          role="status"
+                                        >
+                                          {message(
+                                            translate,
+                                            "machines.offline.now",
+                                          )}
+                                        </UI.AlertBanner>
+                                      )
+                                      : null}
                                     <UI.Text>
                                       {message(
                                         translate,

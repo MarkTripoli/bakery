@@ -6422,7 +6422,9 @@
       "idempotency": "Read; opaque cursor pagination",
       "errors": [
         "AUTH_REQUIRED",
-        "AUTH_FORBIDDEN"
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST"
       ],
       "organizationContext": "required_authenticated_context",
       "implemented": true
@@ -34219,13 +34221,13 @@
               }
             },
             "400": {
-              "description": "Malformed request."
+              "description": "Malformed request (MALFORMED_REQUEST)."
             },
             "401": {
               "description": "Authentication required (AUTH_REQUIRED)."
             },
             "403": {
-              "description": "Forbidden (AUTH_FORBIDDEN)."
+              "description": "Forbidden (AUTH_FORBIDDEN, SCOPE_REQUIRED)."
             },
             "500": {
               "description": "Internal server error."

@@ -1020,6 +1020,26 @@ test.describe("the sign-in dialog", () => {
     expect(w.createdAttempts.length).toBe(1);
   });
 
+  test("offline, a failed sign-in says why it cannot be tried again", async ({ page, context }) => {
+    await open(
+      page,
+      world({
+        failAttempts: 1,
+        script: script({ reads: ["challenge_issued"] }),
+      }),
+    );
+    await banner(page).getByRole("button", { name: "Sign in", exact: true })
+      .click();
+    const again = dialog(page).getByRole("button", { name: "Try again" });
+    await expect(again).toBeEnabled();
+    await context.setOffline(true);
+    await expect(dialog(page)).toContainText("You are offline.");
+    await expect(again).toBeDisabled();
+    await shot(page, "machine-agents-dialog-offline", [], {
+      windowOnly: true,
+    });
+  });
+
   test("closing the dialog while it still says Starting cancels the sign-in as soon as it exists", async ({ page }) => {
     let release: () => void = () => {};
     const w = world({

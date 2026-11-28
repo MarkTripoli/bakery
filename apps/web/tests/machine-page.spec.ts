@@ -271,12 +271,15 @@ test.describe("machine page: states", () => {
     const dialog = page.getByRole("alertdialog");
     await expect(dialog.getByRole("button", { name: "Retire now" }))
       .toBeEnabled();
+    await expect(dialog).not.toContainText("You are offline.");
     await context.setOffline(true);
+    await expect(dialog).toContainText("You are offline.");
     for (const name of ["Retire now", "Finish and stop instead"]) {
       await expect(dialog.getByRole("button", { name })).toBeDisabled();
     }
     await expect(dialog.getByRole("button", { name: "Cancel" }))
       .toBeEnabled();
+    await shot(page, "machine-page-retire-offline", [], { windowOnly: true });
   });
 
   test("offline still opens the checks", async ({ page, context }) => {
