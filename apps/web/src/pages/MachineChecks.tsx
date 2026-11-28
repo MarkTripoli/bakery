@@ -4,7 +4,8 @@ import type { MessageArguments, MessageKey, Translator } from "@bakery/i18n";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import { useShellViewport } from "../app/responsive.ts";
 import { MachineLoading } from "./MachineLoading.tsx";
-import { checkInfo, groupChecks } from "./machine-page-state.ts";
+import { MachineCheckTable } from "./MachineCheckTable.tsx";
+import { checkRows, type ReportedCheck } from "./machine-checks.ts";
 import { type SoftwareRow, softwareRows } from "./machine-software.ts";
 
 function message(
@@ -31,6 +32,9 @@ export type MachineChecksProps = {
     };
   };
   readonly components: Refetchable & { readonly isSuccess: boolean };
+  readonly reported: readonly ReportedCheck[];
+  readonly reachable: boolean;
+  readonly formatDate: (value: string) => string;
   readonly componentItems: Parameters<typeof softwareRows>[0];
   readonly nextComponentCursor: string | null | undefined;
   readonly componentContinuation: Refetchable & {
@@ -44,6 +48,9 @@ export type MachineChecksProps = {
 export function MachineChecks(
   {
     blockers,
+    reported,
+    reachable,
+    formatDate,
     components,
     componentItems,
     nextComponentCursor,
@@ -105,106 +112,12 @@ export function MachineChecks(
                   }
                 />
               )
-              : blockers.data?.failedChecks.length
-              ? (
-                <UI.Stack gap="standard">
-                  {groupChecks(
-                    blockers.data.failedChecks.map((
-                      check,
-                    ) => check.checkId),
-                  ).map(({ group, ids }) => (
-                    <UI.Stack key={group} gap="compact">
-                      <UI.Heading
-                        level="subsection-compact"
-                        rank={3}
-                      >
-                        {message(
-                          translate,
-                          `machines.checks.group.${group}`,
-                        )}
-                      </UI.Heading>
-                      <UI.DescriptionList>
-                        {ids.map((id) => {
-                          const info = checkInfo(id);
-                          const failed = blockers.data!
-                            .failedChecks
-                            .find((
-                              check,
-                            ) => check.checkId === id)!;
-                          const agentName = info.agent
-                            ? message(
-                              translate,
-                              `machines.agent.${info.agent}`,
-                            )
-                            : null;
-                          return (
-                            <UI.DescriptionItem
-                              key={id}
-                              action={
-                                <UI.Badge tone="danger">
-                                  {message(
-                                    translate,
-                                    "machines.checks.failed",
-                                  )}
-                                </UI.Badge>
-                              }
-                              title={info.nameKey
-                                ? message(
-                                  translate,
-                                  info.agent
-                                    ? "machines.check.name.capability.modelAgent"
-                                    : info.nameKey,
-                                  {
-                                    agent: agentName ?? "",
-                                  },
-                                )
-                                : id}
-                              description={
-                                <UI.Stack gap="compact">
-                                  {info.fixKey
-                                    ? (
-                                      <UI.Text>
-                                        {message(
-                                          translate,
-                                          info.fixKey,
-                                        )}
-                                      </UI.Text>
-                                    )
-                                    : null}
-                                  <UI.ExpandableText
-                                    lines={6}
-                                    showLabel={message(
-                                      translate,
-                                      "machines.checks.showMore",
-                                    )}
-                                    hideLabel={message(
-                                      translate,
-                                      "machines.checks.showLess",
-                                    )}
-                                  >
-                                    {failed.reason?.trim() ||
-                                      message(
-                                        translate,
-                                        "machines.checks.noReason",
-                                      )}
-                                  </UI.ExpandableText>
-                                </UI.Stack>
-                              }
-                            />
-                          );
-                        })}
-                      </UI.DescriptionList>
-                    </UI.Stack>
-                  ))}
-                </UI.Stack>
-              )
               : (
-                <UI.Text>
-                  {message(
-                    translate,
-                    "machines.checks.none",
-                  )}
-                </UI.Text>
+                <MachineCheckTable
+                  rows={checkRows(reported, blockers.data?.failedChecks ?? [])}
+                  reachable={reachable}
+                  formatDate={formatDate}
+                />
               )}
           </UI.SettingsSection>
         )
