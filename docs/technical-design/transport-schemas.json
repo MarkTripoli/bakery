@@ -36863,7 +36863,7 @@
       "description": "The result of checking a skill's draft as a publish would: whether it can be published, and each problem as a sentence tied to its file and, where known, its line.",
       "fieldDescriptions": {
         "ok": "True when the draft can be published as it is.",
-        "problems": "Each problem with file (the file's path, or null when it is about the skill as a whole), line (or null), code and message in plain words; at most 50.",
+        "problems": "Each problem with file (the file's path, or null when it is about the skill as a whole), line (or null), code, message in plain words, and missingPath: for referenced_file_missing the skill-relative path the instructions name, which adding a file at that path fixes; null for every other code. At most 50.",
         "draftVersion": "The draft version that was checked; a later change makes the result stale."
       }
     },

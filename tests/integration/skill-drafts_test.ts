@@ -26,6 +26,7 @@ type Check = {
     line: number | null;
     code: string;
     message: string;
+    missingPath: string | null;
   }[];
   draftVersion: number;
 };
@@ -233,6 +234,7 @@ Deno.test("a skill's draft starts from its active version, is edited and checked
       flagged.problems[0].message,
       'The instructions mention "references/missing.md", which is not in this skill.',
     );
+    assertEquals(flagged.problems[0].missingPath, "references/missing.md");
 
     // Bad files are refused with the field named; nothing is stored.
     const unsafe = await owner.call("POST", `${draftPath}/files`, {
@@ -556,6 +558,7 @@ Deno.test("a stray percent sign in a link is a problem the check reports, not a 
       [{ file: "SKILL.md", line: 3, code: "referenced_file_missing" }],
     );
     assert(linkProblems[0].message.includes("50%off.md"));
+    assertEquals(linkProblems[0].missingPath, "50%off.md");
   } finally {
     await f.close();
     await Deno.remove(root, { recursive: true });

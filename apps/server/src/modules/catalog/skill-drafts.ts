@@ -698,6 +698,7 @@ type DraftProblem = {
   line: number | null;
   code: string;
   message: string;
+  missingPath: string | null;
 };
 
 async function readDraftFiles(
@@ -758,9 +759,10 @@ async function draftProblems(
     line: number | null,
     code: string,
     message: string,
+    missingPath: string | null = null,
   ) => {
     if (problems.length < SKILL_DRAFT_MAX_PROBLEMS) {
-      problems.push({ file, line, code, message });
+      problems.push({ file, line, code, message, missingPath });
     }
   };
   try {
@@ -794,6 +796,7 @@ async function draftProblems(
           link.line,
           "referenced_file_missing",
           `The instructions mention "${link.target}", which is not in this skill.`,
+          target,
         );
       }
     }

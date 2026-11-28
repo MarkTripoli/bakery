@@ -116978,9 +116978,9 @@ export const clientManifest = {
                 "description": "JSON object value."
               }
             ],
-            "description": "Each problem with file (the file's path, or null when it is about the skill as a whole), line (or null), code and message in plain words; at most 50. Each array item follows this format."
+            "description": "Each problem with file (the file's path, or null when it is about the skill as a whole), line (or null), code, message in plain words, and missingPath: for referenced_file_missing the skill-relative path the instructions name, which adding a file at that path fixes; null for every other code. At most 50. Each array item follows this format."
           },
-          "description": "Each problem with file (the file's path, or null when it is about the skill as a whole), line (or null), code and message in plain words; at most 50."
+          "description": "Each problem with file (the file's path, or null when it is about the skill as a whole), line (or null), code, message in plain words, and missingPath: for referenced_file_missing the skill-relative path the instructions name, which adding a file at that path fixes; null for every other code. At most 50."
         },
         "draftVersion": {
           "type": "integer",
